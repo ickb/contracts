@@ -255,5 +255,5 @@ fn limit_order_backed_owner_is_blocked_in_phase1() {
 
     let create_tx = context.complete_tx(create_tx);
     let err = context.verify_tx(&create_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -15);
+    assert_script_error(err, ERROR_DAO_INCORRECT_CAPACITY);
 }

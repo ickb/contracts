@@ -71,7 +71,7 @@ fn live_claim_cannot_roll_into_fresh_pair() {
 
     let tx = context.complete_tx(tx);
     let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -19);
+    assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
 // Consuming multiple live pairs still cannot rotate them into a new set of live pairs once the full DAO claim rules are enforced.
@@ -249,5 +249,5 @@ fn live_claims_cannot_rotate_into_new_pairs() {
 
     let rotate_tx = context.complete_tx(rotate_tx);
     let err = context.verify_tx(&rotate_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -19);
+    assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
 }

@@ -88,7 +88,7 @@ fn cell_using_limit_order_as_both_lock_and_type_is_rejected() {
 // Create a lock-only output with undecodable order bytes, then spend it and fail once the input lock parses the malformed payload.
 #[test]
 fn lock_only_limit_order_with_invalid_data_can_be_created_but_not_spent() {
-    assert_lock_only_limit_order_spend_error(Bytes::from(vec![1, 2, 3]), 4);
+    assert_lock_only_limit_order_spend_error(Bytes::from(vec![1, 2, 3]), ERROR_ENCODING);
 }
 
 // Create a lock-only output whose forged data selects an unknown action, then spend it and fail when the input lock validates the action tag.
@@ -210,5 +210,5 @@ fn lock_only_limit_order_missing_udt_type_hits_generic_failure_even_at_valid_cap
 fn lock_only_limit_order_with_trailing_bytes_can_be_created_but_hits_length_check_on_spend() {
     let mut data = order_data_mint(0, 1, (1, 1)).to_vec();
     data.push(0xaa);
-    assert_lock_only_limit_order_spend_error(Bytes::from(data), 3);
+    assert_lock_only_limit_order_spend_error(Bytes::from(data), ERROR_LENGTH_NOT_ENOUGH);
 }

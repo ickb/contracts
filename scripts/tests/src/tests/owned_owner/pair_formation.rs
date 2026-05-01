@@ -98,7 +98,7 @@ fn withdrawal_shape_cannot_be_created_without_any_dao_input() {
 
     let tx = context.complete_tx(tx);
     let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -19);
+    assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
 // Scenario: one withdrawal output is paired with two owner outputs in the same batch.

@@ -156,7 +156,7 @@ fn dao_phase2_rejects_short_header_dep_index_witness_in_input_type() {
 fn dao_phase2_rejects_misbound_deposit_header_index_in_large_batch() {
     let (context, tx) = build_many_header_phase2_batch(64, Some((37, 1)));
     let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -14);
+    assert_script_error(err, ERROR_DAO_INVALID_WITHDRAW_BLOCK);
 }
 
 // Build one tx that claims two withdrawal cells from two different deposit headers with separate header indices: mixed-header phase2 batching is allowed when each input names its own deposit header, so verification should pass.

@@ -193,7 +193,7 @@ fn melt_rejects_misbound_deposit_header_index() {
 
     let tx = context.complete_tx(tx);
     let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -14);
+    assert_script_error(err, ERROR_DAO_INVALID_WITHDRAW_BLOCK);
 }
 
 // Scenario: the witness input_type is too short to hold a u64 header index.

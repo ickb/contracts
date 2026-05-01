@@ -540,5 +540,5 @@ fn mainnet_live_claims_cannot_rotate_into_new_owned_owner_pairs() {
 
     let rotate_tx = context.complete_tx(rotate_tx);
     let err = context.verify_tx(&rotate_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -19);
+    assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
 }
