@@ -85,18 +85,19 @@ pub(super) fn build_many_header_phase2_batch(
 
 // Replay fixture parsers and economics helpers.
 pub(super) fn u64_from_hex(hex: &str) -> u64 {
-    u64::from_str_radix(hex.strip_prefix("0x").expect("hex prefix"), 16).expect("u64 hex")
+    let hex = hex.strip_prefix("0x").expect("hex prefix missing");
+    u64::from_str_radix(hex, 16).expect("invalid u64 hex")
 }
 
 pub(super) fn bytes_from_hex(hex: &str) -> Bytes {
-    hex::decode(hex.strip_prefix("0x").expect("hex prefix"))
-        .expect("bytes hex")
-        .into()
+    let hex = hex.strip_prefix("0x").expect("hex prefix missing");
+    hex::decode(hex).expect("invalid bytes hex").into()
 }
 
 pub(super) fn byte32_from_hex(hex: &str) -> Byte32 {
-    Byte32::from_slice(&hex::decode(hex.strip_prefix("0x").expect("hex prefix")).expect("byte32 hex"))
-        .expect("byte32")
+    let hex = hex.strip_prefix("0x").expect("hex prefix missing");
+    let bytes = hex::decode(hex).expect("invalid byte32 hex");
+    Byte32::from_slice(&bytes).expect("byte32 hex has wrong length")
 }
 
 pub(super) fn out_point_from_hex(tx_hash: &str, index: u32) -> OutPoint {
