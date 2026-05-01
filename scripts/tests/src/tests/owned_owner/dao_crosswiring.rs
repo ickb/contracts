@@ -185,8 +185,8 @@ fn weak_lock_crosswired_batch_reassigns_phase2_claims() {
     let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
     let deposit_header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let deposit_header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header1 = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
-    let withdraw_header2 = gen_header(2_000_621, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header1 = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+    let withdraw_header2 = gen_header(2_000_621, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let deposit1 = context.create_cell(
         CellOutput::new_builder()
             .capacity(total1.pack())
@@ -276,7 +276,7 @@ fn weak_lock_crosswired_batch_reassigns_phase2_claims() {
         &owned2_output,
         withdrawal_request_data(1555).len(),
         GENESIS_AR as u64,
-        10_001_000,
+        SYNTHETIC_WITHDRAW_AR,
     );
     let claim_with_crosswired_pair = TransactionBuilder::default()
         .input(
@@ -316,7 +316,7 @@ fn weak_lock_crosswired_batch_reassigns_phase2_claims() {
                     &create_tx.outputs().get(0).expect("owned1 output"),
                     withdrawal_request_data(1554).len(),
                     GENESIS_AR as u64,
-                    10_001_000,
+                    SYNTHETIC_WITHDRAW_AR,
                 ).pack())
                 .lock(user1_lock)
                 .build(),
@@ -349,7 +349,7 @@ fn weak_lock_three_way_crosswire_rotates_claims() {
     let deposit_header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let deposit_header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
     let deposit_header3 = gen_header(1556, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header2 = gen_header(2_000_621, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header2 = gen_header(2_000_621, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
     let deposit1 = context.create_cell(CellOutput::new_builder().capacity(total1.pack()).lock(ickb_logic.clone()).type_(Some(dao.clone()).pack()).build(), dao_deposit_data());
     let deposit2 = context.create_cell(CellOutput::new_builder().capacity(total2.pack()).lock(ickb_logic.clone()).type_(Some(dao.clone()).pack()).build(), dao_deposit_data());
@@ -415,7 +415,7 @@ fn weak_lock_three_way_crosswire_rotates_claims() {
         &owned2_output,
         withdrawal_request_data(1555).len(),
         GENESIS_AR as u64,
-        10_001_000,
+        SYNTHETIC_WITHDRAW_AR,
     );
     let witness = header_dep_index_witness(1);
 

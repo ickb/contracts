@@ -9,8 +9,8 @@ fn live_claim_cannot_roll_into_fresh_pair() {
     let dao = dao_script(&mut context);
     let old_owner_lock = named_always_success_lock(&mut context, b"old-owner");
     let new_owner_lock = named_always_success_lock(&mut context, b"new-owner");
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let shared_tx_hash = Byte32::from_slice(&[9u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);
@@ -88,8 +88,8 @@ fn live_claims_cannot_rotate_into_new_pairs() {
     let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
     let deposit_header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let deposit_header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header1 = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
-    let withdraw_header2 = gen_header(2_000_621, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header1 = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+    let withdraw_header2 = gen_header(2_000_621, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let deposit1 = context.create_cell(
         CellOutput::new_builder()
             .capacity(total1.pack())

@@ -8,18 +8,19 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let shared_tx_hash = Byte32::from_slice(&[7u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);
+    let owned_input_output = CellOutput::new_builder()
+        .capacity(123_456_780_000u64.pack())
+        .lock(owned_owner.clone())
+        .type_(Some(dao).pack())
+        .build();
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(123_456_780_000u64.pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao).pack())
-            .build(),
+        owned_input_output.clone(),
         withdrawal_request_data(1554),
     );
     context.create_cell_with_out_point(
@@ -34,6 +35,12 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
     context.insert_header(deposit_header.clone());
     let witness = header_dep_index_witness(1);
+    let exact_capacity = dao_maximum_withdraw_capacity(
+        &owned_input_output,
+        withdrawal_request_data(1554).len(),
+        SYNTHETIC_DEPOSIT_AR,
+        SYNTHETIC_WITHDRAW_AR,
+    );
 
     let tx = TransactionBuilder::default()
         .input(
@@ -45,7 +52,7 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
         .input(CellInput::new_builder().previous_output(owner_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(123_468_106_670u64.pack())
+                .capacity(exact_capacity.pack())
                 .lock(owner_lock)
                 .build(),
         )
@@ -69,18 +76,19 @@ fn valid_melt_pair_passes() {
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let shared_tx_hash = Byte32::from_slice(&[6u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);
+    let owned_input_output = CellOutput::new_builder()
+        .capacity(123_456_780_000u64.pack())
+        .lock(owned_owner.clone())
+        .type_(Some(dao).pack())
+        .build();
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(123_456_780_000u64.pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao).pack())
-            .build(),
+        owned_input_output.clone(),
         withdrawal_request_data(1554),
     );
     context.create_cell_with_out_point(
@@ -95,6 +103,12 @@ fn valid_melt_pair_passes() {
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
     context.insert_header(deposit_header.clone());
     let witness = header_dep_index_witness(1);
+    let exact_capacity = dao_maximum_withdraw_capacity(
+        &owned_input_output,
+        withdrawal_request_data(1554).len(),
+        SYNTHETIC_DEPOSIT_AR,
+        SYNTHETIC_WITHDRAW_AR,
+    );
 
     let tx = TransactionBuilder::default()
         .input(
@@ -106,7 +120,7 @@ fn valid_melt_pair_passes() {
         .input(CellInput::new_builder().previous_output(owner_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(123_468_106_670u64.pack())
+                .capacity(exact_capacity.pack())
                 .lock(owner_lock)
                 .build(),
         )
@@ -130,8 +144,8 @@ fn melt_rejects_misbound_deposit_header_index() {
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let shared_tx_hash = Byte32::from_slice(&[7u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);
@@ -190,8 +204,8 @@ fn melt_rejects_short_header_dep_index_witness() {
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let shared_tx_hash = Byte32::from_slice(&[8u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);
@@ -251,8 +265,8 @@ fn melt_rejects_header_dep_index_witness_in_output_type() {
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let shared_tx_hash = Byte32::from_slice(&[81u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);
@@ -312,8 +326,8 @@ fn melt_rejects_truncated_owner_distance_on_input() {
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let shared_tx_hash = Byte32::from_slice(&[9u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);

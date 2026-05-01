@@ -7,8 +7,8 @@ fn dao_phase2_with_65_outputs_hits_the_upstream_batch_limit() {
     let (privkey, owner_lock, secp_data_dep) = secp_lock(&mut context);
     let dao = dao_script(&mut context);
 
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
     let deposit_number_data = 1554u64.to_le_bytes();
     let withdrawing_input = context.create_cell(
@@ -68,8 +68,8 @@ fn dao_phase2_rejects_header_dep_index_witness_in_output_type() {
     let owner_lock = always_success_lock(&mut context);
     let dao = dao_script(&mut context);
 
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let withdrawing_input = context.create_cell(
         CellOutput::new_builder()
             .capacity(123_456_780_000u64.pack())
@@ -113,8 +113,8 @@ fn dao_phase2_rejects_short_header_dep_index_witness_in_input_type() {
     let owner_lock = always_success_lock(&mut context);
     let dao = dao_script(&mut context);
 
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let withdrawing_input = context.create_cell(
         CellOutput::new_builder()
             .capacity(123_456_780_000u64.pack())
@@ -166,27 +166,23 @@ fn dao_phase2_with_two_distinct_deposit_headers_passes() {
     let (privkey, owner_lock, secp_data_dep) = secp_lock(&mut context);
     let dao = dao_script(&mut context);
 
-    let deposit_header_1 = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let deposit_header_2 = gen_header(1564, 10_000_000, 35, 1000, 1000);
-    let withdraw_header_1 = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
-    let withdraw_header_2 = gen_header(2_000_621, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header_1 = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let deposit_header_2 = gen_header(1564, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header_1 = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+    let withdraw_header_2 = gen_header(2_000_621, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
-    let input_1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(123_456_780_000u64.pack())
-            .lock(owner_lock.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        withdrawal_request_data(1554),
-    );
-    let input_2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(123_456_781_000u64.pack())
-            .lock(owner_lock.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        withdrawal_request_data(1564),
-    );
+    let input_1_output = CellOutput::new_builder()
+        .capacity(123_456_780_000u64.pack())
+        .lock(owner_lock.clone())
+        .type_(Some(dao.clone()).pack())
+        .build();
+    let input_1 = context.create_cell(input_1_output.clone(), withdrawal_request_data(1554));
+    let input_2_output = CellOutput::new_builder()
+        .capacity(123_456_781_000u64.pack())
+        .lock(owner_lock.clone())
+        .type_(Some(dao.clone()).pack())
+        .build();
+    let input_2 = context.create_cell(input_2_output.clone(), withdrawal_request_data(1564));
     link_cell_to_header(&mut context, &input_1, &withdraw_header_1);
     link_cell_to_header(&mut context, &input_2, &withdraw_header_2);
     context.insert_header(deposit_header_1.clone());
@@ -194,6 +190,18 @@ fn dao_phase2_with_two_distinct_deposit_headers_passes() {
 
     let witness_1 = header_dep_index_witness(2);
     let witness_2 = header_dep_index_witness(3);
+    let exact_capacity_1 = dao_maximum_withdraw_capacity(
+        &input_1_output,
+        withdrawal_request_data(1554).len(),
+        SYNTHETIC_DEPOSIT_AR,
+        SYNTHETIC_WITHDRAW_AR,
+    );
+    let exact_capacity_2 = dao_maximum_withdraw_capacity(
+        &input_2_output,
+        withdrawal_request_data(1564).len(),
+        SYNTHETIC_DEPOSIT_AR,
+        SYNTHETIC_WITHDRAW_AR,
+    );
 
     let tx = TransactionBuilder::default()
         .input(
@@ -210,13 +218,13 @@ fn dao_phase2_with_two_distinct_deposit_headers_passes() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity(123_468_106_670u64.pack())
+                .capacity(exact_capacity_1.pack())
                 .lock(owner_lock.clone())
                 .build(),
         )
         .output(
             CellOutput::new_builder()
-                .capacity(123_468_105_686u64.pack())
+                .capacity(exact_capacity_2.pack())
                 .lock(owner_lock.clone())
                 .build(),
         )

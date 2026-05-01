@@ -47,8 +47,8 @@ fn zero_distance_owner_input_is_rejected() {
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let deposit_header = gen_header(1554, 10_000_000, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let shared_tx_hash = Byte32::from_slice(&[8u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);

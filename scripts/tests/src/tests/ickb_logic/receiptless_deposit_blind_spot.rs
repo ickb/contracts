@@ -182,7 +182,7 @@ fn spread_path_keeps_self_funded_principal_claimable() {
     let aggregate_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, aggregate_amount);
     let delta = 10_000 * SHANNONS as u128;
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
@@ -266,7 +266,7 @@ fn spread_path_keeps_self_funded_principal_claimable() {
         &withdrawal_output,
         withdrawal_request_data(1554).len(),
         GENESIS_AR as u64,
-        10_001_000,
+        SYNTHETIC_WITHDRAW_AR,
     );
     let claim_tx = TransactionBuilder::default()
         .input(

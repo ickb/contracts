@@ -66,7 +66,7 @@ fn phase1_accepts_unspendable_foreign_owner_lock() {
         create_tx.outputs().get(1).expect("owner output"),
         owner_distance_data(-1),
     );
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     link_cell_to_header(&mut context, &owned_out_point, &withdraw_header);
     context.insert_header(deposit_header.clone());
     let witness = header_dep_index_witness(1);
@@ -161,7 +161,7 @@ fn phase1_accepts_limit_order_owner_lock_but_claim_strands() {
         create_tx.outputs().get(1).expect("owner output"),
         owner_distance_data(-1),
     );
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     link_cell_to_header(&mut context, &owned_out_point, &withdraw_header);
     context.insert_header(deposit_header.clone());
     let witness = header_dep_index_witness(1);

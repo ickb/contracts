@@ -12,7 +12,7 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
 
     let deposit_capacity_value = 123_456_780_000u64;
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
             .capacity(deposit_capacity_value.pack())
@@ -93,7 +93,7 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
                         &owned_output,
                         withdrawal_request_data(1554).len(),
                         GENESIS_AR as u64,
-                        10_001_000,
+                        SYNTHETIC_WITHDRAW_AR,
                     )
                     .pack(),
                 )

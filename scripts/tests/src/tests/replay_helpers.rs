@@ -7,7 +7,7 @@ pub(super) fn build_many_header_phase2_batch(
     let mut context = Context::default();
     let (privkey, owner_lock, secp_data_dep) = secp_lock(&mut context);
     let dao = dao_script(&mut context);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let since = 0x2003e8022a0002f3u64;
     let input_capacity = 123_456_780_000u64;
 
@@ -46,7 +46,7 @@ pub(super) fn build_many_header_phase2_batch(
                         &withdrawing_output,
                         withdrawal_request_data(deposit_number).len(),
                         GENESIS_AR as u64,
-                        10_001_000,
+                        SYNTHETIC_WITHDRAW_AR,
                     )
                     .pack(),
                 )

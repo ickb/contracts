@@ -61,11 +61,12 @@ fn phase2_conversion_with_two_receipts_from_distinct_headers_passes() {
         receipt_data(1, second_amount),
     );
     let first_header = gen_header(0, GENESIS_AR as u64, 0, 0, 1);
-    let second_header = gen_header(1, GENESIS_AR as u64 + 1_000, 1, 1, 1);
+    let second_header = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
     link_cell_to_header(&mut context, &first_receipt, &first_header);
     link_cell_to_header(&mut context, &second_receipt, &second_header);
 
-    let expected = u128::from(first_amount) + (u128::from(second_amount) * u128::from(GENESIS_AR) / u128::from(GENESIS_AR + 1_000));
+    let expected = u128::from(first_amount)
+        + (u128::from(second_amount) * u128::from(GENESIS_AR) / u128::from(SYNTHETIC_WITHDRAW_AR));
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(first_receipt).build())
         .input(CellInput::new_builder().previous_output(second_receipt).build())
@@ -113,7 +114,7 @@ fn phase2_conversion_with_one_missing_receipt_header_dep_is_rejected() {
         receipt_data(1, second_amount),
     );
     let first_header = gen_header(0, GENESIS_AR as u64, 0, 0, 1);
-    let second_header = gen_header(1, GENESIS_AR as u64 + 1_000, 1, 1, 1);
+    let second_header = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
     link_cell_to_header(&mut context, &first_receipt, &first_header);
     link_cell_to_header(&mut context, &second_receipt, &second_header);
 

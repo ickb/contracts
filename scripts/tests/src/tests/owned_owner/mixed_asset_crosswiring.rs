@@ -12,7 +12,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
     let protocol_deposit_number = 1555u64;
     let foreign_deposit_header = gen_header(foreign_deposit_number, GENESIS_AR as u64, 35, 1000, 1000);
     let protocol_deposit_header = gen_header(protocol_deposit_number, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
     let foreign_deposit_capacity = 123_456_780_000u64;
     let foreign_deposit_input = context.create_cell(
@@ -135,7 +135,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
                         &create_tx.outputs().get(1).expect("protocol owned output"),
                         withdrawal_request_data(protocol_deposit_number).len(),
                         GENESIS_AR as u64,
-                        10_001_000,
+                        SYNTHETIC_WITHDRAW_AR,
                     )
                     .pack(),
                 )
@@ -168,7 +168,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
                         &create_tx.outputs().get(1).expect("protocol owned output"),
                         withdrawal_request_data(protocol_deposit_number).len(),
                         GENESIS_AR as u64,
-                        10_001_000,
+                        SYNTHETIC_WITHDRAW_AR,
                     )
                     .pack(),
                 )

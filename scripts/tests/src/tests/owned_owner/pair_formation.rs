@@ -183,7 +183,7 @@ fn orphan_withdrawal_request_can_be_created_but_not_claimed() {
 
     let deposit_amount = 1_000 * SHANNONS;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
             .capacity(deposit_total_capacity.pack())

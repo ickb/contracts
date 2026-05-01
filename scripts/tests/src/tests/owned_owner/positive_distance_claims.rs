@@ -12,7 +12,7 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
 
     let deposit_amount = 1_000 * SHANNONS;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
             .capacity(100u64.pack())
@@ -94,7 +94,7 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
         &create_tx.outputs().get(2).expect("owned output"),
         withdrawal_request_data(1554).len(),
         GENESIS_AR as u64,
-        10_001_000,
+        SYNTHETIC_WITHDRAW_AR,
     );
 
     let witness = header_dep_index_witness(1);
@@ -136,7 +136,7 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
 
     let deposit_amount = 1_000 * SHANNONS;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
-    let withdraw_header = gen_header(2_000_610, 10_001_000, 575, 2_000_000, 1100);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
             .capacity(100u64.pack())
@@ -219,7 +219,7 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
         &create_tx.outputs().get(2).expect("owned output"),
         withdrawal_request_data(1554).len(),
         GENESIS_AR as u64,
-        10_001_000,
+        SYNTHETIC_WITHDRAW_AR,
     );
 
     let claim_tx = TransactionBuilder::default()

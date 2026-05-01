@@ -122,9 +122,10 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
         receipt_data(1, amount2),
     );
     let header1 = insert_header_for_cell(&mut context, &receipt1, 0, GENESIS_AR);
-    let header2 = gen_header(1, GENESIS_AR as u64 + 1_000, 1, 1, 1);
+    let header2 = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
     link_cell_to_header(&mut context, &receipt2, &header2);
-    let expected = u128::from(amount1) + (u128::from(amount2) * u128::from(GENESIS_AR) / u128::from(GENESIS_AR + 1_000));
+    let expected = u128::from(amount1)
+        + (u128::from(amount2) * u128::from(GENESIS_AR) / u128::from(SYNTHETIC_WITHDRAW_AR));
 
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(receipt1).build())
@@ -191,9 +192,10 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
         receipt_data(1, amount2),
     );
     let header1 = insert_header_for_cell(&mut context, &receipt1, 0, GENESIS_AR);
-    let header2 = gen_header(1, GENESIS_AR as u64 + 1_000, 1, 1, 1);
+    let header2 = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
     link_cell_to_header(&mut context, &receipt2, &header2);
-    let expected = u128::from(amount1) + (u128::from(amount2) * u128::from(GENESIS_AR) / u128::from(GENESIS_AR + 1_000));
+    let expected = u128::from(amount1)
+        + (u128::from(amount2) * u128::from(GENESIS_AR) / u128::from(SYNTHETIC_WITHDRAW_AR));
 
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(receipt1).build())
