@@ -30,11 +30,17 @@ pub struct Loader(PathBuf);
 
 impl Default for Loader {
     fn default() -> Self {
-        let test_env = match env::var(TEST_ENV_VAR) {
-            Ok(val) => val.parse().expect("test env"),
-            Err(_) => TestEnv::Debug,
-        };
-        Self::with_test_env(test_env)
+        match env::var(TEST_ENV_VAR) {
+            Ok(val) => Self::with_test_env(val.parse().expect("test env")),
+            Err(_) => {
+                let loader = Self::with_test_env(TestEnv::Debug);
+                if loader.0.exists() {
+                    loader
+                } else {
+                    Self::with_test_env(TestEnv::Release)
+                }
+            }
+        }
     }
 }
 
@@ -44,7 +50,6 @@ impl Loader {
             TestEnv::Debug => "debug",
             TestEnv::Release => "release",
         };
-        let _dir = env::current_dir().unwrap();
         let mut base_path = PathBuf::new();
         // cargo may use a different cwd when running tests, for example:
         // when running debug in vscode, it will use workspace root as cwd by default,
