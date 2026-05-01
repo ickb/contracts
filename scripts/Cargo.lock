@@ -1591,7 +1591,10 @@ dependencies = [
 name = "tests"
 version = "0.1.0"
 dependencies = [
+ "ckb-dao-utils",
+ "ckb-system-scripts",
  "ckb-testtool",
+ "hex",
 ]
 
 [[package]]

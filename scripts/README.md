@@ -2,7 +2,9 @@
 
 ## Audit
 
-These L1 Scripts have been both internally reviewed by individuals with deep experience in Nervos L1 and [externally audited by the Scalebit team](http://scalebit.xyz/reports/20240911-ICKB-Final-Audit-Report.pdf), an internationally recognized blockchain security team.
+These L1 Scripts have been both internally reviewed by individuals with deep experience in Nervos L1 and [externally audited by the Scalebit team](https://scalebit.xyz/reports/20240911-ICKB-Final-Audit-Report.pdf), an internationally recognized blockchain security team.
+
+This repository also includes a later local executable review of the deployed release binaries in [`../20260501-ICKB-Audit-Report.md`](../20260501-ICKB-Audit-Report.md).
 
 ## Building the Scripts
 
