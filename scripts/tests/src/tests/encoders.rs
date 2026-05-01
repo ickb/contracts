@@ -137,7 +137,7 @@ pub(super) fn order_data_custom(
     udt_to_ckb: (u64, u64),
     ckb_min_match_log: u8,
 ) -> Bytes {
-    let mut data = Vec::with_capacity(73);
+    let mut data = Vec::with_capacity(89);
     data.extend_from_slice(&udt_amount.to_le_bytes());
     data.extend_from_slice(&action.to_le_bytes());
     data.extend_from_slice(&tx_hash);

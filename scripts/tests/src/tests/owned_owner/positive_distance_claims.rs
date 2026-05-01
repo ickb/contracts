@@ -125,9 +125,9 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
 }
 
 // Scenario: phase 1 creates a sparse positive-distance pair with a filler output between owner and owned cells.
-// Expectation: phase 1 accepts the layout, but no valid phase 2 claim capacity exists for it.
+// Expectation: phase 1 accepts the layout, and the exact DAO claim capacity remains spendable in phase 2.
 #[test]
-fn sparse_positive_distance_pair_has_no_valid_phase2_claim_path() {
+fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
     let mut context = Context::default();
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let filler_lock = named_always_success_lock(&mut context, b"filler");
@@ -215,40 +215,34 @@ fn sparse_positive_distance_pair_has_no_valid_phase2_claim_path() {
     context.insert_header(deposit_header.clone());
     let witness = header_dep_index_witness(1);
 
-    let mut discovered_capacity = None;
-    for capacity in [123_468_105_686u64, 123_468_105_886u64, 123_468_106_670u64, 123_468_106_870u64]
-        .into_iter()
-        .chain(123_468_105_200u64..=123_468_107_200u64)
-    {
-        let claim_tx = TransactionBuilder::default()
-            .input(
-                CellInput::new_builder()
-                    .previous_output(owned_out_point.clone())
-                    .since(0x2003e800000002f4u64.pack())
-                    .build(),
-            )
-            .input(CellInput::new_builder().previous_output(owner_out_point.clone()).build())
-            .output(
-                CellOutput::new_builder()
-                    .capacity(capacity.pack())
-                    .lock(owner_lock.clone())
-                    .build(),
-            )
-            .output_data(Bytes::new().pack())
-            .header_dep(withdraw_header.hash())
-            .header_dep(deposit_header.hash())
-            .witness(witness.pack())
-            .build();
-        let claim_tx = context.complete_tx(claim_tx);
-        if context.verify_tx(&claim_tx, MAX_CYCLES).is_ok() {
-            discovered_capacity = Some(capacity);
-            break;
-        }
-    }
-
-    assert!(
-        discovered_capacity.is_none(),
-        "sparse positive-distance phase1 pairs should not become spendable in DAO phase2, found capacity {:?}",
-        discovered_capacity
+    let exact_capacity = dao_maximum_withdraw_capacity(
+        &create_tx.outputs().get(2).expect("owned output"),
+        withdrawal_request_data(1554).len(),
+        GENESIS_AR as u64,
+        10_001_000,
     );
+
+    let claim_tx = TransactionBuilder::default()
+        .input(
+            CellInput::new_builder()
+                .previous_output(owned_out_point)
+                .since(0x2003e800000002f4u64.pack())
+                .build(),
+        )
+        .input(CellInput::new_builder().previous_output(owner_out_point).build())
+        .output(
+            CellOutput::new_builder()
+                .capacity(exact_capacity.pack())
+                .lock(owner_lock)
+                .build(),
+        )
+        .output_data(Bytes::new().pack())
+        .header_dep(withdraw_header.hash())
+        .header_dep(deposit_header.hash())
+        .witness(witness.pack())
+        .build();
+    let claim_tx = context.complete_tx(claim_tx);
+    context
+        .verify_tx(&claim_tx, MAX_CYCLES)
+        .expect("a sparse positive-distance pair should remain spendable in DAO phase2 at the exact claim capacity");
 }
