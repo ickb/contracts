@@ -6,12 +6,18 @@ pub(super) fn blake160(data: &[u8]) -> Bytes {
 }
 
 pub(super) fn sign_tx(tx: TransactionView, key: &Privkey) -> TransactionView {
-    let witnesses_len = tx.witnesses().len();
-    sign_tx_by_input_group(tx, key, 0, witnesses_len)
+    let inputs_len = tx.inputs().len();
+    sign_tx_by_input_group(tx, key, 0, inputs_len)
 }
 
-pub(super) fn sign_tx_by_input_group(tx: TransactionView, key: &Privkey, begin_index: usize, len: usize) -> TransactionView {
+pub(super) fn sign_tx_by_input_group(
+    tx: TransactionView,
+    key: &Privkey,
+    begin_index: usize,
+    group_len: usize,
+) -> TransactionView {
     let tx_hash = tx.hash();
+    let inputs_len = tx.inputs().len();
     let mut signed_witnesses: Vec<ckb_testtool::ckb_types::packed::Bytes> = tx
         .inputs()
         .into_iter()
@@ -28,7 +34,15 @@ pub(super) fn sign_tx_by_input_group(tx: TransactionView, key: &Privkey, begin_i
                 let witness_len = witness_for_digest.as_bytes().len() as u64;
                 blake2b.update(&witness_len.to_le_bytes());
                 blake2b.update(&witness_for_digest.as_bytes());
-                ((i + 1)..(i + len)).for_each(|n| {
+                // CKB sighash signs the rest of the current input group, then any trailing extra
+                // witnesses after all inputs. It does not cover other input groups.
+                ((i + 1)..(i + group_len)).for_each(|n| {
+                    let witness = tx.witnesses().get(n).unwrap();
+                    let witness_len = witness.raw_data().len() as u64;
+                    blake2b.update(&witness_len.to_le_bytes());
+                    blake2b.update(&witness.raw_data());
+                });
+                (inputs_len..tx.witnesses().len()).for_each(|n| {
                     let witness = tx.witnesses().get(n).unwrap();
                     let witness_len = witness.raw_data().len() as u64;
                     blake2b.update(&witness_len.to_le_bytes());
@@ -71,9 +85,9 @@ pub(super) fn secp_lock(context: &mut Context) -> (Privkey, Script, CellDep) {
 }
 
 #[test]
-fn sign_tx_by_input_group_only_updates_the_target_group_lock_witness() {
-    let build_tx = |target_lock: &[u8], grouped_extra_lock: &[u8], unrelated_witness: &[u8]| {
-        let inputs = (0..3)
+fn sign_tx_by_input_group_covers_group_witnesses_and_trailing_extras_only() {
+    let build_tx = |target_lock: &[u8], grouped_lock: &[u8], other_group_lock: &[u8], trailing_extra: &[u8]| {
+        let inputs = (0..4)
             .map(|index| {
                 CellInput::new_builder()
                     .previous_output(
@@ -97,12 +111,17 @@ fn sign_tx_by_input_group_only_updates_the_target_group_lock_witness() {
                 .as_bytes()
                 .pack(),
             WitnessArgs::new_builder()
-                .lock(Some(Bytes::from(grouped_extra_lock.to_vec())).pack())
+                .lock(Some(Bytes::from(grouped_lock.to_vec())).pack())
                 .build()
                 .as_bytes()
                 .pack(),
             WitnessArgs::new_builder()
-                .lock(Some(Bytes::from(unrelated_witness.to_vec())).pack())
+                .lock(Some(Bytes::from(other_group_lock.to_vec())).pack())
+                .build()
+                .as_bytes()
+                .pack(),
+            WitnessArgs::new_builder()
+                .lock(Some(Bytes::from(trailing_extra.to_vec())).pack())
                 .build()
                 .as_bytes()
                 .pack(),
@@ -112,13 +131,13 @@ fn sign_tx_by_input_group_only_updates_the_target_group_lock_witness() {
     };
 
     let key = Generator::random_privkey();
-    let original_tx = build_tx(b"group-target", b"group-extra", b"unrelated");
+    let original_tx = build_tx(b"group-target", b"grouped", b"other-group", b"trailing-extra");
     let signed_tx = sign_tx_by_input_group(original_tx.clone(), &key, 1, 2);
 
     assert_eq!(signed_tx.witnesses().len(), original_tx.witnesses().len());
     assert_eq!(signed_tx.witnesses().get(0), original_tx.witnesses().get(0));
-    assert_eq!(signed_tx.witnesses().get(2), original_tx.witnesses().get(2));
     assert_eq!(signed_tx.witnesses().get(3), original_tx.witnesses().get(3));
+    assert_eq!(signed_tx.witnesses().get(4), original_tx.witnesses().get(4));
 
     let original_target = WitnessArgs::new_unchecked(original_tx.witnesses().get(1).unwrap().unpack());
     let signed_target = WitnessArgs::new_unchecked(signed_tx.witnesses().get(1).unwrap().unpack());
@@ -127,11 +146,20 @@ fn sign_tx_by_input_group_only_updates_the_target_group_lock_witness() {
     assert_eq!(original_target.output_type(), signed_target.output_type());
     assert_eq!(signed_target.lock().to_opt().expect("signed lock").raw_data().len(), SIGNATURE_SIZE);
 
-    let changed_group_tx = sign_tx_by_input_group(build_tx(b"group-target", b"group-extra-updated", b"unrelated"), &key, 1, 2);
-    let changed_unrelated_tx = sign_tx_by_input_group(build_tx(b"group-target", b"group-extra", b"unrelated-updated"), &key, 1, 2);
+    let changed_group_tx =
+        sign_tx_by_input_group(build_tx(b"group-target", b"grouped-updated", b"other-group", b"trailing-extra"), &key, 1, 2);
+    let changed_other_group_tx =
+        sign_tx_by_input_group(build_tx(b"group-target", b"grouped", b"other-group-updated", b"trailing-extra"), &key, 1, 2);
+    let changed_trailing_extra_tx = sign_tx_by_input_group(
+        build_tx(b"group-target", b"grouped", b"other-group", b"trailing-extra-updated"),
+        &key,
+        1,
+        2,
+    );
 
     assert_ne!(changed_group_tx.witnesses().get(1), signed_tx.witnesses().get(1));
-    assert_eq!(changed_unrelated_tx.witnesses().get(1), signed_tx.witnesses().get(1));
+    assert_eq!(changed_other_group_tx.witnesses().get(1), signed_tx.witnesses().get(1));
+    assert_ne!(changed_trailing_extra_tx.witnesses().get(1), signed_tx.witnesses().get(1));
 }
 
 #[test]
@@ -182,4 +210,59 @@ fn sign_tx_binds_the_full_witness_set() {
     assert_eq!(signed_tx.witnesses().get(0), signed_tx_again.witnesses().get(0));
     assert_ne!(changed_trailing_tx.witnesses().get(0), signed_tx.witnesses().get(0));
     assert_eq!(changed_trailing_tx.witnesses().get(1), signed_tx.witnesses().get(1));
+}
+
+#[test]
+fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
+    let mut context = Context::default();
+    let passthrough_lock = always_success_lock(&mut context);
+    let (privkey, protected_lock, secp_data_dep) = secp_lock(&mut context);
+
+    let passthrough_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(1_000u64.pack())
+            .lock(passthrough_lock.clone())
+            .build(),
+        Bytes::new(),
+    );
+    let protected_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(1_000u64.pack())
+            .lock(protected_lock)
+            .build(),
+        Bytes::new(),
+    );
+
+    let trailing_extra = Bytes::from_static(b"trailing-extra");
+    let tx = TransactionBuilder::default()
+        .input(CellInput::new_builder().previous_output(passthrough_input).build())
+        .input(CellInput::new_builder().previous_output(protected_input).build())
+        .output(
+            CellOutput::new_builder()
+                .capacity(1_800u64.pack())
+                .lock(passthrough_lock)
+                .build(),
+        )
+        .output_data(Bytes::new().pack())
+        .witness(Bytes::new().pack())
+        .witness(empty_witness().pack())
+        .witness(trailing_extra.clone().pack())
+        .cell_dep(secp_data_dep)
+        .build();
+
+    let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 1, 1);
+    context
+        .verify_tx(&tx, MAX_CYCLES)
+        .expect("later secp input group should verify when the trailing extra witness stays unchanged");
+
+    let tampered_tx = tx
+        .as_advanced_builder()
+        .set_witnesses(vec![
+            tx.witnesses().get(0).expect("passthrough witness"),
+            tx.witnesses().get(1).expect("signed witness"),
+            Bytes::from_static(b"trailing-extra-updated").pack(),
+        ])
+        .build();
+    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
