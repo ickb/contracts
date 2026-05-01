@@ -158,15 +158,13 @@ The review prioritized executable behavior over static plausibility and classifi
 
 ### Test Coverage
 
-A [module wiring overview](scripts/tests/src/tests.rs) shows that the suite spans four groups:
+A [module wiring overview](scripts/tests/src/tests.rs) plus the [test layout note](scripts/tests/README.md) show three layers:
 
-- [Root harness](scripts/tests/src/tests.rs) and [shared helpers](scripts/tests/src/tests/helpers.rs).
-- Scenario modules for [ickb_logic](scripts/tests/src/tests/ickb_logic.rs) and [owned_owner](scripts/tests/src/tests/owned_owner.rs).
-- Scenario modules for [limit_order](scripts/tests/src/tests/limit_order.rs) and [replay](scripts/tests/src/tests/replay.rs).
-- Supporting helper coverage in [encoders](scripts/tests/src/tests/encoders.rs) and [fixtures](scripts/tests/src/tests/fixtures.rs).
-- Supporting helper coverage also includes [replay_helpers](scripts/tests/src/tests/replay_helpers.rs) and [signing](scripts/tests/src/tests/signing.rs).
+- **Test harness and utilities:** [root harness](scripts/tests/src/tests.rs), [fixtures](scripts/tests/src/tests/fixtures.rs), [encoders](scripts/tests/src/tests/encoders.rs), [signing](scripts/tests/src/tests/signing.rs), and [replay_helpers](scripts/tests/src/tests/replay_helpers.rs).
+- **Scenario suite roots:** [ickb_logic](scripts/tests/src/tests/ickb_logic.rs), [owned_owner](scripts/tests/src/tests/owned_owner.rs), [limit_order](scripts/tests/src/tests/limit_order.rs), and [replay](scripts/tests/src/tests/replay.rs), each wiring topic-focused files under the matching subdirectory.
+- **Helper-focused unit coverage:** [helpers](scripts/tests/src/tests/helpers.rs), which checks the shared encoders and witness/data builders used by the larger suites.
 
-A fresh `cargo test -p tests` run passed `213` tests with no failures. Those tests cover deployment-hash sanity checks, helper encodings, core flows, blocked-path regressions, and replayed transaction shapes across `iCKB Logic`, `Owned Owner`, and `Limit Order`.
+A fresh `cargo test -p tests` run passed `214` tests with no failures. Those tests cover deployment-hash sanity checks, helper encodings, core flows, blocked-path regressions, and replayed transaction shapes across `iCKB Logic`, `Owned Owner`, and `Limit Order`.
 
 The strong-lock regressions in `ickb_logic`, `owned_owner`, and `signing` replay `secp256k1_blake160_sighash_all` as the representative whole-transaction-binding lock. This repo does not include a `QRL` fixture or harness, so conclusions for other strong-lock deployments rely on the same binding property and the stated deployment assumptions rather than a separate in-repo replay.
 
