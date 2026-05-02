@@ -353,7 +353,7 @@ The [whitepaper states the consequence directly](https://github.com/ickb/whitepa
 
 ### Non-Upgradable Deployment
 
-Deployment is intentionally non-upgradable. The whitepaper's [non-upgradable deployment section](https://github.com/ickb/whitepaper/blob/cdbabf653ba98eacea397f94f8c894f32a538d6c/README.md#non-upgradable-deployment) says the scripts are deployed with a `secp256k1_blake160` zero lock, so no upgrade controller remains.
+Deployment is intentionally non-upgradable. The whitepaper's [non-upgradable deployment section](https://github.com/ickb/whitepaper/blob/cdbabf653ba98eacea397f94f8c894f32a538d6c/README.md#non-upgradable-deployment) says the scripts are deployed  by `data1`, not by type, so they are non upgradable. Additionally, `secp256k1_blake160` zero lock controls the binary.
 
 Any post-deployment bug requires migration to entirely new script deployments and a new dep group.
 
