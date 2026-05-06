@@ -353,9 +353,9 @@ The [whitepaper states the consequence directly](https://github.com/ickb/whitepa
 
 ### Non-Upgradable Deployment
 
-Deployment is intentionally non-upgradable. The whitepaper's [non-upgradable deployment section](https://github.com/ickb/whitepaper/blob/cdbabf653ba98eacea397f94f8c894f32a538d6c/README.md#non-upgradable-deployment) says the scripts are deployed with a `secp256k1_blake160` zero lock, so no upgrade controller remains.
+The reviewed deployment is non-upgradable under the observed script references. Under RFC 0022 and RFC 0032, the deployed script references use `hash_type = data1`: later scripts locate code from `cell_deps` by cell data hash and run it on CKB VM v1. This is not a property stored in the binary cell itself, but a property of how the live lock/type scripts refer to that cell. That reference mode pins validation to the exact deployed binary bytes. By contrast, `hash_type = type` would locate code by type-script hash, allowing a replacement code cell with the same type script and different contents, with upgrade policy then governed by that code cell's lock script. Separately, the published binary cells themselves are locked with a `secp256k1_blake160` zero lock, an unspendable lock, so no trusted operator key remains as an owner of the binaries.
 
-Any post-deployment bug requires migration to entirely new script deployments and a new dep group.
+Under that reference mode, fixing a post-deployment bug would require migration to new script deployments and a new dep group.
 
 ---
 
