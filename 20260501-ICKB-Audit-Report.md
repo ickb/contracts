@@ -357,7 +357,7 @@ The reviewed deployment is non-upgradable under the observed script references.
 
 Under [RFC 0022](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#code-locating) and [RFC 0032](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0032-ckb-vm-version-selection/0032-ckb-vm-version-selection.md#specification), the deployed scripts in transactions use `hash_type = data1`. Referencing scripts locate code from `cell_deps` by cell data hash and run it on CKB VM v1. That reference mode pins validation to the exact deployed binary bytes.
 
-This is not a property stored in the binary cell itself. It is a property of how scripts in transactions refer to that cell.
+This pinning is not a property stored in the binary cell itself. It is a property of how scripts in transactions refer to that cell.
 
 By contrast, `hash_type = type` would locate code by type-script hash, allowing a replacement code cell with the same type script and different contents, with upgrade policy then governed by that code cell's lock script. Separately, the published binary cells themselves are locked with a `secp256k1_blake160` zero lock, an unspendable lock, so no trusted operator key remains as an owner of the binaries.
 
