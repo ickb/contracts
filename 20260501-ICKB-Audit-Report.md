@@ -361,7 +361,7 @@ This pinning is not a property stored in the binary cell itself. It is a propert
 
 By contrast, `hash_type = type` would locate code by type-script hash, allowing a replacement code cell with the same type script and different contents, with upgrade policy then governed by that code cell's lock script. Separately, the published binary cells themselves are locked with a `secp256k1_blake160` zero lock, an unspendable lock, so no trusted operator key remains as an owner of the binaries.
 
-Under that reference mode, fixing a post-deployment bug would require migration to new script deployments and a new dep group.
+Under the `hash_type = data1` reference mode, fixing a post-deployment bug would require migration to new script deployments and a new dep group.
 
 ---
 
