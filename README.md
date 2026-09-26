@@ -8,7 +8,7 @@ These L1 Scripts have been both internally reviewed by individuals with deep exp
 
 For convenience, a local copy of the Scalebit report is also available in this repository at [`20240911-ICKB-Final-Audit-Report.pdf`](./20240911-ICKB-Final-Audit-Report.pdf).
 
-This repository also includes a later local executable review of the deployed release binaries in [`20260501-ICKB-Audit-Report.md`](./20260501-ICKB-Audit-Report.md).
+This repository also includes a later local executable review of the deployed release binaries in [`ICKB-Audit-Report.md`](./ICKB-Audit-Report.md).
 
 ## Licensing
 
