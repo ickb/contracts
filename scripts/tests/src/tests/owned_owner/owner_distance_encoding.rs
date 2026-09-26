@@ -10,7 +10,7 @@ fn truncated_owner_distance_output_is_rejected() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
@@ -62,7 +62,7 @@ fn zero_length_owner_distance_output_is_rejected_as_encoding() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
@@ -114,7 +114,7 @@ fn owner_distance_trailing_bytes_are_ignored() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let udt_input = context.create_cell(
         CellOutput::new_builder()

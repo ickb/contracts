@@ -7,7 +7,7 @@ fn phase2_conversion_without_receipt_header_dep_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -42,8 +42,8 @@ fn phase2_conversion_with_two_receipts_from_distinct_headers_passes() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let first_amount = 1_000 * SHANNONS;
-    let second_amount = 1_200 * SHANNONS;
+    let first_amount = 1_000 * CKB;
+    let second_amount = 1_200 * CKB;
     let first_receipt = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -95,8 +95,8 @@ fn phase2_conversion_with_one_missing_receipt_header_dep_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let first_amount = 1_000 * SHANNONS;
-    let second_amount = 1_200 * SHANNONS;
+    let first_amount = 1_000 * CKB;
+    let second_amount = 1_200 * CKB;
     let first_receipt = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -144,7 +144,7 @@ fn phase2_conversion_with_zero_accumulated_rate_header_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())

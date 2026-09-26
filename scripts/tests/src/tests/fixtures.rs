@@ -147,7 +147,7 @@ pub(super) fn owned_owner_script(context: &mut Context) -> Script {
 
 // Capacity and DAO accounting helpers.
 pub(super) fn capacity_for_data(data_len: u64) -> u64 {
-    100 * SHANNONS + data_len
+    100 * CKB + data_len
 }
 
 pub(super) fn deposit_capacity(lock: &Script, type_: &Script, data_len: usize, unused_capacity: u64) -> u64 {
@@ -321,7 +321,7 @@ pub(super) fn build_real_limit_order_and_master(
     owner_lock: Script,
     helper_type: Script,
 ) -> (OutPoint, OutPoint) {
-    build_real_limit_order_and_master_with_capacity(context, owner_lock, helper_type, 1_500 * SHANNONS)
+    build_real_limit_order_and_master_with_capacity(context, owner_lock, helper_type, 1_500 * CKB)
 }
 
 pub(super) fn build_real_limit_order_and_master_with_capacity(

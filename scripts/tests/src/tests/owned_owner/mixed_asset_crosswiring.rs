@@ -25,7 +25,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
     );
     link_cell_to_header(&mut context, &foreign_deposit_input, &foreign_deposit_header);
 
-    let protocol_deposit_amount = 1_000 * SHANNONS;
+    let protocol_deposit_amount = 1_000 * CKB;
     let protocol_deposit_capacity = deposit_capacity(&ickb_logic, &dao, 8, protocol_deposit_amount);
     let protocol_deposit_input = context.create_cell(
         CellOutput::new_builder()

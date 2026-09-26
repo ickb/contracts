@@ -8,13 +8,13 @@ fn receipt_trailing_bytes_do_not_change_creation_accounting() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let deposit_data = dao_deposit_data();
     let deposit_output = CellOutput::new_builder()
         .capacity(deposit_capacity(&ickb_logic, &dao, deposit_data.len(), deposit_amount).pack())
@@ -51,7 +51,7 @@ fn receipt_trailing_bytes_do_not_change_phase2_conversion() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (receipt_out_point, receipt_header) = create_receipt_input(
         &mut context,
         funding_lock.clone(),
@@ -88,13 +88,13 @@ fn truncated_receipt_output_with_small_amount_is_rejected() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let deposit_data = dao_deposit_data();
     let deposit_output = CellOutput::new_builder()
         .capacity(deposit_capacity(&ickb_logic, &dao, deposit_data.len(), deposit_amount).pack())
@@ -126,7 +126,7 @@ fn truncated_receipt_input_with_small_amount_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (receipt_out_point, receipt_header) = create_receipt_input(
         &mut context,
         funding_lock.clone(),

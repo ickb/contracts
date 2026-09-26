@@ -9,7 +9,7 @@ fn xudt_owner_script_output_witness_cannot_mint_without_live_owner_mode() {
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((500 * SHANNONS).pack())
+            .capacity((500 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),

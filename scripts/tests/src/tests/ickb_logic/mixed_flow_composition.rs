@@ -7,7 +7,7 @@ fn mixed_flow_cannot_overmint_by_combining_new_deposit_with_phase2_receipt() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -20,7 +20,7 @@ fn mixed_flow_cannot_overmint_by_combining_new_deposit_with_phase2_receipt() {
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -72,7 +72,7 @@ fn mixed_flow_cannot_overmint_when_deposit_phase1_phase2_and_withdrawal_share_on
     let xudt = xudt_script(&mut context, &ickb_logic);
     let dao = dao_script(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -104,7 +104,7 @@ fn mixed_flow_cannot_overmint_when_deposit_phase1_phase2_and_withdrawal_share_on
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(user_lock.clone())
             .build(),
         Bytes::new(),
@@ -174,7 +174,7 @@ fn all_three_scripts_can_compose_in_one_live_state_transition() {
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
 
     let receipt_input = context.create_cell(
@@ -203,7 +203,7 @@ fn all_three_scripts_can_compose_in_one_live_state_transition() {
         .input(CellInput::new_builder().previous_output(real_order_out_point).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -220,7 +220,7 @@ fn all_three_scripts_can_compose_in_one_live_state_transition() {
         ])
         .outputs_data(
             vec![
-                order_data_match(100 * SHANNONS as u128, &real_master_out_point, (1, 1)),
+                order_data_match(100 * CKB as u128, &real_master_out_point, (1, 1)),
                 withdrawal_request_data(1554),
                 owner_distance_data(-1),
             ]

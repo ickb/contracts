@@ -13,19 +13,19 @@ fn cloned_live_orders_can_swap_masters_during_match() {
         build_real_limit_order_and_master(&mut context, owner2_lock.clone(), helper_type.clone());
 
     let limit_order = limit_order_script(&mut context);
-    let matched_order1_data = order_data_match(100 * SHANNONS as u128, &master2_input, (1, 1));
-    let matched_order2_data = order_data_match(100 * SHANNONS as u128, &master1_input, (1, 1));
+    let matched_order1_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
+    let matched_order2_data = order_data_match(100 * CKB as u128, &master1_input, (1, 1));
     let crosswire_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(order1_input).build())
         .input(CellInput::new_builder().previous_output(order2_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -47,7 +47,7 @@ fn cloned_live_orders_can_swap_masters_during_match() {
         .input(CellInput::new_builder().previous_output(master2_input.clone()).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_600 * SHANNONS).pack())
+                .capacity((1_600 * CKB).pack())
                 .lock(owner2_lock.clone())
                 .build(),
         )
@@ -66,7 +66,7 @@ fn cloned_live_orders_can_swap_masters_during_match() {
         .input(CellInput::new_builder().previous_output(master1_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_600 * SHANNONS).pack())
+                .capacity((1_600 * CKB).pack())
                 .lock(owner1_lock)
                 .build(),
         )
@@ -93,26 +93,26 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
     let fake_master = OutPoint::new(Byte32::from_slice(&[7u8; 32]).expect("byte32"), 9);
     let fake_order_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
         order_data_match(0, &fake_master, (1, 1)),
     );
 
-    let real_lineage_data = order_data_match(100 * SHANNONS as u128, &real_master_input, (1, 1));
-    let fake_lineage_data = order_data_match(100 * SHANNONS as u128, &fake_master, (1, 1));
+    let real_lineage_data = order_data_match(100 * CKB as u128, &real_master_input, (1, 1));
+    let fake_lineage_data = order_data_match(100 * CKB as u128, &fake_master, (1, 1));
     let hybrid_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(fake_order_input).build())
         .input(CellInput::new_builder().previous_output(real_order_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -144,7 +144,7 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
         .input(CellInput::new_builder().previous_output(real_master_input.clone()).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_600 * SHANNONS).pack())
+                .capacity((1_600 * CKB).pack())
                 .lock(owner_lock.clone())
                 .build(),
         )
@@ -163,7 +163,7 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
         .input(CellInput::new_builder().previous_output(real_master_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_600 * SHANNONS).pack())
+                .capacity((1_600 * CKB).pack())
                 .lock(owner_lock)
                 .build(),
         )

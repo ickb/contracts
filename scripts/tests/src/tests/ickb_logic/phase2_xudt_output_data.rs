@@ -7,7 +7,7 @@ fn phase2_mint_accepts_xudt_data_with_trailing_bytes() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -46,7 +46,7 @@ fn phase2_mint_rejects_short_xudt_output_data() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -82,7 +82,7 @@ fn phase2_mint_rejects_zero_length_xudt_output_data() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())

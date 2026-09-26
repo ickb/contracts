@@ -9,7 +9,7 @@ fn unrelated_non_empty_args_output_lock_poisons_withdrawal() {
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
     let poisoned_lock = data1_script(&mut context, "owned_owner", Bytes::from(vec![1]));
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header, deposit_input, udt_input) = create_withdrawal_inputs(
         &mut context,
         &ickb_logic,
@@ -65,7 +65,7 @@ fn foreign_typed_output_is_ignored() {
     let foreign_lock = named_always_success_lock(&mut context, b"foreign-lock");
     let foreign_type = named_always_success_lock(&mut context, b"foreign-type");
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header, deposit_input, udt_input) = create_withdrawal_inputs(
         &mut context,
         &ickb_logic,
@@ -125,7 +125,7 @@ fn owned_shaped_non_empty_args_output_poisons_withdrawal() {
     let dao = dao_script(&mut context);
     let xudt = xudt_script(&mut context, &ickb_logic);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header, deposit_input, udt_input) = create_withdrawal_inputs(
         &mut context,
         &ickb_logic,
@@ -184,7 +184,7 @@ fn non_empty_args_owner_sibling_poisons_withdrawal() {
     let dao = dao_script(&mut context);
     let xudt = xudt_script(&mut context, &ickb_logic);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header, deposit_input, udt_input) = create_withdrawal_inputs(
         &mut context,
         &ickb_logic,

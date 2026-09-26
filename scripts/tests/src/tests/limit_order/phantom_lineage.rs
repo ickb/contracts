@@ -8,7 +8,7 @@ fn phantom_mint_output_can_be_created() {
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -18,7 +18,7 @@ fn phantom_mint_output_can_be_created() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -40,7 +40,7 @@ fn phantom_mint_lineage_can_enter_match_without_real_master() {
 
     let phantom_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -56,12 +56,12 @@ fn phantom_mint_lineage_can_enter_match_without_real_master() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(100 * SHANNONS as u128, &phantom_master_out_point, (1, 1)).pack())
+        .output_data(order_data_match(100 * CKB as u128, &phantom_master_out_point, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
@@ -78,7 +78,7 @@ fn phantom_mint_lineage_cannot_rebind_to_an_arbitrary_fake_match_master() {
 
     let phantom_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -94,12 +94,12 @@ fn phantom_mint_lineage_cannot_rebind_to_an_arbitrary_fake_match_master() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(100 * SHANNONS as u128, &fake_master, (1, 1)).pack())
+        .output_data(order_data_match(100 * CKB as u128, &fake_master, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
@@ -115,7 +115,7 @@ fn phantom_limit_order_match_still_requires_same_order_info() {
 
     let phantom_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -131,12 +131,12 @@ fn phantom_limit_order_match_still_requires_same_order_info() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(100 * SHANNONS as u128, &phantom_master_out_point, (2, 1)).pack())
+        .output_data(order_data_match(100 * CKB as u128, &phantom_master_out_point, (2, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
@@ -152,7 +152,7 @@ fn phantom_limit_order_cannot_be_melted_without_a_master_input() {
 
     let phantom_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order)
             .type_(Some(helper_type).pack())
             .build(),
@@ -167,7 +167,7 @@ fn phantom_limit_order_cannot_be_melted_without_a_master_input() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )
@@ -188,7 +188,7 @@ fn phantom_limit_order_cannot_be_melted_with_an_unrelated_master() {
 
     let phantom_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -216,7 +216,7 @@ fn phantom_limit_order_cannot_be_melted_with_an_unrelated_master() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(owner_lock)
                 .build(),
         )
@@ -237,7 +237,7 @@ fn lock_only_limit_order_output_can_be_created_with_match_order_data() {
     let limit_order = limit_order_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -248,7 +248,7 @@ fn lock_only_limit_order_output_can_be_created_with_match_order_data() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),

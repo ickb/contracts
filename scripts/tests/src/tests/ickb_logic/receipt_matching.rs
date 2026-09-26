@@ -8,13 +8,13 @@ fn zero_quantity_receipt_is_rejected() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let amount = 1_000 * SHANNONS;
+    let amount = 1_000 * CKB;
     let deposit_output = CellOutput::new_builder()
         .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
         .lock(ickb_logic.clone())
@@ -45,13 +45,13 @@ fn forged_receipt_quantity_without_enough_deposits_is_rejected() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let amount = 1_000 * SHANNONS;
+    let amount = 1_000 * CKB;
     let deposit_output = CellOutput::new_builder()
         .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
         .lock(ickb_logic.clone())
@@ -82,14 +82,14 @@ fn receipt_for_unmatched_deposit_amount_is_rejected() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
     let deposit_output = CellOutput::new_builder()
-        .capacity(deposit_capacity(&ickb_logic, &dao, 8, 1_000 * SHANNONS).pack())
+        .capacity(deposit_capacity(&ickb_logic, &dao, 8, 1_000 * CKB).pack())
         .lock(ickb_logic.clone())
         .type_(Some(dao).pack())
         .build();
@@ -102,7 +102,7 @@ fn receipt_for_unmatched_deposit_amount_is_rejected() {
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![deposit_output, receipt_output])
-        .outputs_data(vec![dao_deposit_data(), receipt_data(1, 1_001 * SHANNONS)].pack())
+        .outputs_data(vec![dao_deposit_data(), receipt_data(1, 1_001 * CKB)].pack())
         .build();
 
     let tx = context.complete_tx(tx);

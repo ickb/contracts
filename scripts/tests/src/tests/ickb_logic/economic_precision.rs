@@ -8,12 +8,12 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let ar = 11_509_953_685_250_771u64;
-    let amount_1152 = 1_152u64 * SHANNONS;
-    let amount_1151 = 1_151u64 * SHANNONS;
+    let amount_1152 = 1_152u64 * CKB;
+    let amount_1151 = 1_151u64 * CKB;
     let exact_ickb_1152 = u128::from(amount_1152) * u128::from(GENESIS_AR) / u128::from(ar);
     let exact_ickb_1151 = u128::from(amount_1151) * u128::from(GENESIS_AR) / u128::from(ar);
 
-    assert!(exact_ickb_1152 > 1_000 * SHANNONS as u128);
+    assert!(exact_ickb_1152 > 1_000 * CKB as u128);
     assert!(exact_ickb_1151 < exact_ickb_1152);
 
     let receipt_1152 = context.create_cell(
@@ -35,7 +35,7 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
                 .type_(Some(xudt.clone()).pack())
                 .build(),
         )
-        .output_data(udt_data(1_000 * SHANNONS as u128).pack())
+        .output_data(udt_data(1_000 * CKB as u128).pack())
         .header_dep(receipt_1152_header.hash())
         .build();
     let mint_claimed_1000_tx = context.complete_tx(mint_claimed_1000_tx);
@@ -96,8 +96,8 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
     let ar = 11_509_953_685_250_771u64;
-    let amount_1152 = 1_152u64 * SHANNONS;
-    let amount_1151 = 1_151u64 * SHANNONS;
+    let amount_1152 = 1_152u64 * CKB;
+    let amount_1151 = 1_151u64 * CKB;
     let exact_ickb_1152 = u128::from(amount_1152) * u128::from(GENESIS_AR) / u128::from(ar);
 
     let header = gen_header(1554, ar, 35, 1000, 1000);
@@ -118,7 +118,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
             .lock(user_lock.clone())
             .type_(Some(xudt.clone()).pack())
             .build(),
-        udt_data(1_000 * SHANNONS as u128),
+        udt_data(1_000 * CKB as u128),
     );
 
     let tx = TransactionBuilder::default()
@@ -326,9 +326,9 @@ fn withdrawal_burn_matches_later_protocol_value_within_one_shannon_across_header
         burned_ickb
     };
 
-    let older_deposit_burn = run_case(1_000 * SHANNONS, 1554, GENESIS_AR as u64);
-    let newer_deposit_burn = run_case(1_000 * SHANNONS, 1555, 11_000_000_000_000_000u64);
-    let oversized_deposit_burn = run_case(150_000 * SHANNONS, 1556, 11_000_000_000_000_000u64);
+    let older_deposit_burn = run_case(1_000 * CKB, 1554, GENESIS_AR as u64);
+    let newer_deposit_burn = run_case(1_000 * CKB, 1555, 11_000_000_000_000_000u64);
+    let oversized_deposit_burn = run_case(150_000 * CKB, 1556, 11_000_000_000_000_000u64);
 
     assert!(
         older_deposit_burn > newer_deposit_burn,

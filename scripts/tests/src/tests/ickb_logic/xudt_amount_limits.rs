@@ -9,7 +9,7 @@ fn oversized_output_udt_amount_is_rejected() {
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_000 * SHANNONS).pack())
+            .capacity((1_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -20,7 +20,7 @@ fn oversized_output_udt_amount_is_rejected() {
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
-        receipt_data(1, 1_000 * SHANNONS),
+        receipt_data(1, 1_000 * CKB),
     );
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
 

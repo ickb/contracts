@@ -8,7 +8,7 @@ fn weak_lock_receipt_can_reassign_phase2_mint_recipient() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (receipt_out_point, receipt_header) = create_receipt_input(
         &mut context,
         weak_lock,
@@ -49,7 +49,7 @@ fn sighash_lock_binds_phase2_mint_outputs_to_the_signed_transaction() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -103,8 +103,8 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let amount1 = 1_000 * SHANNONS;
-    let amount2 = 1_200 * SHANNONS;
+    let amount1 = 1_000 * CKB;
+    let amount2 = 1_200 * CKB;
     let receipt1 = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -173,8 +173,8 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let amount1 = 1_000 * SHANNONS;
-    let amount2 = 1_200 * SHANNONS;
+    let amount1 = 1_000 * CKB;
+    let amount2 = 1_200 * CKB;
     let receipt1 = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())

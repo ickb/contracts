@@ -8,13 +8,13 @@ fn deposit_below_minimum_is_rejected() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let amount = 999 * SHANNONS;
+    let amount = 999 * CKB;
     let deposit_output = CellOutput::new_builder()
         .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
         .lock(ickb_logic.clone())
@@ -45,13 +45,13 @@ fn deposit_at_minimum_is_accepted() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let amount = 1_000 * SHANNONS;
+    let amount = 1_000 * CKB;
     let deposit_output = CellOutput::new_builder()
         .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
         .lock(ickb_logic.clone())
@@ -83,13 +83,13 @@ fn deposit_above_maximum_is_rejected() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_100_000 * SHANNONS).pack())
+            .capacity((1_100_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let amount = 1_000_001 * SHANNONS;
+    let amount = 1_000_001 * CKB;
     let deposit_output = CellOutput::new_builder()
         .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
         .lock(ickb_logic.clone())
@@ -120,13 +120,13 @@ fn deposit_at_maximum_is_accepted() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_100_000 * SHANNONS).pack())
+            .capacity((1_100_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let amount = 1_000_000 * SHANNONS;
+    let amount = 1_000_000 * CKB;
     let deposit_output = CellOutput::new_builder()
         .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
         .lock(ickb_logic.clone())

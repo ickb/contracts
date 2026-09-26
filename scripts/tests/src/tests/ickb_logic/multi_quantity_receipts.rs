@@ -8,13 +8,13 @@ fn repeated_deposit_bucket_can_be_matched_by_one_multi_quantity_receipt() {
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((3_000 * SHANNONS).pack())
+            .capacity((3_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
     );
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let deposit_data = dao_deposit_data();
     let deposit_output = || {
         CellOutput::new_builder()
@@ -48,7 +48,7 @@ fn multi_quantity_receipt_can_be_converted_in_phase2() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())

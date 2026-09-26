@@ -33,7 +33,7 @@ fn can_atomically_melt_and_remint_with_negative_distance_and_filler() {
                 .lock(filler_lock)
                 .build(),
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -65,7 +65,7 @@ fn can_atomically_melt_and_remint_with_negative_distance_and_filler() {
         .input(CellInput::new_builder().previous_output(new_master).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(owner_lock)
                 .build(),
         )

@@ -10,29 +10,29 @@ fn distinct_mint_capacities_block_master_crosswire() {
         &mut context,
         owner1_lock.clone(),
         helper_type.clone(),
-        1_600 * SHANNONS,
+        1_600 * CKB,
     );
     let (order2_input, master2_input) = build_real_limit_order_and_master_with_capacity(
         &mut context,
         owner2_lock.clone(),
         helper_type.clone(),
-        1_500 * SHANNONS,
+        1_500 * CKB,
     );
 
     let limit_order = limit_order_script(&mut context);
-    let crosswired_order1_data = order_data_match(100 * SHANNONS as u128, &master2_input, (1, 1));
-    let crosswired_order2_data = order_data_match(100 * SHANNONS as u128, &master1_input, (1, 1));
+    let crosswired_order1_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
+    let crosswired_order2_data = order_data_match(100 * CKB as u128, &master1_input, (1, 1));
     let crosswire_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(order1_input).build())
         .input(CellInput::new_builder().previous_output(order2_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -61,22 +61,22 @@ fn distinct_match_progress_blocks_master_crosswire() {
         &mut context,
         owner1_lock.clone(),
         helper_type.clone(),
-        1_600 * SHANNONS,
+        1_600 * CKB,
     );
     let (order2_input, master2_input) = build_real_limit_order_and_master_with_capacity(
         &mut context,
         owner2_lock.clone(),
         helper_type.clone(),
-        1_500 * SHANNONS,
+        1_500 * CKB,
     );
     let limit_order = limit_order_script(&mut context);
 
-    let order1_matched_data = order_data_match(100 * SHANNONS as u128, &master1_input, (1, 1));
+    let order1_matched_data = order_data_match(100 * CKB as u128, &master1_input, (1, 1));
     let order1_match_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(order1_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -94,12 +94,12 @@ fn distinct_match_progress_blocks_master_crosswire() {
         order1_matched_data,
     );
 
-    let order2_matched_data = order_data_match(200 * SHANNONS as u128, &master2_input, (1, 1));
+    let order2_matched_data = order_data_match(200 * CKB as u128, &master2_input, (1, 1));
     let order2_match_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(order2_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_300 * SHANNONS).pack())
+                .capacity((1_300 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -117,19 +117,19 @@ fn distinct_match_progress_blocks_master_crosswire() {
         order2_matched_data,
     );
 
-    let crosswired_order1_data = order_data_match(200 * SHANNONS as u128, &master2_input, (1, 1));
-    let crosswired_order2_data = order_data_match(300 * SHANNONS as u128, &master1_input, (1, 1));
+    let crosswired_order1_data = order_data_match(200 * CKB as u128, &master2_input, (1, 1));
+    let crosswired_order2_data = order_data_match(300 * CKB as u128, &master1_input, (1, 1));
     let crosswire_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(order1_matched).build())
         .input(CellInput::new_builder().previous_output(order2_matched).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((1_200 * SHANNONS).pack())
+                .capacity((1_200 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -158,22 +158,22 @@ fn real_mint_and_match_orders_cannot_crosswire_masters() {
         &mut context,
         owner1_lock.clone(),
         helper_type.clone(),
-        1_600 * SHANNONS,
+        1_600 * CKB,
     );
     let (match_order_seed, master2_input) = build_real_limit_order_and_master_with_capacity(
         &mut context,
         owner2_lock.clone(),
         helper_type.clone(),
-        1_500 * SHANNONS,
+        1_500 * CKB,
     );
     let limit_order = limit_order_script(&mut context);
 
-    let match_order_data = order_data_match(100 * SHANNONS as u128, &master2_input, (1, 1));
+    let match_order_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
     let seed_match_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(match_order_seed).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -191,19 +191,19 @@ fn real_mint_and_match_orders_cannot_crosswire_masters() {
         match_order_data,
     );
 
-    let crosswired_mint_data = order_data_match(100 * SHANNONS as u128, &master2_input, (1, 1));
-    let crosswired_match_data = order_data_match(200 * SHANNONS as u128, &master1_input, (1, 1));
+    let crosswired_mint_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
+    let crosswired_match_data = order_data_match(200 * CKB as u128, &master1_input, (1, 1));
     let crosswire_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(mint_order_input).build())
         .input(CellInput::new_builder().previous_output(match_order_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((1_300 * SHANNONS).pack())
+                .capacity((1_300 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),

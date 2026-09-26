@@ -114,7 +114,7 @@ pub(super) fn rpc_header(number: &str, epoch: &str, dao: &str) -> ckb_testtool::
 
 pub(super) fn soft_capped_ickb(amount: u64, accumulated_rate: u64) -> u128 {
     let raw = u128::from(amount) * u128::from(GENESIS_AR) / u128::from(accumulated_rate);
-    let soft_cap = u128::from(100_000 * SHANNONS);
+    let soft_cap = u128::from(100_000 * CKB);
     if raw > soft_cap {
         raw - (raw - soft_cap) / 10
     } else {

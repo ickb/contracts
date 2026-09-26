@@ -10,7 +10,7 @@ fn mint_accepts_master_with_unspendable_foreign_lock() {
     let poisoned_lock = data1_script(&mut context, "ickb_logic", Bytes::from(vec![1]));
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -20,7 +20,7 @@ fn mint_accepts_master_with_unspendable_foreign_lock() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -59,7 +59,7 @@ fn mint_accepts_master_with_unspendable_foreign_lock() {
         .input(CellInput::new_builder().previous_output(master_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )
@@ -81,7 +81,7 @@ fn mint_accepts_master_with_empty_args_ickb_logic_lock_and_strands_on_spend() {
     let benign_foreign_lock = ickb_logic_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -91,7 +91,7 @@ fn mint_accepts_master_with_empty_args_ickb_logic_lock_and_strands_on_spend() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -130,7 +130,7 @@ fn mint_accepts_master_with_empty_args_ickb_logic_lock_and_strands_on_spend() {
         .input(CellInput::new_builder().previous_output(master_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )

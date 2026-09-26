@@ -7,7 +7,7 @@ fn receiptless_dao_shaped_output_is_accepted_as_deposit() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_500 * SHANNONS;
+    let deposit_amount = 1_500 * CKB;
     let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, deposit_amount);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
@@ -81,16 +81,16 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let split_amount = 100_000 * SHANNONS;
+    let split_amount = 100_000 * CKB;
     let aggregate_amount = 2 * split_amount;
-    let soft_cap = u128::from(100_000 * SHANNONS);
+    let soft_cap = u128::from(100_000 * CKB);
     let aggregate_ickb = u128::from(aggregate_amount);
     let aggregate_deposit_value = aggregate_ickb - (aggregate_ickb - soft_cap) / 10;
     let split_receipt_value = 2u128 * u128::from(split_amount);
     let delta = split_receipt_value - aggregate_deposit_value;
     let aggregate_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, aggregate_amount);
 
-    assert_eq!(delta, u128::from(10_000 * SHANNONS));
+    assert_eq!(delta, u128::from(10_000 * CKB));
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
@@ -177,10 +177,10 @@ fn spread_path_keeps_self_funded_principal_claimable() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let split_amount = 100_000 * SHANNONS;
+    let split_amount = 100_000 * CKB;
     let aggregate_amount = 2 * split_amount;
     let aggregate_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, aggregate_amount);
-    let delta = 10_000 * SHANNONS as u128;
+    let delta = 10_000 * CKB as u128;
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
@@ -299,9 +299,9 @@ fn receiptless_aggregate_alone_cannot_mint_spread() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let aggregate_amount = 2 * 100_000 * SHANNONS;
+    let aggregate_amount = 2 * 100_000 * CKB;
     let aggregate_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, aggregate_amount);
-    let delta = u128::from(10_000 * SHANNONS);
+    let delta = u128::from(10_000 * CKB);
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
 
     let receiptless_aggregate_deposit = context.create_cell(
@@ -344,13 +344,13 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let split_amount = 100_000 * SHANNONS;
+    let split_amount = 100_000 * CKB;
     let quantity = 20u32;
     let aggregate_amount = u64::from(quantity) * split_amount;
     let aggregate_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, aggregate_amount);
     let delta = u128::from(quantity) * u128::from(split_amount) - soft_capped_ickb(aggregate_amount, GENESIS_AR);
-    assert_eq!(aggregate_amount, 2_000_000 * SHANNONS);
-    assert_eq!(delta, u128::from(190_000 * SHANNONS));
+    assert_eq!(aggregate_amount, 2_000_000 * CKB);
+    assert_eq!(delta, u128::from(190_000 * CKB));
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()

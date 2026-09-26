@@ -82,8 +82,8 @@ fn live_claims_cannot_rotate_into_new_pairs() {
     let user2_lock = named_always_success_lock(&mut context, b"user2");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let amount1 = 1_000 * SHANNONS;
-    let amount2 = 1_100 * SHANNONS;
+    let amount1 = 1_000 * CKB;
+    let amount2 = 1_100 * CKB;
     let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
     let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
     let deposit_header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);

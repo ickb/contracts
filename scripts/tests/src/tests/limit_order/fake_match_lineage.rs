@@ -9,7 +9,7 @@ fn fake_match_lineage_can_keep_advancing_without_real_master() {
 
     let initial_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -20,12 +20,12 @@ fn fake_match_lineage_can_keep_advancing_without_real_master() {
         .input(CellInput::new_builder().previous_output(initial_order).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
         )
-        .output_data(order_data_match(100 * SHANNONS as u128, &fake_master, (1, 1)).pack())
+        .output_data(order_data_match(100 * CKB as u128, &fake_master, (1, 1)).pack())
         .build();
 
     let first_match_tx = context.complete_tx(first_match_tx);
@@ -37,19 +37,19 @@ fn fake_match_lineage_can_keep_advancing_without_real_master() {
     context.create_cell_with_out_point(
         first_match_out_point.clone(),
         first_match_tx.outputs().get(0).expect("first forged match output"),
-        order_data_match(100 * SHANNONS as u128, &fake_master, (1, 1)),
+        order_data_match(100 * CKB as u128, &fake_master, (1, 1)),
     );
 
     let second_match_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(first_match_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_300 * SHANNONS).pack())
+                .capacity((1_300 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(200 * SHANNONS as u128, &fake_master, (1, 1)).pack())
+        .output_data(order_data_match(200 * CKB as u128, &fake_master, (1, 1)).pack())
         .build();
 
     let second_match_tx = context.complete_tx(second_match_tx);
@@ -69,7 +69,7 @@ fn fake_match_order_can_strand_real_order() {
     let limit_order = limit_order_script(&mut context);
     let phantom_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order)
             .type_(Some(helper_type).pack())
             .build(),
@@ -89,7 +89,7 @@ fn fake_match_order_can_strand_real_order() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(owner_lock)
                 .build(),
         )
@@ -109,7 +109,7 @@ fn fake_match_order_can_strand_real_order() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )

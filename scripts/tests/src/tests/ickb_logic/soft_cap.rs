@@ -7,7 +7,7 @@ fn phase2_mint_applies_soft_cap_discount_above_boundary() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let amount = 100_001 * SHANNONS;
+    let amount = 100_001 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -59,7 +59,7 @@ fn phase2_mint_does_not_discount_at_soft_cap_boundary() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let amount = 100_000 * SHANNONS;
+    let amount = 100_000 * CKB;
     assert_eq!(soft_capped_ickb(amount, GENESIS_AR), u128::from(amount));
 
     let receipt_out_point = context.create_cell(
@@ -98,7 +98,7 @@ fn multi_quantity_phase2_mint_applies_soft_cap_per_deposit() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let amount = 100_001 * SHANNONS;
+    let amount = 100_001 * CKB;
     let quantity = 2u32;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
@@ -111,7 +111,7 @@ fn multi_quantity_phase2_mint_applies_soft_cap_per_deposit() {
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let exact = u128::from(quantity) * soft_capped_ickb(amount, GENESIS_AR);
     let total_raw = u128::from(quantity) * u128::from(amount);
-    let soft_cap = u128::from(100_000 * SHANNONS);
+    let soft_cap = u128::from(100_000 * CKB);
     let naive_aggregate = total_raw - (total_raw - soft_cap) / 10;
     assert!(exact > naive_aggregate);
 
@@ -156,7 +156,7 @@ fn mixed_phase1_phase2_still_apply_soft_cap_per_receipt() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let amount = 100_001 * SHANNONS;
+    let amount = 100_001 * CKB;
     let quantity = 2u32;
     let deposit_output_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
     let receipt_input = context.create_cell(
@@ -170,7 +170,7 @@ fn mixed_phase1_phase2_still_apply_soft_cap_per_receipt() {
     let receipt_header = insert_header_for_cell(&mut context, &receipt_input, 0, GENESIS_AR);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((300_000 * SHANNONS).pack())
+            .capacity((300_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -178,7 +178,7 @@ fn mixed_phase1_phase2_still_apply_soft_cap_per_receipt() {
 
     let exact = u128::from(quantity) * soft_capped_ickb(amount, GENESIS_AR);
     let total_raw = u128::from(quantity) * u128::from(amount);
-    let soft_cap = u128::from(100_000 * SHANNONS);
+    let soft_cap = u128::from(100_000 * CKB);
     let naive_aggregate = total_raw - (total_raw - soft_cap) / 10;
     assert!(exact > naive_aggregate);
 

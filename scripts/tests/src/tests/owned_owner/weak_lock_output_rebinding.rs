@@ -9,7 +9,7 @@ fn weak_lock_can_reassign_withdrawal_owner_output() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header, deposit_input, udt_input) = create_withdrawal_inputs(
         &mut context,
         &ickb_logic,
@@ -54,7 +54,7 @@ fn sighash_lock_binds_withdrawal_owner_output_to_the_signed_transaction() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header, deposit_input, udt_input) = create_withdrawal_inputs(
         &mut context,
         &ickb_logic,
@@ -121,8 +121,8 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let amount1 = 1_000 * SHANNONS;
-    let amount2 = 1_200 * SHANNONS;
+    let amount1 = 1_000 * CKB;
+    let amount2 = 1_200 * CKB;
     let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
     let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
     let header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
@@ -251,8 +251,8 @@ fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let amount1 = 1_000 * SHANNONS;
-    let amount2 = 1_200 * SHANNONS;
+    let amount1 = 1_000 * CKB;
+    let amount2 = 1_200 * CKB;
     let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
     let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
     let header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);

@@ -9,7 +9,7 @@ fn phase1_accepts_unspendable_foreign_owner_lock() {
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
     let poisoned_lock = data1_script(&mut context, "limit_order", Bytes::from(vec![1]));
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
@@ -104,7 +104,7 @@ fn phase1_accepts_limit_order_owner_lock_but_claim_strands() {
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
     let benign_foreign_lock = limit_order_script(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
@@ -204,7 +204,7 @@ fn limit_order_backed_owner_is_blocked_in_phase1() {
     let xudt = xudt_script(&mut context, &ickb_logic);
     let burn_lock = named_always_success_lock(&mut context, b"owner");
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
@@ -244,7 +244,7 @@ fn limit_order_backed_owner_is_blocked_in_phase1() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &owned_owner, owner_order_data.len(), 1_500 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &owned_owner, owner_order_data.len(), 1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),

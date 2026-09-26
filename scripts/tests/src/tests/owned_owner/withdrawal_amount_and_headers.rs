@@ -10,7 +10,7 @@ fn withdrawal_accepts_xudt_input_with_trailing_bytes() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
@@ -66,7 +66,7 @@ fn withdrawal_rejects_short_xudt_input_data() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
@@ -119,7 +119,7 @@ fn withdrawal_rejects_zero_length_xudt_input_data() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
@@ -172,7 +172,7 @@ fn withdrawal_without_deposit_header_dep_is_rejected() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
@@ -223,8 +223,8 @@ fn withdrawal_with_two_deposits_from_distinct_headers_passes() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let first_amount = 1_000 * SHANNONS;
-    let second_amount = 1_200 * SHANNONS;
+    let first_amount = 1_000 * CKB;
+    let second_amount = 1_200 * CKB;
     let first_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, first_amount);
     let second_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, second_amount);
     let first_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
@@ -309,8 +309,8 @@ fn withdrawal_with_one_missing_deposit_header_dep_is_rejected() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let first_amount = 1_000 * SHANNONS;
-    let second_amount = 1_200 * SHANNONS;
+    let first_amount = 1_000 * CKB;
+    let second_amount = 1_200 * CKB;
     let first_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, first_amount);
     let second_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, second_amount);
     let first_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
@@ -393,7 +393,7 @@ fn withdrawal_with_zero_accumulated_rate_deposit_header_is_rejected() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, deposit_amount);
     let malformed_header = gen_header(1554, 0, 35, 1000, 1000);
     let deposit_input = context.create_cell(
@@ -446,7 +446,7 @@ fn withdrawal_applies_soft_cap_discount_above_boundary() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let amount = 100_001 * SHANNONS;
+    let amount = 100_001 * CKB;
     let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
     let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
     let deposit_input = context.create_cell(

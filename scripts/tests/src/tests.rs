@@ -28,7 +28,7 @@ use signing::*;
 
 // Shared test constants and on-chain error codes.
 const MAX_CYCLES: u64 = 10_000_000;
-const SHANNONS: u64 = 100_000_000;
+const CKB: u64 = 100_000_000;
 const GENESIS_AR: u64 = 10_000_000_000_000_000;
 const SIGNATURE_SIZE: usize = 65;
 const SYNTHETIC_DEPOSIT_AR: u64 = GENESIS_AR;

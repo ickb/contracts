@@ -9,7 +9,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -17,7 +17,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((100 * SHANNONS).pack())
+            .capacity((100 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -28,12 +28,12 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((80 * SHANNONS).pack())
+                .capacity((80 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
             CellOutput::new_builder()
@@ -67,7 +67,7 @@ fn order_shaped_non_empty_args_output_poisons_match() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -75,7 +75,7 @@ fn order_shaped_non_empty_args_output_poisons_match() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((400 * SHANNONS).pack())
+            .capacity((400 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -86,16 +86,16 @@ fn order_shaped_non_empty_args_output_poisons_match() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((80 * SHANNONS).pack())
+                .capacity((80 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&poisoned_lock, &helper_type, 73, 300 * SHANNONS).pack())
+                .capacity(deposit_capacity(&poisoned_lock, &helper_type, 73, 300 * CKB).pack())
                 .lock(poisoned_lock)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -127,7 +127,7 @@ fn non_empty_args_master_sibling_poisons_match() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -135,7 +135,7 @@ fn non_empty_args_master_sibling_poisons_match() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((100 * SHANNONS).pack())
+            .capacity((100 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -155,12 +155,12 @@ fn non_empty_args_master_sibling_poisons_match() {
         .input(CellInput::new_builder().previous_output(poisoned_master_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((80 * SHANNONS).pack())
+                .capacity((80 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
         ])

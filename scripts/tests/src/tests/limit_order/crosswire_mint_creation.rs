@@ -10,7 +10,7 @@ fn mint_crosswire_swaps_order_masters() {
     let limit_order = limit_order_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((4_000 * SHANNONS).pack())
+            .capacity((4_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -20,7 +20,7 @@ fn mint_crosswire_swaps_order_masters() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -30,7 +30,7 @@ fn mint_crosswire_swaps_order_masters() {
                 .type_(Some(limit_order.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -87,7 +87,7 @@ fn mint_crosswire_swaps_order_masters() {
         .input(CellInput::new_builder().previous_output(master1.clone()).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(owner1_lock)
                 .build(),
         )
@@ -103,7 +103,7 @@ fn mint_crosswire_swaps_order_masters() {
         .input(CellInput::new_builder().previous_output(master1).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(owner2_lock)
                 .build(),
         )
@@ -125,7 +125,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     let limit_order = limit_order_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((8_000 * SHANNONS).pack())
+            .capacity((8_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -133,7 +133,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
 
     let mut outputs = vec![
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -150,7 +150,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     }
     outputs.push(
         CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
+            .capacity((1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -222,7 +222,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
         .input(CellInput::new_builder().previous_output(master2.clone()).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(owner2_lock)
                 .build(),
         )
@@ -239,7 +239,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
         .input(CellInput::new_builder().previous_output(master1).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
+                .capacity((1_700 * CKB).pack())
                 .lock(owner1_lock)
                 .build(),
         )

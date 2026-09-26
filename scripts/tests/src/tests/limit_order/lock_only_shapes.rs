@@ -9,7 +9,7 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
     let helper_type = helper_type_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -19,7 +19,7 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 73, 1_500 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 73, 1_500 * CKB).pack())
                 .lock(limit_order_non_empty.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -33,7 +33,7 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
 
     let out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order_non_empty.clone())
             .type_(Some(helper_type).pack())
             .build(),
@@ -43,7 +43,7 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
         .input(CellInput::new_builder().previous_output(out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )
@@ -62,7 +62,7 @@ fn cell_using_limit_order_as_both_lock_and_type_is_rejected() {
     let limit_order = limit_order_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -161,7 +161,7 @@ fn lock_only_limit_order_missing_udt_type_hits_generic_failure_even_at_valid_cap
         .as_u64();
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((200 * SHANNONS).pack())
+            .capacity((200 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -191,7 +191,7 @@ fn lock_only_limit_order_missing_udt_type_hits_generic_failure_even_at_valid_cap
         .input(CellInput::new_builder().previous_output(forged_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity((200 * SHANNONS).pack())
+                .capacity((200 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )

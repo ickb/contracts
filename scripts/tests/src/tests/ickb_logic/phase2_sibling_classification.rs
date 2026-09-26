@@ -8,7 +8,7 @@ fn unrelated_non_empty_args_output_lock_poisons_phase2() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
     let poisoned_lock = data1_script(&mut context, "ickb_logic", Bytes::from(vec![1]));
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -56,7 +56,7 @@ fn ickb_xudt_shaped_output_lock_poisons_phase2() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -104,7 +104,7 @@ fn dao_deposit_shaped_output_lock_poisons_phase2() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -154,7 +154,7 @@ fn foreign_xudt_output_lock_is_ignored() {
     let foreign_owner = named_always_success_lock(&mut context, b"foreign-owner");
     let foreign_xudt = xudt_script(&mut context, &foreign_owner);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -205,7 +205,7 @@ fn foreign_xudt_type_output_is_ignored() {
     let foreign_owner = named_always_success_lock(&mut context, b"foreign-owner");
     let foreign_xudt = xudt_script(&mut context, &foreign_owner);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -255,7 +255,7 @@ fn withdrawal_request_shaped_dao_output_lock_is_ignored() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -307,7 +307,7 @@ fn deposit_shaped_non_empty_args_output_poisons_phase2() {
     let xudt = xudt_script(&mut context, &ickb_logic);
     let dao = dao_script(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())
@@ -319,7 +319,7 @@ fn deposit_shaped_non_empty_args_output_poisons_phase2() {
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -358,7 +358,7 @@ fn non_empty_args_receipt_sibling_poisons_phase2() {
     let poisoned_receipt_type = data1_script(&mut context, "ickb_logic", Bytes::from(vec![1]));
     let xudt = xudt_script(&mut context, &ickb_logic);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(capacity_for_data(12).pack())

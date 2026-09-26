@@ -8,7 +8,7 @@ fn udt_to_ckb_match_passes() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -16,7 +16,7 @@ fn udt_to_ckb_match_passes() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((100 * SHANNONS).pack())
+            .capacity((100 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -27,12 +27,12 @@ fn udt_to_ckb_match_passes() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((80 * SHANNONS).pack())
+                .capacity((80 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
         ])
@@ -59,7 +59,7 @@ fn udt_to_ckb_match_accepts_exact_minimum_partial_fill() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -67,7 +67,7 @@ fn udt_to_ckb_match_accepts_exact_minimum_partial_fill() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((100 * SHANNONS).pack())
+            .capacity((100 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -78,12 +78,12 @@ fn udt_to_ckb_match_accepts_exact_minimum_partial_fill() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_516 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_516 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((84 * SHANNONS).pack())
+                .capacity((84 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
         ])
@@ -112,7 +112,7 @@ fn valid_match_ignores_foreign_typed_output() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -120,7 +120,7 @@ fn valid_match_ignores_foreign_typed_output() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((300 * SHANNONS).pack())
+            .capacity((300 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -131,16 +131,16 @@ fn valid_match_ignores_foreign_typed_output() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((80 * SHANNONS).pack())
+                .capacity((80 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
             CellOutput::new_builder()
-                .capacity((200 * SHANNONS).pack())
+                .capacity((200 * CKB).pack())
                 .lock(foreign_lock)
                 .type_(Some(foreign_type).pack())
                 .build(),
@@ -169,7 +169,7 @@ fn ckb_to_udt_match_passes_with_both_ratios_present() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -180,19 +180,19 @@ fn ckb_to_udt_match_passes_with_both_ratios_present() {
         .input(CellInput::new_builder().previous_output(input_order).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_480 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_480 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((20 * SHANNONS).pack())
+                .capacity((20 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
         ])
         .outputs_data(
             vec![
                 order_data_custom(
-                    u128::from(20 * SHANNONS),
+                    u128::from(20 * CKB),
                     1,
                     [0u8; 32],
                     5u32.to_le_bytes(),
@@ -220,7 +220,7 @@ fn ckb_to_udt_match_accepts_exact_minimum_partial_fill() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -231,7 +231,7 @@ fn ckb_to_udt_match_accepts_exact_minimum_partial_fill() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS - 16).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB - 16).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -253,7 +253,7 @@ fn udt_to_ckb_match_rejects_small_udt_delta_under_minimum() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -261,7 +261,7 @@ fn udt_to_ckb_match_rejects_small_udt_delta_under_minimum() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((100 * SHANNONS).pack())
+            .capacity((100 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -272,12 +272,12 @@ fn udt_to_ckb_match_rejects_small_udt_delta_under_minimum() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((80 * SHANNONS).pack())
+                .capacity((80 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
         ])
@@ -303,7 +303,7 @@ fn udt_to_ckb_match_rejects_large_minimum_partial_fill() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -311,7 +311,7 @@ fn udt_to_ckb_match_rejects_large_minimum_partial_fill() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((100 * SHANNONS).pack())
+            .capacity((100 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -322,12 +322,12 @@ fn udt_to_ckb_match_rejects_large_minimum_partial_fill() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((80 * SHANNONS).pack())
+                .capacity((80 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
         ])
@@ -354,23 +354,23 @@ fn match_rejects_invalid_direction_change() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
-        order_data_match(100 * SHANNONS as u128, &master, (1, 1)),
+        order_data_match(100 * CKB as u128, &master, (1, 1)),
     );
 
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(50 * SHANNONS as u128, &master, (1, 1)).pack())
+        .output_data(order_data_match(50 * CKB as u128, &master, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
@@ -387,23 +387,23 @@ fn match_rejects_unchanged_shape() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
-        order_data_match(100 * SHANNONS as u128, &master, (1, 1)),
+        order_data_match(100 * CKB as u128, &master, (1, 1)),
     );
 
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(100 * SHANNONS as u128, &master, (1, 1)).pack())
+        .output_data(order_data_match(100 * CKB as u128, &master, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
@@ -420,7 +420,7 @@ fn match_rejects_decreasing_value() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -431,12 +431,12 @@ fn match_rejects_decreasing_value() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(50 * SHANNONS as u128, &master, (1, 1)).pack())
+        .output_data(order_data_match(50 * CKB as u128, &master, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
@@ -452,7 +452,7 @@ fn match_rejects_too_small_partial_fill() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -463,7 +463,7 @@ fn match_rejects_too_small_partial_fill() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS - 8).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB - 8).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),

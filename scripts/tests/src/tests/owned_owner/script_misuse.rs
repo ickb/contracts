@@ -12,13 +12,13 @@ fn zero_distance_owner_output_is_rejected() {
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
     );
     let owned_output = CellOutput::new_builder()
-        .capacity((1_000 * SHANNONS).pack())
+        .capacity((1_000 * CKB).pack())
         .lock(owned_owner.clone())
         .type_(Some(dao).pack())
         .build();
@@ -112,13 +112,13 @@ fn non_withdrawal_owned_cell_is_rejected() {
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
     );
     let owned_output = CellOutput::new_builder()
-        .capacity((1_000 * SHANNONS).pack())
+        .capacity((1_000 * CKB).pack())
         .lock(owned_owner.clone())
         .type_(Some(dao).pack())
         .build();
@@ -187,13 +187,13 @@ fn lock_only_owned_owner_dao_deposit_output_can_be_created_but_not_spent() {
     let funding_lock = always_success_lock(&mut context);
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
-    let funding_input = context.create_cell(CellOutput::new_builder().capacity((2_000 * SHANNONS).pack()).lock(funding_lock).build(), Bytes::new());
+    let funding_input = context.create_cell(CellOutput::new_builder().capacity((2_000 * CKB).pack()).lock(funding_lock).build(), Bytes::new());
 
     let create_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_000 * SHANNONS).pack())
+                .capacity((1_000 * CKB).pack())
                 .lock(owned_owner.clone())
                 .type_(Some(dao.clone()).pack())
                 .build(),
@@ -205,7 +205,7 @@ fn lock_only_owned_owner_dao_deposit_output_can_be_created_but_not_spent() {
 
     let forged_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_000 * SHANNONS).pack())
+            .capacity((1_000 * CKB).pack())
             .lock(owned_owner)
             .type_(Some(dao).pack())
             .build(),
@@ -213,7 +213,7 @@ fn lock_only_owned_owner_dao_deposit_output_can_be_created_but_not_spent() {
     );
     let spend_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(forged_out_point).build())
-        .output(CellOutput::new_builder().capacity((1_000 * SHANNONS).pack()).lock(always_success_lock(&mut context)).build())
+        .output(CellOutput::new_builder().capacity((1_000 * CKB).pack()).lock(always_success_lock(&mut context)).build())
         .output_data(Bytes::new().pack())
         .build();
     let spend_tx = context.complete_tx(spend_tx);

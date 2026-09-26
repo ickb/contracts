@@ -6,9 +6,9 @@ fn real_order_match_cannot_rewrite_master_outpoint_to_an_arbitrary_master() {
     let mut context = Context::default();
     let (owner_lock, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner");
     let (real_order_out_point, _real_master_out_point) =
-        build_real_limit_order_and_master_with_capacity(&mut context, owner_lock.clone(), helper_type.clone(), 1_600 * SHANNONS);
+        build_real_limit_order_and_master_with_capacity(&mut context, owner_lock.clone(), helper_type.clone(), 1_600 * CKB);
     let (_victim_order_out_point, victim_master_out_point) =
-        build_real_limit_order_and_master_with_capacity(&mut context, owner_lock.clone(), helper_type.clone(), 1_500 * SHANNONS);
+        build_real_limit_order_and_master_with_capacity(&mut context, owner_lock.clone(), helper_type.clone(), 1_500 * CKB);
 
     let limit_order = limit_order_script(&mut context);
     let tx = TransactionBuilder::default()
@@ -19,12 +19,12 @@ fn real_order_match_cannot_rewrite_master_outpoint_to_an_arbitrary_master() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
         )
-        .output_data(order_data_match(100 * SHANNONS as u128, &victim_master_out_point, (1, 1)).pack())
+        .output_data(order_data_match(100 * CKB as u128, &victim_master_out_point, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
@@ -49,12 +49,12 @@ fn real_limit_order_can_transition_from_mint_to_match_without_consuming_master()
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(100 * SHANNONS as u128, &real_master_out_point, (1, 1)).pack())
+        .output_data(order_data_match(100 * CKB as u128, &real_master_out_point, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
@@ -80,12 +80,12 @@ fn real_limit_order_match_rejects_rewriting_order_info() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
+                .capacity((1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
-        .output_data(order_data_match(100 * SHANNONS as u128, &real_master_out_point, (2, 1)).pack())
+        .output_data(order_data_match(100 * CKB as u128, &real_master_out_point, (2, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);

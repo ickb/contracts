@@ -9,7 +9,7 @@ fn match_rejects_two_outputs_sharing_one_master() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -20,22 +20,22 @@ fn match_rejects_two_outputs_sharing_one_master() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
         )
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 100 * SHANNONS).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 100 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
         )
         .outputs_data(
             vec![
-                order_data_match(50 * SHANNONS as u128, &master, (1, 1)),
-                order_data_match(10 * SHANNONS as u128, &master, (1, 1)),
+                order_data_match(50 * CKB as u128, &master, (1, 1)),
+                order_data_match(10 * CKB as u128, &master, (1, 1)),
             ]
             .pack(),
         )
@@ -55,7 +55,7 @@ fn same_master_collision_on_inputs_is_rejected() {
 
     let first_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -63,7 +63,7 @@ fn same_master_collision_on_inputs_is_rejected() {
     );
     let second_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * SHANNONS).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -75,7 +75,7 @@ fn same_master_collision_on_inputs_is_rejected() {
         .input(CellInput::new_builder().previous_output(second_order).build())
         .output(
             CellOutput::new_builder()
-                .capacity((2_900 * SHANNONS).pack())
+                .capacity((2_900 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )

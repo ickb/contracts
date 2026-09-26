@@ -10,7 +10,7 @@ fn mint_accepts_ckb_min_match_log_64() {
     let helper_type = helper_type_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -20,7 +20,7 @@ fn mint_accepts_ckb_min_match_log_64() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -57,7 +57,7 @@ fn mint_rejects_ckb_min_match_log_65() {
     let helper_type = helper_type_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
+            .capacity((2_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -67,7 +67,7 @@ fn mint_rejects_ckb_min_match_log_65() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
+                .capacity((1_500 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -102,7 +102,7 @@ fn two_master_outputs_fail_as_invalid_configuration_not_duplicate_master() {
     let limit_order = limit_order_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity((1_000 * SHANNONS).pack())
+            .capacity((1_000 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
