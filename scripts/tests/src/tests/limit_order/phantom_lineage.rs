@@ -1,6 +1,6 @@
 use super::*;
 
-// Create a mint-shaped output lock with no real master cell behind its distance; creation passes because no master lock executes on output.
+// Create a mint-shaped output lock with no real master cell behind its distance; creation passes because the transaction holds no master cell, so limit_order never runs, and the order's own lock does not execute on output.
 #[test]
 fn phantom_mint_output_can_be_created() {
     let mut context = Context::default();
@@ -28,7 +28,7 @@ fn phantom_mint_output_can_be_created() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("phantom order creation should bypass limit_order validation");
 }
 
@@ -66,7 +66,7 @@ fn phantom_mint_lineage_can_enter_match_without_real_master() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("a phantom mint-shaped order should be able to transition into match state without any real master");
 }
 
@@ -103,7 +103,7 @@ fn phantom_mint_lineage_cannot_rebind_to_an_arbitrary_fake_match_master() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
@@ -140,7 +140,7 @@ fn phantom_limit_order_match_still_requires_same_order_info() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
 }
 
@@ -175,7 +175,7 @@ fn phantom_limit_order_cannot_be_melted_without_a_master_input() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
@@ -196,7 +196,7 @@ fn phantom_limit_order_cannot_be_melted_with_an_unrelated_master() {
     );
     let unrelated_master_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
             .lock(owner_lock.clone())
             .type_(Some(limit_order).pack())
             .build(),
@@ -224,7 +224,7 @@ fn phantom_limit_order_cannot_be_melted_with_an_unrelated_master() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
@@ -258,6 +258,6 @@ fn lock_only_limit_order_output_can_be_created_with_match_order_data() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("lock-only output can be created with MatchOrderData");
 }

@@ -11,7 +11,7 @@ fn unrelated_non_empty_args_output_lock_poisons_phase2() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -20,7 +20,7 @@ fn unrelated_non_empty_args_output_lock_poisons_phase2() {
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(500u64.pack())
+            .capacity((500 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -31,12 +31,12 @@ fn unrelated_non_empty_args_output_lock_poisons_phase2() {
         .input(CellInput::new_builder().previous_output(extra_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity((200 * CKB).pack())
                 .lock(poisoned_lock)
                 .build(),
         ])
@@ -45,7 +45,7 @@ fn unrelated_non_empty_args_output_lock_poisons_phase2() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -59,7 +59,7 @@ fn ickb_xudt_shaped_output_lock_poisons_phase2() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -68,7 +68,7 @@ fn ickb_xudt_shaped_output_lock_poisons_phase2() {
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(500u64.pack())
+            .capacity((500 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -79,7 +79,7 @@ fn ickb_xudt_shaped_output_lock_poisons_phase2() {
         .input(CellInput::new_builder().previous_output(extra_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt.clone()).pack())
                 .build(),
@@ -93,7 +93,7 @@ fn ickb_xudt_shaped_output_lock_poisons_phase2() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SCRIPT_MISUSE);
 }
 
@@ -107,7 +107,7 @@ fn dao_deposit_shaped_output_lock_poisons_phase2() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -116,7 +116,7 @@ fn dao_deposit_shaped_output_lock_poisons_phase2() {
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(500u64.pack())
+            .capacity((500 * CKB).pack())
             .lock(funding_lock.clone())
             .build(),
         Bytes::new(),
@@ -127,7 +127,7 @@ fn dao_deposit_shaped_output_lock_poisons_phase2() {
         .input(CellInput::new_builder().previous_output(extra_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt).pack())
                 .build(),
@@ -141,7 +141,7 @@ fn dao_deposit_shaped_output_lock_poisons_phase2() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SCRIPT_MISUSE);
 }
 
@@ -157,7 +157,7 @@ fn foreign_xudt_output_lock_is_ignored() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -177,7 +177,7 @@ fn foreign_xudt_output_lock_is_ignored() {
         .input(CellInput::new_builder().previous_output(extra_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt).pack())
                 .build(),
@@ -192,7 +192,7 @@ fn foreign_xudt_output_lock_is_ignored() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("same xudt code with different args should stay outside iCKB classification");
 }
 
@@ -208,7 +208,7 @@ fn foreign_xudt_type_output_is_ignored() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -228,12 +228,12 @@ fn foreign_xudt_type_output_is_ignored() {
         .input(CellInput::new_builder().previous_output(extra_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &foreign_xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(foreign_xudt).pack())
                 .build(),
@@ -244,7 +244,7 @@ fn foreign_xudt_type_output_is_ignored() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("same xudt code with different args should stay outside iCKB UDT accounting");
 }
 
@@ -258,7 +258,7 @@ fn withdrawal_request_shaped_dao_output_lock_is_ignored() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -278,7 +278,7 @@ fn withdrawal_request_shaped_dao_output_lock_is_ignored() {
         .input(CellInput::new_builder().previous_output(extra_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt).pack())
                 .build(),
@@ -293,7 +293,7 @@ fn withdrawal_request_shaped_dao_output_lock_is_ignored() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("non-zero dao-shaped lock outputs should remain outside deposit classification");
 }
 
@@ -310,7 +310,7 @@ fn deposit_shaped_non_empty_args_output_poisons_phase2() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -330,7 +330,7 @@ fn deposit_shaped_non_empty_args_output_poisons_phase2() {
         .input(CellInput::new_builder().previous_output(extra_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt).pack())
                 .build(),
@@ -345,7 +345,7 @@ fn deposit_shaped_non_empty_args_output_poisons_phase2() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -361,7 +361,7 @@ fn non_empty_args_receipt_sibling_poisons_phase2() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -370,7 +370,7 @@ fn non_empty_args_receipt_sibling_poisons_phase2() {
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let poisoned_receipt = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &poisoned_receipt_type, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(poisoned_receipt_type).pack())
             .build(),
@@ -383,7 +383,7 @@ fn non_empty_args_receipt_sibling_poisons_phase2() {
         .input(CellInput::new_builder().previous_output(poisoned_receipt).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -393,6 +393,6 @@ fn non_empty_args_receipt_sibling_poisons_phase2() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }

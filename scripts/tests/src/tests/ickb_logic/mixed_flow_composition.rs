@@ -10,7 +10,7 @@ fn mixed_flow_cannot_overmint_by_combining_new_deposit_with_phase2_receipt() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -32,12 +32,12 @@ fn mixed_flow_cannot_overmint_by_combining_new_deposit_with_phase2_receipt() {
         .type_(Some(dao).pack())
         .build();
     let new_receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock.clone())
         .type_(Some(ickb_logic.clone()).pack())
         .build();
     let udt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(16).pack())
+        .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
         .lock(funding_lock)
         .type_(Some(xudt).pack())
         .build();
@@ -58,7 +58,7 @@ fn mixed_flow_cannot_overmint_by_combining_new_deposit_with_phase2_receipt() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 }
 
@@ -75,7 +75,7 @@ fn mixed_flow_cannot_overmint_when_deposit_phase1_phase2_and_withdrawal_share_on
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
             .lock(user_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -96,7 +96,7 @@ fn mixed_flow_cannot_overmint_when_deposit_phase1_phase2_and_withdrawal_share_on
 
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -121,17 +121,17 @@ fn mixed_flow_cannot_overmint_when_deposit_phase1_phase2_and_withdrawal_share_on
         .type_(Some(dao).pack())
         .build();
     let owner_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
         .lock(user_lock.clone())
         .type_(Some(owned_owner).pack())
         .build();
     let new_receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
         .lock(user_lock.clone())
         .type_(Some(ickb_logic.clone()).pack())
         .build();
     let udt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(16).pack())
+        .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
         .lock(user_lock)
         .type_(Some(xudt).pack())
         .build();
@@ -157,7 +157,7 @@ fn mixed_flow_cannot_overmint_when_deposit_phase1_phase2_and_withdrawal_share_on
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 }
 
@@ -179,7 +179,7 @@ fn all_three_scripts_can_compose_in_one_live_state_transition() {
 
     let receipt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&owner_lock, &ickb_logic, 12).pack())
             .lock(owner_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -213,7 +213,7 @@ fn all_three_scripts_can_compose_in_one_live_state_transition() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -231,6 +231,6 @@ fn all_three_scripts_can_compose_in_one_live_state_transition() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("a live receipt, live deposit, and live limit order should compose in one valid transaction");
 }

@@ -27,7 +27,7 @@ fn live_claim_cannot_roll_into_fresh_pair() {
     context.create_cell_with_out_point(
         owner_input.clone(),
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&old_owner_lock, &owned_owner, 4).pack())
             .lock(old_owner_lock)
             .type_(Some(owned_owner.clone()).pack())
             .build(),
@@ -52,7 +52,7 @@ fn live_claim_cannot_roll_into_fresh_pair() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&new_owner_lock, &owned_owner, 4).pack())
                 .lock(new_owner_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -70,7 +70,7 @@ fn live_claim_cannot_roll_into_fresh_pair() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
@@ -110,7 +110,7 @@ fn live_claims_cannot_rotate_into_new_pairs() {
     link_cell_to_header(&mut context, &deposit2, &deposit_header2);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user1_lock, &xudt, 16).pack())
             .lock(user1_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -121,6 +121,7 @@ fn live_claims_cannot_rotate_into_new_pairs() {
         .input(CellInput::new_builder().previous_output(deposit1).build())
         .input(CellInput::new_builder().previous_output(deposit2).build())
         .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
         .outputs(vec![
             CellOutput::new_builder()
                 .capacity(total1.pack())
@@ -133,12 +134,12 @@ fn live_claims_cannot_rotate_into_new_pairs() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user1_lock, &owned_owner, 4).pack())
                 .lock(user1_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user2_lock, &owned_owner, 4).pack())
                 .lock(user2_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -157,7 +158,7 @@ fn live_claims_cannot_rotate_into_new_pairs() {
         .build();
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("initial live owned_owner pairs should verify");
 
     let batch_hash = create_tx.hash();
@@ -220,12 +221,12 @@ fn live_claims_cannot_rotate_into_new_pairs() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user1_lock, &owned_owner, 4).pack())
                 .lock(user1_lock)
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user2_lock, &owned_owner, 4).pack())
                 .lock(user2_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -248,6 +249,6 @@ fn live_claims_cannot_rotate_into_new_pairs() {
         .build();
 
     let rotate_tx = context.complete_tx(rotate_tx);
-    let err = context.verify_tx(&rotate_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&rotate_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
 }

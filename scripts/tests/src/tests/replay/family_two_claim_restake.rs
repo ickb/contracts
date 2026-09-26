@@ -215,7 +215,7 @@ fn weak_two_claim_live_restake_can_reassign_later_phase2_claimants() {
 
     let first_tx = context.complete_tx(first_tx);
     context
-        .verify_tx(&first_tx, MAX_CYCLES)
+        .verify(&first_tx, MAX_CYCLES)
         .expect("weak two-claim restake should reassign the fresh owner output");
 
     let fresh_withdraw_header = rpc_header(
@@ -309,7 +309,7 @@ fn weak_two_claim_live_restake_can_reassign_later_phase2_claimants() {
 
     let second_tx = context.complete_tx(second_tx);
     context
-        .verify_tx(&second_tx, MAX_CYCLES)
+        .verify(&second_tx, MAX_CYCLES)
         .expect("reassigned fresh owner output should enable the wider phase2 claim");
 }
 
@@ -530,7 +530,7 @@ fn sighash_two_claim_live_restake_binds_fresh_owner_output() {
 
     let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 1, 2);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("one strong input group should still verify in the two-claim restake");
 
     let tampered_tx = tx
@@ -547,6 +547,6 @@ fn sighash_two_claim_live_restake_binds_fresh_owner_output() {
             tx.outputs().get(4).expect("change output"),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }

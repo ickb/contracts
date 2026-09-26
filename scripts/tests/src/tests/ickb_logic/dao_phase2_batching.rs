@@ -48,7 +48,7 @@ fn dao_phase2_with_65_outputs_hits_the_upstream_batch_limit() {
         .build();
 
     let tx = sign_tx(context.complete_tx(tx), &privkey);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DAO_TOO_MANY_OUTPUT_CELLS);
 }
 
@@ -57,7 +57,7 @@ fn dao_phase2_with_65_outputs_hits_the_upstream_batch_limit() {
 fn dao_phase2_with_64_outputs_from_64_distinct_headers_passes() {
     let (context, tx) = build_many_header_phase2_batch(64, None);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("64-output DAO phase2 batch with distinct deposit headers should verify");
 }
 
@@ -102,7 +102,7 @@ fn dao_phase2_rejects_header_dep_index_witness_in_output_type() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, -11);
 }
 
@@ -147,7 +147,7 @@ fn dao_phase2_rejects_short_header_dep_index_witness_in_input_type() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, -11);
 }
 
@@ -155,7 +155,7 @@ fn dao_phase2_rejects_short_header_dep_index_witness_in_input_type() {
 #[test]
 fn dao_phase2_rejects_misbound_deposit_header_index_in_large_batch() {
     let (context, tx) = build_many_header_phase2_batch(64, Some((37, 1)));
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DAO_INVALID_WITHDRAW_BLOCK);
 }
 
@@ -240,6 +240,6 @@ fn dao_phase2_with_two_distinct_deposit_headers_passes() {
 
     let tx = sign_tx(context.complete_tx(tx), &privkey);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("two-header DAO phase2 batch should verify");
 }

@@ -21,7 +21,7 @@ fn zero_quantity_receipt_is_rejected() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -33,7 +33,7 @@ fn zero_quantity_receipt_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_EMPTY_RECEIPT);
 }
 
@@ -58,7 +58,7 @@ fn forged_receipt_quantity_without_enough_deposits_is_rejected() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -70,7 +70,7 @@ fn forged_receipt_quantity_without_enough_deposits_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_RECEIPT_MISMATCH);
 }
 
@@ -94,7 +94,7 @@ fn receipt_for_unmatched_deposit_amount_is_rejected() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -106,6 +106,6 @@ fn receipt_for_unmatched_deposit_amount_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_RECEIPT_MISMATCH);
 }

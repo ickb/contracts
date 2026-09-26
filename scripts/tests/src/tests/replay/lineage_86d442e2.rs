@@ -92,7 +92,7 @@ fn mainnet_tx_8aaf4923_deposit_and_limit_order_match_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet deposit + limit_order match shape should replay locally");
 }
 
@@ -205,7 +205,7 @@ fn mainnet_tx_42fe6a4c_phase2_and_limit_order_match_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet phase2 plus limit_order match shape should replay locally");
 }
 
@@ -375,7 +375,7 @@ fn mainnet_tx_86d442e2_claim_and_restake_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet claim + restake shape should replay locally");
 }
 
@@ -539,6 +539,6 @@ fn mainnet_live_claims_cannot_rotate_into_new_owned_owner_pairs() {
         .build();
 
     let rotate_tx = context.complete_tx(rotate_tx);
-    let err = context.verify_tx(&rotate_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&rotate_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
 }

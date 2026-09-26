@@ -31,7 +31,7 @@ fn receiptless_dao_shaped_output_is_accepted_as_deposit() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("receiptless DAO-shaped ickb_logic output can be created at output-lock creation time");
 
     let receiptless_deposit_input = context.create_cell(
@@ -47,7 +47,7 @@ fn receiptless_dao_shaped_output_is_accepted_as_deposit() {
 
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -70,7 +70,7 @@ fn receiptless_dao_shaped_output_is_accepted_as_deposit() {
 
     let withdraw_tx = context.complete_tx(withdraw_tx);
     context
-        .verify_tx(&withdraw_tx, MAX_CYCLES)
+        .verify(&withdraw_tx, MAX_CYCLES)
         .expect("later phase1 withdrawal request should accept the receiptless DAO-shaped output as a structurally valid deposit input");
 }
 
@@ -112,7 +112,7 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
         .build();
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("aggregate receiptless deposit creation is allowed at output-lock creation time");
 
     let receiptless_aggregate_deposit = context.create_cell(
@@ -128,7 +128,7 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
 
     let receipt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
             .lock(user_lock.clone())
             .type_(Some(ickb_logic).pack())
             .build(),
@@ -141,6 +141,7 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(receiptless_aggregate_deposit).build())
         .input(CellInput::new_builder().previous_output(receipt_input).build())
+        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
         .outputs(vec![
             CellOutput::new_builder()
                 .capacity(aggregate_total_capacity.pack())
@@ -148,7 +149,7 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
                 .lock(user_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -159,30 +160,86 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("split receipt should mint only the soft-cap spread while the separately funded aggregate principal stays in the withdrawal output");
 
     let tampered_tx = tx
         .as_advanced_builder()
         .set_outputs_data(vec![withdrawal_request_data(1554).pack(), udt_data(delta + 1).pack()])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 }
 
-// Build the same delta-only spread path and then complete the DAO phase2 claim on the rolled withdrawal cell: both steps should pass, showing the self-funded aggregate principal stays recoverable even though only the spread minted in phase1.
+// Verify one continuous split-deposit receipt, receiptless creation, delta-only spread, and DAO phase2 claim trajectory: each later input keeps the preceding verified output's tx hash and index.
 #[test]
-fn spread_path_keeps_self_funded_principal_claimable() {
+fn verified_receiptless_creation_spread_and_claim_trajectory() {
     let mut context = Context::default();
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
     let split_amount = 100_000 * CKB;
     let aggregate_amount = 2 * split_amount;
+    let split_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, split_amount);
     let aggregate_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, aggregate_amount);
     let delta = 10_000 * CKB as u128;
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+
+    let split_funding_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity((2 * split_total_capacity + capacity_for_data(16)).pack())
+            .lock(user_lock.clone())
+            .build(),
+        Bytes::new(),
+    );
+    let split_tx = TransactionBuilder::default()
+        .input(
+            CellInput::new_builder()
+                .previous_output(split_funding_input)
+                .build(),
+        )
+        .outputs(vec![
+            CellOutput::new_builder()
+                .capacity(split_total_capacity.pack())
+                .lock(ickb_logic.clone())
+                .type_(Some(dao.clone()).pack())
+                .build(),
+            CellOutput::new_builder()
+                .capacity(split_total_capacity.pack())
+                .lock(ickb_logic.clone())
+                .type_(Some(dao.clone()).pack())
+                .build(),
+            CellOutput::new_builder()
+                .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
+                .lock(user_lock.clone())
+                .type_(Some(ickb_logic.clone()).pack())
+                .build(),
+        ])
+        .outputs_data(
+            vec![
+                dao_deposit_data(),
+                dao_deposit_data(),
+                receipt_data(2, split_amount),
+            ]
+            .pack(),
+        )
+        .build();
+    let split_tx = context.complete_tx(split_tx);
+    context
+        .verify(&split_tx, MAX_CYCLES)
+        .expect("two split deposits should create their quantity-two receipt");
+    let split_deposit_1 = seed_verified_output(&mut context, &split_tx, 0, dao_deposit_data());
+    let split_deposit_2 = seed_verified_output(&mut context, &split_tx, 1, dao_deposit_data());
+    let receipt_input = seed_verified_output(
+        &mut context,
+        &split_tx,
+        2,
+        receipt_data(2, split_amount),
+    );
+    link_cell_to_header(&mut context, &split_deposit_1, &deposit_header);
+    link_cell_to_header(&mut context, &split_deposit_2, &deposit_header);
+    link_cell_to_header(&mut context, &receipt_input, &deposit_header);
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
@@ -204,34 +261,23 @@ fn spread_path_keeps_self_funded_principal_claimable() {
         .build();
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("aggregate receiptless deposit creation is allowed at output-lock creation time");
 
-    let receiptless_aggregate_deposit = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(aggregate_total_capacity.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+    let receiptless_aggregate_deposit = seed_verified_output(
+        &mut context,
+        &create_tx,
+        0,
         dao_deposit_data(),
     );
     link_cell_to_header(&mut context, &receiptless_aggregate_deposit, &deposit_header);
-
-    let receipt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
-            .lock(user_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(2, split_amount),
-    );
-    link_cell_to_header(&mut context, &receipt_input, &deposit_header);
 
     // This is the same delta-only mint path as above, then a DAO phase2 claim.
     // The claim demonstrates that the self-funded aggregate principal stays spendable after minting only the spread.
     let mint_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(receiptless_aggregate_deposit).build())
         .input(CellInput::new_builder().previous_output(receipt_input).build())
+        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
         .outputs(vec![
             CellOutput::new_builder()
                 .capacity(aggregate_total_capacity.pack())
@@ -239,7 +285,7 @@ fn spread_path_keeps_self_funded_principal_claimable() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
                 .lock(user_lock.clone())
                 .type_(Some(xudt.clone()).pack())
                 .build(),
@@ -249,7 +295,7 @@ fn spread_path_keeps_self_funded_principal_claimable() {
         .build();
     let mint_tx = context.complete_tx(mint_tx);
     context
-        .verify_tx(&mint_tx, MAX_CYCLES)
+        .verify(&mint_tx, MAX_CYCLES)
         .expect("split receipt should realize the soft-cap spread while rolling only the self-funded aggregate deposit into withdrawal");
 
     let withdrawal_output = mint_tx.outputs().get(0).expect("withdrawing output");
@@ -288,7 +334,7 @@ fn spread_path_keeps_self_funded_principal_claimable() {
         .build();
     let claim_tx = context.complete_tx(claim_tx);
     context
-        .verify_tx(&claim_tx, MAX_CYCLES)
+        .verify(&claim_tx, MAX_CYCLES)
         .expect("the self-funded principal from the receiptless aggregate-deposit soft-cap path should remain spendable in DAO phase2");
 }
 
@@ -323,7 +369,7 @@ fn receiptless_aggregate_alone_cannot_mint_spread() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
                 .lock(user_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -333,7 +379,7 @@ fn receiptless_aggregate_alone_cannot_mint_spread() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 }
 
@@ -372,7 +418,7 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
         .build();
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("oversized aggregate receiptless deposit can still be created at output-lock creation time");
 
     let receiptless_aggregate_deposit = context.create_cell(
@@ -388,7 +434,7 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
 
     let receipt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
             .lock(user_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -399,6 +445,7 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(receiptless_aggregate_deposit).build())
         .input(CellInput::new_builder().previous_output(receipt_input).build())
+        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
         .outputs(vec![
             CellOutput::new_builder()
                 .capacity(aggregate_total_capacity.pack())
@@ -406,7 +453,7 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
                 .lock(user_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -417,6 +464,6 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("the oversized self-funded receiptless aggregate deposit should realize a larger soft-cap spread far past the intended per-deposit maximum");
 }

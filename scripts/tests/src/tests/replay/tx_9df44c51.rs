@@ -112,6 +112,6 @@ fn mainnet_tx_9df44c51_withdrawal_and_owned_owner_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet withdrawal + owned_owner shape should replay locally");
 }

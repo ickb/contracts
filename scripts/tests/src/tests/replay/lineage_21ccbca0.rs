@@ -77,7 +77,7 @@ fn testnet_tx_21ccbca0_phase1_and_limit_order_creation_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live testnet phase1 + limit_order creation shape should replay locally");
 }
 
@@ -195,7 +195,7 @@ fn testnet_tx_a4a8dc3d_mixed_phase2_and_limit_order_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live testnet mixed phase2 + limit_order shape should replay locally");
 }
 
@@ -374,6 +374,6 @@ fn testnet_tx_088a1019_batched_withdrawal_and_limit_order_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live testnet batched withdrawal + limit_order shape should replay locally");
 }

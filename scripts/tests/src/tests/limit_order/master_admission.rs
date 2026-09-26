@@ -27,7 +27,7 @@ fn mint_accepts_master_with_unspendable_foreign_lock() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&poisoned_lock, &limit_order, 0).pack())
                 .lock(poisoned_lock)
                 .type_(Some(limit_order.clone()).pack())
                 .build(),
@@ -37,7 +37,7 @@ fn mint_accepts_master_with_unspendable_foreign_lock() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("limit_order mint accepts a master whose lock never executed on creation");
 
     let tx_hash = create_tx.hash();
@@ -67,7 +67,7 @@ fn mint_accepts_master_with_unspendable_foreign_lock() {
         .build();
 
     let melt_tx = context.complete_tx(melt_tx);
-    let err = context.verify_tx(&melt_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&melt_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -98,7 +98,7 @@ fn mint_accepts_master_with_empty_args_ickb_logic_lock_and_strands_on_spend() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&benign_foreign_lock, &limit_order, 0).pack())
                 .lock(benign_foreign_lock)
                 .type_(Some(limit_order.clone()).pack())
                 .build(),
@@ -108,7 +108,7 @@ fn mint_accepts_master_with_empty_args_ickb_logic_lock_and_strands_on_spend() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("limit_order mint accepts an empty-args ickb_logic master lock at creation");
 
     let tx_hash = create_tx.hash();
@@ -138,6 +138,6 @@ fn mint_accepts_master_with_empty_args_ickb_logic_lock_and_strands_on_spend() {
         .build();
 
     let melt_tx = context.complete_tx(melt_tx);
-    let err = context.verify_tx(&melt_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&melt_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SCRIPT_MISUSE);
 }

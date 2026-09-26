@@ -21,7 +21,7 @@ fn deposit_below_minimum_is_rejected() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -33,7 +33,7 @@ fn deposit_below_minimum_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DEPOSIT_TOO_SMALL);
 }
 
@@ -58,7 +58,7 @@ fn deposit_at_minimum_is_accepted() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -71,7 +71,7 @@ fn deposit_at_minimum_is_accepted() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("deposit at the minimum boundary should verify");
 }
 
@@ -96,7 +96,7 @@ fn deposit_above_maximum_is_rejected() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -108,7 +108,7 @@ fn deposit_above_maximum_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DEPOSIT_TOO_BIG);
 }
 
@@ -133,7 +133,7 @@ fn deposit_at_maximum_is_accepted() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -146,6 +146,6 @@ fn deposit_at_maximum_is_accepted() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("deposit at the maximum boundary should verify");
 }

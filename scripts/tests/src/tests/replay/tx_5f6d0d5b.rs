@@ -151,6 +151,6 @@ fn mainnet_tx_5f6d0d5b_claim_deposit_and_limit_order_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet claim plus fresh deposit and limit_order shape should replay locally");
 }

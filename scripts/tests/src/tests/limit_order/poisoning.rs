@@ -9,7 +9,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -28,7 +28,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -37,7 +37,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
                 .lock(funding_lock)
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity((200 * CKB).pack())
                 .lock(poisoned_lock)
                 .build(),
         ])
@@ -52,7 +52,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -67,7 +67,7 @@ fn order_shaped_non_empty_args_output_poisons_match() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -86,7 +86,7 @@ fn order_shaped_non_empty_args_output_poisons_match() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -95,7 +95,7 @@ fn order_shaped_non_empty_args_output_poisons_match() {
                 .lock(funding_lock)
                 .build(),
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&poisoned_lock, &helper_type, 73, 300 * CKB).pack())
+                .capacity(deposit_capacity(&poisoned_lock, &helper_type, 89, 300 * CKB).pack())
                 .lock(poisoned_lock)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -111,7 +111,7 @@ fn order_shaped_non_empty_args_output_poisons_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -127,7 +127,7 @@ fn non_empty_args_master_sibling_poisons_match() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -142,7 +142,7 @@ fn non_empty_args_master_sibling_poisons_match() {
     );
     let poisoned_master_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity((200 * CKB).pack())
             .lock(owner_lock)
             .type_(Some(poisoned_master_type).pack())
             .build(),
@@ -155,7 +155,7 @@ fn non_empty_args_master_sibling_poisons_match() {
         .input(CellInput::new_builder().previous_output(poisoned_master_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -174,6 +174,6 @@ fn non_empty_args_master_sibling_poisons_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }

@@ -10,7 +10,7 @@ fn phase2_conversion_without_receipt_header_dep_is_rejected() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -22,7 +22,7 @@ fn phase2_conversion_without_receipt_header_dep_is_rejected() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -31,7 +31,7 @@ fn phase2_conversion_without_receipt_header_dep_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ITEM_MISSING);
 }
 
@@ -46,7 +46,7 @@ fn phase2_conversion_with_two_receipts_from_distinct_headers_passes() {
     let second_amount = 1_200 * CKB;
     let first_receipt = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -54,7 +54,7 @@ fn phase2_conversion_with_two_receipts_from_distinct_headers_passes() {
     );
     let second_receipt = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -72,7 +72,7 @@ fn phase2_conversion_with_two_receipts_from_distinct_headers_passes() {
         .input(CellInput::new_builder().previous_output(second_receipt).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -84,7 +84,7 @@ fn phase2_conversion_with_two_receipts_from_distinct_headers_passes() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("phase2 conversion should support multiple receipts from distinct headers");
 }
 
@@ -99,7 +99,7 @@ fn phase2_conversion_with_one_missing_receipt_header_dep_is_rejected() {
     let second_amount = 1_200 * CKB;
     let first_receipt = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -107,7 +107,7 @@ fn phase2_conversion_with_one_missing_receipt_header_dep_is_rejected() {
     );
     let second_receipt = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -123,7 +123,7 @@ fn phase2_conversion_with_one_missing_receipt_header_dep_is_rejected() {
         .input(CellInput::new_builder().previous_output(second_receipt).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -133,7 +133,7 @@ fn phase2_conversion_with_one_missing_receipt_header_dep_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ITEM_MISSING);
 }
 
@@ -147,7 +147,7 @@ fn phase2_conversion_with_zero_accumulated_rate_header_is_rejected() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -160,7 +160,7 @@ fn phase2_conversion_with_zero_accumulated_rate_header_is_rejected() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -170,6 +170,6 @@ fn phase2_conversion_with_zero_accumulated_rate_header_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SCRIPT_PANIC);
 }

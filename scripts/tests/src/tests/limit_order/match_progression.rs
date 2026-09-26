@@ -8,7 +8,7 @@ fn udt_to_ckb_match_passes() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -27,7 +27,7 @@ fn udt_to_ckb_match_passes() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -47,7 +47,7 @@ fn udt_to_ckb_match_passes() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("udt-to-ckb partial matches should verify when value and minimum match hold");
 }
 
@@ -59,7 +59,7 @@ fn udt_to_ckb_match_accepts_exact_minimum_partial_fill() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -78,7 +78,7 @@ fn udt_to_ckb_match_accepts_exact_minimum_partial_fill() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_516 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_516 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -98,7 +98,7 @@ fn udt_to_ckb_match_accepts_exact_minimum_partial_fill() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("udt-to-ckb partial matches should verify when the fill lands exactly on the minimum boundary");
 }
 
@@ -112,7 +112,7 @@ fn valid_match_ignores_foreign_typed_output() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -131,7 +131,7 @@ fn valid_match_ignores_foreign_typed_output() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -157,7 +157,7 @@ fn valid_match_ignores_foreign_typed_output() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("limit_order should ignore unrelated foreign typed outputs during a valid match");
 }
 
@@ -169,23 +169,25 @@ fn ckb_to_udt_match_passes_with_both_ratios_present() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
         order_data_custom(0, 1, [0u8; 32], 5u32.to_le_bytes(), (1, 1), (1, 1), 4),
     );
 
+    // The matcher collects the 20 CKB into its own funding cell, which a bare 20 CKB cell could not hold.
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(input_order).build())
+        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_480 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_480 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity((20 * CKB).pack())
+                .capacity((1_020 * CKB).pack())
                 .lock(funding_lock)
                 .build(),
         ])
@@ -208,7 +210,7 @@ fn ckb_to_udt_match_passes_with_both_ratios_present() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("ckb-to-udt partial matches should verify when both ratios are present and value is preserved");
 }
 
@@ -220,7 +222,7 @@ fn ckb_to_udt_match_accepts_exact_minimum_partial_fill() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -231,7 +233,7 @@ fn ckb_to_udt_match_accepts_exact_minimum_partial_fill() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB - 16).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB - 16).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -241,7 +243,7 @@ fn ckb_to_udt_match_accepts_exact_minimum_partial_fill() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("ckb-to-udt partial matches should verify when the fill lands exactly on the minimum boundary");
 }
 
@@ -253,7 +255,7 @@ fn udt_to_ckb_match_rejects_small_udt_delta_under_minimum() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -272,7 +274,7 @@ fn udt_to_ckb_match_rejects_small_udt_delta_under_minimum() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -291,7 +293,7 @@ fn udt_to_ckb_match_rejects_small_udt_delta_under_minimum() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INSUFFICIENT_MATCH);
 }
 
@@ -303,7 +305,7 @@ fn udt_to_ckb_match_rejects_large_minimum_partial_fill() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -322,7 +324,7 @@ fn udt_to_ckb_match_rejects_large_minimum_partial_fill() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -341,7 +343,7 @@ fn udt_to_ckb_match_rejects_large_minimum_partial_fill() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INSUFFICIENT_MATCH);
 }
 
@@ -354,7 +356,7 @@ fn match_rejects_invalid_direction_change() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -365,7 +367,7 @@ fn match_rejects_invalid_direction_change() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -374,7 +376,7 @@ fn match_rejects_invalid_direction_change() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_MATCH);
 }
 
@@ -387,7 +389,7 @@ fn match_rejects_unchanged_shape() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -398,7 +400,7 @@ fn match_rejects_unchanged_shape() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -407,7 +409,7 @@ fn match_rejects_unchanged_shape() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_MATCH);
 }
 
@@ -420,7 +422,7 @@ fn match_rejects_decreasing_value() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -431,7 +433,7 @@ fn match_rejects_decreasing_value() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_400 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -440,7 +442,7 @@ fn match_rejects_decreasing_value() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_DECREASING_VALUE);
 }
 
@@ -452,7 +454,7 @@ fn match_rejects_too_small_partial_fill() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -463,7 +465,7 @@ fn match_rejects_too_small_partial_fill() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB - 8).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB - 8).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -472,19 +474,19 @@ fn match_rejects_too_small_partial_fill() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INSUFFICIENT_MATCH);
 }
 
-// Continue an almost-empty CKB->UDT order down to zero unoccupied value; the input lock traps generically instead of surfacing a stable typed error.
+// Fully fill a CKB->UDT order down to its exact occupied capacity; terminal fills bypass the partial-fill minimum.
 #[test]
-fn zero_unoccupied_match_shape_hits_generic_failure() {
+fn ckb_to_udt_terminal_full_fill_passes_at_occupied_capacity() {
     let mut context = Context::default();
     let (limit_order, helper_type) = limit_order_and_helper_type_scripts(&mut context);
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 8).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 8).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -495,7 +497,7 @@ fn zero_unoccupied_match_shape_hits_generic_failure() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 0).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 0).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -504,8 +506,7 @@ fn zero_unoccupied_match_shape_hits_generic_failure() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    // The deployed release binary traps with a generic -1 here instead of surfacing a stable
-    // typed error for this zero-unoccupied transition shape.
-    assert_script_error(err, ERROR_SCRIPT_PANIC);
+    context
+        .verify(&tx, MAX_CYCLES)
+        .expect("a terminal full fill at exact occupied capacity should verify");
 }

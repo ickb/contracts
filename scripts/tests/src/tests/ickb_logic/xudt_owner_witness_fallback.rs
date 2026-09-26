@@ -20,7 +20,7 @@ fn xudt_owner_script_output_witness_cannot_mint_without_live_owner_mode() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -30,7 +30,7 @@ fn xudt_owner_script_output_witness_cannot_mint_without_live_owner_mode() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_XUDT_AMOUNT);
 }
 
@@ -43,7 +43,7 @@ fn xudt_owner_script_input_witness_cannot_mint_without_live_owner_mode() {
 
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -55,7 +55,7 @@ fn xudt_owner_script_input_witness_cannot_mint_without_live_owner_mode() {
         .input(CellInput::new_builder().previous_output(udt_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
                 .lock(user_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -65,6 +65,6 @@ fn xudt_owner_script_input_witness_cannot_mint_without_live_owner_mode() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_XUDT_AMOUNT);
 }

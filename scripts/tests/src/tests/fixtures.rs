@@ -23,8 +23,11 @@ pub(super) fn always_success_lock(context: &mut Context) -> Script {
     always_success_script(context, Bytes::new())
 }
 
+// Named locks stand in for real user locks, so their args take a secp lock's 20-byte size and
+// the cells they guard need the same occupied capacity as on chain.
 pub(super) fn named_always_success_lock(context: &mut Context, name: &[u8]) -> Script {
-    always_success_script(context, Bytes::from(name.to_vec()))
+    let args = ckb_testtool::ckb_hash::blake2b_256(name)[..20].to_vec();
+    always_success_script(context, Bytes::from(args))
 }
 
 pub(super) fn data1_script(context: &mut Context, binary: &str, args: Bytes) -> Script {
@@ -148,6 +151,20 @@ pub(super) fn owned_owner_script(context: &mut Context) -> Script {
 // Capacity and DAO accounting helpers.
 pub(super) fn capacity_for_data(data_len: u64) -> u64 {
     100 * CKB + data_len
+}
+
+/// A plain CKB cell that funds a transaction's outputs, as a wallet adds one on chain.
+pub(super) fn funding_cell(context: &mut Context) -> OutPoint {
+    let lock = named_always_success_lock(context, b"funding");
+    context.create_cell(
+        CellOutput::new_builder().capacity((1_000 * CKB).pack()).lock(lock).build(),
+        Bytes::new(),
+    )
+}
+
+/// The least capacity a cell with this lock, type and data length can hold on chain.
+pub(super) fn occupied_capacity(lock: &Script, type_: &Script, data_len: usize) -> u64 {
+    deposit_capacity(lock, type_, data_len, 0)
 }
 
 pub(super) fn deposit_capacity(lock: &Script, type_: &Script, data_len: usize, unused_capacity: u64) -> u64 {
@@ -306,7 +323,7 @@ pub(super) fn create_withdrawal_inputs(
     link_cell_to_header(context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock)
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -350,7 +367,7 @@ pub(super) fn build_real_limit_order_and_master_with_capacity(
         )
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
                 .lock(owner_lock)
                 .type_(Some(limit_order).pack())
                 .build(),
@@ -359,7 +376,7 @@ pub(super) fn build_real_limit_order_and_master_with_capacity(
         .build();
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("real limit order mint should verify");
     let order_out_point = seed_verified_output(context, &tx, 0, order_data_mint(0, 1, (1, 1)));
     let master_out_point = seed_verified_output(context, &tx, 1, Bytes::new());
@@ -373,14 +390,14 @@ pub(super) fn assert_lock_only_limit_order_spend_error(data: Bytes, expected_err
     let (limit_order, output_type) = limit_order_and_helper_type_scripts(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(500u64.pack())
+            .capacity((500 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
     );
 
     let forged_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity((200 * CKB).pack())
         .lock(limit_order.clone())
         .type_(Some(output_type).pack())
         .build();
@@ -391,7 +408,7 @@ pub(super) fn assert_lock_only_limit_order_spend_error(data: Bytes, expected_err
         .build();
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("lock-only forged order should be creatable");
 
     let forged_out_point = context.create_cell(forged_output, data);
@@ -403,13 +420,13 @@ pub(super) fn assert_lock_only_limit_order_spend_error(data: Bytes, expected_err
         )
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity((200 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )
         .output_data(Bytes::new().pack())
         .build();
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify_tx(&spend_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, expected_error);
 }

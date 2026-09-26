@@ -22,7 +22,7 @@ fn phase1_accepts_unspendable_foreign_owner_lock() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -39,7 +39,7 @@ fn phase1_accepts_unspendable_foreign_owner_lock() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&poisoned_lock, &owned_owner, 4).pack())
                 .lock(poisoned_lock)
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -50,7 +50,7 @@ fn phase1_accepts_unspendable_foreign_owner_lock() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("owned_owner creation accepts an owner cell whose lock never executed on creation");
 
     let tx_hash = create_tx.hash();
@@ -92,7 +92,7 @@ fn phase1_accepts_unspendable_foreign_owner_lock() {
         .build();
 
     let melt_tx = context.complete_tx(melt_tx);
-    let err = context.verify_tx(&melt_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&melt_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -117,7 +117,7 @@ fn phase1_accepts_limit_order_owner_lock_but_claim_strands() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -134,7 +134,7 @@ fn phase1_accepts_limit_order_owner_lock_but_claim_strands() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&benign_foreign_lock, &owned_owner, 4).pack())
                 .lock(benign_foreign_lock)
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -145,7 +145,7 @@ fn phase1_accepts_limit_order_owner_lock_but_claim_strands() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("owned_owner creation accepts an empty-args limit_order owner lock at creation");
 
     let tx_hash = create_tx.hash();
@@ -187,7 +187,7 @@ fn phase1_accepts_limit_order_owner_lock_but_claim_strands() {
         .build();
 
     let melt_tx = context.complete_tx(melt_tx);
-    let err = context.verify_tx(&melt_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&melt_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }
 
@@ -217,7 +217,7 @@ fn limit_order_backed_owner_is_blocked_in_phase1() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&burn_lock, &xudt, 16).pack())
             .lock(burn_lock)
             .type_(Some(xudt).pack())
             .build(),
@@ -226,7 +226,7 @@ fn limit_order_backed_owner_is_blocked_in_phase1() {
 
     let master_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&attacker_lock, &limit_order, 0).pack())
             .lock(attacker_lock.clone())
             .type_(Some(limit_order.clone()).pack())
             .build(),
@@ -254,6 +254,6 @@ fn limit_order_backed_owner_is_blocked_in_phase1() {
         .build();
 
     let create_tx = context.complete_tx(create_tx);
-    let err = context.verify_tx(&create_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&create_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DAO_INCORRECT_CAPACITY);
 }

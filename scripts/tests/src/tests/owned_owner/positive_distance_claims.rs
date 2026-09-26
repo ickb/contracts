@@ -15,7 +15,7 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(100u64.pack())
+            .capacity((200 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -31,7 +31,7 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -44,11 +44,11 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
         .input(CellInput::new_builder().previous_output(deposit_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(100u64.pack())
+                .capacity((100 * CKB).pack())
                 .lock(filler_lock)
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -71,7 +71,7 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("owned_owner should accept an adjacent positive-distance phase1 pair");
 
     let tx_hash = create_tx.hash();
@@ -120,7 +120,7 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
 
     let claim_tx = context.complete_tx(claim_tx);
     context
-        .verify_tx(&claim_tx, MAX_CYCLES)
+        .verify(&claim_tx, MAX_CYCLES)
         .expect("an adjacent positive-distance pair should remain spendable in DAO phase2");
 }
 
@@ -139,14 +139,14 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(100u64.pack())
+            .capacity((200 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
     );
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -168,12 +168,12 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
         .input(CellInput::new_builder().previous_output(deposit_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(100u64.pack())
+                .capacity((100 * CKB).pack())
                 .lock(filler_lock)
                 .build(),
             CellOutput::new_builder()
@@ -195,7 +195,7 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("owned_owner should accept a sparse positive-distance pair when DAO index rules are still satisfied");
 
     let tx_hash = create_tx.hash();
@@ -243,6 +243,6 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
         .build();
     let claim_tx = context.complete_tx(claim_tx);
     context
-        .verify_tx(&claim_tx, MAX_CYCLES)
+        .verify(&claim_tx, MAX_CYCLES)
         .expect("a sparse positive-distance pair should remain spendable in DAO phase2 at the exact claim capacity");
 }

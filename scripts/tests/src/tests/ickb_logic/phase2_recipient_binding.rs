@@ -26,7 +26,7 @@ fn weak_lock_receipt_can_reassign_phase2_mint_recipient() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&attacker_lock, &xudt, 16).pack())
                 .lock(attacker_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -37,7 +37,7 @@ fn weak_lock_receipt_can_reassign_phase2_mint_recipient() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("weak lock should allow reassigning the phase2 mint recipient");
 }
 
@@ -52,7 +52,7 @@ fn sighash_lock_binds_phase2_mint_outputs_to_the_signed_transaction() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&owner_lock, &ickb_logic, 12).pack())
             .lock(owner_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -64,7 +64,7 @@ fn sighash_lock_binds_phase2_mint_outputs_to_the_signed_transaction() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(xudt.clone()).pack())
                 .build(),
@@ -77,20 +77,20 @@ fn sighash_lock_binds_phase2_mint_outputs_to_the_signed_transaction() {
 
     let tx = sign_tx(context.complete_tx(tx), &privkey);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("signed owner transaction should verify");
 
     let tampered_tx = tx
         .as_advanced_builder()
         .set_outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&attacker_lock, &xudt, 16).pack())
                 .lock(attacker_lock)
                 .type_(Some(xudt).pack())
                 .build(),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
@@ -107,7 +107,7 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
     let amount2 = 1_200 * CKB;
     let receipt1 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&owner_lock, &ickb_logic, 12).pack())
             .lock(owner_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -115,7 +115,7 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
     );
     let receipt2 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&weak_lock, &ickb_logic, 12).pack())
             .lock(weak_lock)
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -132,7 +132,7 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
         .input(CellInput::new_builder().previous_output(receipt2).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(xudt.clone()).pack())
                 .build(),
@@ -147,20 +147,20 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
 
     let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 0, 1);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("mixed strong+weak phase2 tx should verify when signed");
 
     let tampered_tx = tx
         .as_advanced_builder()
         .set_outputs(vec![
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&attacker_lock, &xudt, 16).pack())
                 .lock(attacker_lock)
                 .type_(Some(xudt).pack())
                 .build(),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
@@ -177,7 +177,7 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
     let amount2 = 1_200 * CKB;
     let receipt1 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&weak_lock_1, &ickb_logic, 12).pack())
             .lock(weak_lock_1)
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -185,7 +185,7 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
     );
     let receipt2 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&weak_lock_2, &ickb_logic, 12).pack())
             .lock(weak_lock_2)
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -202,7 +202,7 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
         .input(CellInput::new_builder().previous_output(receipt2).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&attacker_lock, &xudt, 16).pack())
                 .lock(attacker_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -214,6 +214,6 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("all-weak phase2 inputs can reassign the combined phase2 mint recipient");
 }

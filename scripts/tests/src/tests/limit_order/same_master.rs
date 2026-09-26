@@ -9,7 +9,7 @@ fn match_rejects_two_outputs_sharing_one_master() {
 
     let input_order_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -20,14 +20,14 @@ fn match_rejects_two_outputs_sharing_one_master() {
         .input(CellInput::new_builder().previous_output(input_order_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_400 * CKB).pack())
                 .lock(limit_order.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
         )
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 100 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 100 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -42,7 +42,7 @@ fn match_rejects_two_outputs_sharing_one_master() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_SAME_MASTER);
 }
 
@@ -55,7 +55,7 @@ fn same_master_collision_on_inputs_is_rejected() {
 
     let first_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -63,7 +63,7 @@ fn same_master_collision_on_inputs_is_rejected() {
     );
     let second_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_400 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_400 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -83,7 +83,7 @@ fn same_master_collision_on_inputs_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_SAME_MASTER);
 }
 
@@ -100,7 +100,7 @@ fn duplicate_master_input_shape_is_blocked_before_script_invariants() {
         .input(CellInput::new_builder().previous_output(real_master_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(400u64.pack())
+                .capacity((400 * CKB).pack())
                 .lock(owner_lock)
                 .build(),
         )
@@ -111,6 +111,6 @@ fn duplicate_master_input_shape_is_blocked_before_script_invariants() {
     // Duplicate inputs are rejected by transaction-level validation before the contract can reach
     // its internal DuplicatedMaster branch, so there is no stable limit_order error code to assert.
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect_err("duplicating a master input should be blocked before a reachable DuplicatedMaster path");
 }

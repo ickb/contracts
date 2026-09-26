@@ -41,7 +41,7 @@ fn distinct_mint_capacities_block_master_crosswire() {
         .build();
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify_tx(&crosswire_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
     assert_script_error_in(
         err,
         &[
@@ -85,7 +85,7 @@ fn distinct_match_progress_blocks_master_crosswire() {
         .build();
     let order1_match_tx = context.complete_tx(order1_match_tx);
     context
-        .verify_tx(&order1_match_tx, MAX_CYCLES)
+        .verify(&order1_match_tx, MAX_CYCLES)
         .expect("order1 should enter its first match state");
     let order1_matched = OutPoint::new(order1_match_tx.hash(), 0);
     context.create_cell_with_out_point(
@@ -108,7 +108,7 @@ fn distinct_match_progress_blocks_master_crosswire() {
         .build();
     let order2_match_tx = context.complete_tx(order2_match_tx);
     context
-        .verify_tx(&order2_match_tx, MAX_CYCLES)
+        .verify(&order2_match_tx, MAX_CYCLES)
         .expect("order2 should enter a later match state with different progress");
     let order2_matched = OutPoint::new(order2_match_tx.hash(), 0);
     context.create_cell_with_out_point(
@@ -138,7 +138,7 @@ fn distinct_match_progress_blocks_master_crosswire() {
         .build();
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify_tx(&crosswire_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
     assert_script_error_in(
         err,
         &[
@@ -182,7 +182,7 @@ fn real_mint_and_match_orders_cannot_crosswire_masters() {
         .build();
     let seed_match_tx = context.complete_tx(seed_match_tx);
     context
-        .verify_tx(&seed_match_tx, MAX_CYCLES)
+        .verify(&seed_match_tx, MAX_CYCLES)
         .expect("the second real order should enter match state before the mixed crosswire");
     let match_order_input = OutPoint::new(seed_match_tx.hash(), 0);
     context.create_cell_with_out_point(
@@ -212,7 +212,7 @@ fn real_mint_and_match_orders_cannot_crosswire_masters() {
         .build();
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify_tx(&crosswire_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
     assert_script_error_in(
         err,
         &[
@@ -358,6 +358,6 @@ fn different_info_mainnet_orders_cannot_crosswire_during_match() {
         .build();
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify_tx(&crosswire_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
 }

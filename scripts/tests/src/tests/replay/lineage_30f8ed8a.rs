@@ -96,7 +96,7 @@ fn mainnet_tx_30f8ed8a_phase1_and_limit_order_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet phase1 + limit_order shape should replay locally");
 }
 
@@ -200,6 +200,6 @@ fn mainnet_tx_f9404724_mixed_phase2_and_limit_order_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet mixed phase2 + limit_order shape should replay locally");
 }

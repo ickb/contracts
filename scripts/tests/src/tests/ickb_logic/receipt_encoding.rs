@@ -22,7 +22,7 @@ fn receipt_trailing_bytes_do_not_change_creation_accounting() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(15).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 15).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -40,7 +40,7 @@ fn receipt_trailing_bytes_do_not_change_creation_accounting() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("receipt trailing bytes should not affect accounting");
 }
 
@@ -65,7 +65,7 @@ fn receipt_trailing_bytes_do_not_change_phase2_conversion() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -76,7 +76,7 @@ fn receipt_trailing_bytes_do_not_change_phase2_conversion() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("receipt trailing bytes should not affect phase2 conversion");
 }
 
@@ -102,7 +102,7 @@ fn truncated_receipt_output_with_small_amount_is_rejected() {
         .type_(Some(dao).pack())
         .build();
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(9).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 9).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic).pack())
         .build();
@@ -115,7 +115,7 @@ fn truncated_receipt_output_with_small_amount_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }
 
@@ -140,7 +140,7 @@ fn truncated_receipt_input_with_small_amount_is_rejected() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -150,6 +150,6 @@ fn truncated_receipt_input_with_small_amount_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }

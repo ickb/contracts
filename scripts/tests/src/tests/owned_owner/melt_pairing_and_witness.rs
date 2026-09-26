@@ -26,7 +26,7 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
     context.create_cell_with_out_point(
         owner_input.clone(),
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner_lock, &owned_owner, 6).pack())
             .lock(owner_lock.clone())
             .type_(Some(owned_owner).pack())
             .build(),
@@ -64,7 +64,7 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("owned_owner melt accepts trailing bytes after a valid input owner distance");
 }
 
@@ -94,7 +94,7 @@ fn valid_melt_pair_passes() {
     context.create_cell_with_out_point(
         owner_input.clone(),
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
             .lock(owner_lock.clone())
             .type_(Some(owned_owner).pack())
             .build(),
@@ -132,7 +132,7 @@ fn valid_melt_pair_passes() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("owned_owner should accept a valid melt pair");
 }
 
@@ -162,7 +162,7 @@ fn melt_rejects_misbound_deposit_header_index() {
     context.create_cell_with_out_point(
         owner_input.clone(),
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
             .lock(owner_lock.clone())
             .type_(Some(owned_owner).pack())
             .build(),
@@ -192,7 +192,7 @@ fn melt_rejects_misbound_deposit_header_index() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DAO_INVALID_WITHDRAW_BLOCK);
 }
 
@@ -222,7 +222,7 @@ fn melt_rejects_short_header_dep_index_witness() {
     context.create_cell_with_out_point(
         owner_input.clone(),
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
             .lock(owner_lock.clone())
             .type_(Some(owned_owner).pack())
             .build(),
@@ -253,7 +253,7 @@ fn melt_rejects_short_header_dep_index_witness() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, -11);
 }
 
@@ -283,7 +283,7 @@ fn melt_rejects_header_dep_index_witness_in_output_type() {
     context.create_cell_with_out_point(
         owner_input.clone(),
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
             .lock(owner_lock.clone())
             .type_(Some(owned_owner).pack())
             .build(),
@@ -314,7 +314,7 @@ fn melt_rejects_header_dep_index_witness_in_output_type() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, -11);
 }
 
@@ -343,7 +343,7 @@ fn melt_rejects_truncated_owner_distance_on_input() {
     context.create_cell_with_out_point(
         owner_input.clone(),
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
             .lock(owner_lock.clone())
             .type_(Some(owned_owner).pack())
             .build(),
@@ -374,7 +374,7 @@ fn melt_rejects_truncated_owner_distance_on_input() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }
 
@@ -390,7 +390,7 @@ fn pairs_cannot_be_swapped_during_melt() {
 
     let owned1 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(1000u64.pack())
+            .capacity((1000 * CKB).pack())
             .lock(owned_owner.clone())
             .type_(Some(dao.clone()).pack())
             .build(),
@@ -398,7 +398,7 @@ fn pairs_cannot_be_swapped_during_melt() {
     );
     let owner1 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&user1_lock, &owned_owner, 4).pack())
             .lock(user1_lock.clone())
             .type_(Some(owned_owner.clone()).pack())
             .build(),
@@ -406,7 +406,7 @@ fn pairs_cannot_be_swapped_during_melt() {
     );
     let owned2 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(1000u64.pack())
+            .capacity((1000 * CKB).pack())
             .lock(owned_owner.clone())
             .type_(Some(dao).pack())
             .build(),
@@ -414,7 +414,7 @@ fn pairs_cannot_be_swapped_during_melt() {
     );
     let owner2 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&user2_lock, &owned_owner, 4).pack())
             .lock(user2_lock.clone())
             .type_(Some(owned_owner).pack())
             .build(),
@@ -427,13 +427,13 @@ fn pairs_cannot_be_swapped_during_melt() {
         .input(CellInput::new_builder().previous_output(owned2).build())
         .input(CellInput::new_builder().previous_output(owner1).build())
         .outputs(vec![
-            CellOutput::new_builder().capacity(600u64.pack()).lock(user1_lock).build(),
-            CellOutput::new_builder().capacity(600u64.pack()).lock(user2_lock).build(),
+            CellOutput::new_builder().capacity((600 * CKB).pack()).lock(user1_lock).build(),
+            CellOutput::new_builder().capacity((600 * CKB).pack()).lock(user2_lock).build(),
         ])
         .outputs_data(vec![Bytes::new(), Bytes::new()].pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
 }

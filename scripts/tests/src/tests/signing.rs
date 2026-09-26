@@ -220,14 +220,14 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
 
     let passthrough_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(1_000u64.pack())
+            .capacity((1_000 * CKB).pack())
             .lock(passthrough_lock.clone())
             .build(),
         Bytes::new(),
     );
     let protected_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(1_000u64.pack())
+            .capacity((1_000 * CKB).pack())
             .lock(protected_lock)
             .build(),
         Bytes::new(),
@@ -239,7 +239,7 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
         .input(CellInput::new_builder().previous_output(protected_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(1_800u64.pack())
+                .capacity((1_800 * CKB).pack())
                 .lock(passthrough_lock)
                 .build(),
         )
@@ -252,7 +252,7 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
 
     let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 1, 1);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("later secp input group should verify when the trailing extra witness stays unchanged");
 
     let tampered_tx = tx
@@ -263,6 +263,6 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
             Bytes::from_static(b"trailing-extra-updated").pack(),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }

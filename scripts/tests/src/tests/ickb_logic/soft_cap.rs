@@ -10,7 +10,7 @@ fn phase2_mint_applies_soft_cap_discount_above_boundary() {
     let amount = 100_001 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -22,7 +22,7 @@ fn phase2_mint_applies_soft_cap_discount_above_boundary() {
         .input(CellInput::new_builder().previous_output(receipt_out_point.clone()).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt.clone()).pack())
                 .build(),
@@ -31,14 +31,14 @@ fn phase2_mint_applies_soft_cap_discount_above_boundary() {
         .header_dep(receipt_header.clone())
         .build();
     let naive_tx = context.complete_tx(naive_tx);
-    let err = context.verify_tx(&naive_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&naive_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 
     let exact_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -48,7 +48,7 @@ fn phase2_mint_applies_soft_cap_discount_above_boundary() {
         .build();
     let exact_tx = context.complete_tx(exact_tx);
     context
-        .verify_tx(&exact_tx, MAX_CYCLES)
+        .verify(&exact_tx, MAX_CYCLES)
         .expect("phase2 mint should apply the documented soft-cap discount above 100k iCKB");
 }
 
@@ -64,7 +64,7 @@ fn phase2_mint_does_not_discount_at_soft_cap_boundary() {
 
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic).pack())
             .build(),
@@ -76,7 +76,7 @@ fn phase2_mint_does_not_discount_at_soft_cap_boundary() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -87,7 +87,7 @@ fn phase2_mint_does_not_discount_at_soft_cap_boundary() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("phase2 mint should keep the full amount exactly at the 100k soft-cap boundary");
 }
 
@@ -102,7 +102,7 @@ fn multi_quantity_phase2_mint_applies_soft_cap_per_deposit() {
     let quantity = 2u32;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -119,7 +119,7 @@ fn multi_quantity_phase2_mint_applies_soft_cap_per_deposit() {
         .input(CellInput::new_builder().previous_output(receipt_out_point.clone()).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock.clone())
                 .type_(Some(xudt.clone()).pack())
                 .build(),
@@ -128,14 +128,14 @@ fn multi_quantity_phase2_mint_applies_soft_cap_per_deposit() {
         .header_dep(receipt_header.clone())
         .build();
     let naive_tx = context.complete_tx(naive_tx);
-    let err = context.verify_tx(&naive_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&naive_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 
     let exact_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -145,7 +145,7 @@ fn multi_quantity_phase2_mint_applies_soft_cap_per_deposit() {
         .build();
     let exact_tx = context.complete_tx(exact_tx);
     context
-        .verify_tx(&exact_tx, MAX_CYCLES)
+        .verify(&exact_tx, MAX_CYCLES)
         .expect("multi-quantity receipts should apply the soft cap per deposit, not once on the aggregate");
 }
 
@@ -161,7 +161,7 @@ fn mixed_phase1_phase2_still_apply_soft_cap_per_receipt() {
     let deposit_output_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
     let receipt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -198,12 +198,12 @@ fn mixed_phase1_phase2_still_apply_soft_cap_per_receipt() {
                     .type_(Some(dao.clone()).pack())
                     .build(),
                 CellOutput::new_builder()
-                    .capacity(capacity_for_data(12).pack())
+                    .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
                     .lock(funding_lock.clone())
                     .type_(Some(ickb_logic.clone()).pack())
                     .build(),
                 CellOutput::new_builder()
-                    .capacity(capacity_for_data(16).pack())
+                    .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                     .lock(funding_lock.clone())
                     .type_(Some(xudt.clone()).pack())
                     .build(),
@@ -222,11 +222,11 @@ fn mixed_phase1_phase2_still_apply_soft_cap_per_receipt() {
     };
 
     let naive_tx = context.complete_tx(build_tx(naive_aggregate));
-    let err = context.verify_tx(&naive_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&naive_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 
     let exact_tx = context.complete_tx(build_tx(exact));
     context
-        .verify_tx(&exact_tx, MAX_CYCLES)
+        .verify(&exact_tx, MAX_CYCLES)
         .expect("fresh deposit creation in the same transaction should not let above-cap receipt conversion escape the per-receipt soft-cap discount");
 }

@@ -13,10 +13,13 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
     let deposit_capacity_value = 123_456_780_000u64;
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+    // For deposits since block 10,000,000 the node keeps a withdrawal request's lock the same size as
+    // its deposit's, so only a deposit whose lock has Owned Owner's size (empty args) can be wrapped.
+    let wrappable_lock = always_success_lock(&mut context);
     let deposit_input = context.create_cell(
         CellOutput::new_builder()
             .capacity(deposit_capacity_value.pack())
-            .lock(user_lock.clone())
+            .lock(wrappable_lock)
             .type_(Some(dao.clone()).pack())
             .build(),
         dao_deposit_data(),
@@ -24,7 +27,7 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity((200 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -40,7 +43,7 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -57,7 +60,7 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("owned_owner should accept a foreign DAO withdrawal request pair without any iCKB burn");
 
     let tx_hash = create_tx.hash();
@@ -108,6 +111,6 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
 
     let claim_tx = context.complete_tx(claim_tx);
     context
-        .verify_tx(&claim_tx, MAX_CYCLES)
+        .verify(&claim_tx, MAX_CYCLES)
         .expect("the foreign DAO withdrawal wrapped in owned_owner should remain spendable in DAO phase2");
 }

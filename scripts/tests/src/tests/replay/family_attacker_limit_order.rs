@@ -172,7 +172,7 @@ fn weak_lock_derived_five_claim_live_batch_can_flow_into_later_attacker_owned_li
 
     let later_tx = context.complete_tx(later_tx);
     context
-        .verify_tx(&later_tx, MAX_CYCLES)
+        .verify(&later_tx, MAX_CYCLES)
         .expect("weak-lock five-claim batch should reach the attacker-owned limit_order state");
 
     let later_hash = later_tx.hash();
@@ -205,7 +205,7 @@ fn weak_lock_derived_five_claim_live_batch_can_flow_into_later_attacker_owned_li
 
     let melt_tx = context.complete_tx(melt_tx);
     context
-        .verify_tx(&melt_tx, MAX_CYCLES)
+        .verify(&melt_tx, MAX_CYCLES)
         .expect("attacker should melt the resulting attacker-owned limit_order state");
 }
 
@@ -481,7 +481,7 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
 
     let later_tx = context.complete_tx(later_tx);
     context
-        .verify_tx(&later_tx, MAX_CYCLES)
+        .verify(&later_tx, MAX_CYCLES)
         .expect("weak-lock mainnet batch should reach the attacker-owned limit_order state");
 
     let later_hash = later_tx.hash();
@@ -514,6 +514,6 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
 
     let melt_tx = context.complete_tx(melt_tx);
     context
-        .verify_tx(&melt_tx, MAX_CYCLES)
+        .verify(&melt_tx, MAX_CYCLES)
         .expect("attacker should melt the resulting mainnet-shaped limit_order state");
 }

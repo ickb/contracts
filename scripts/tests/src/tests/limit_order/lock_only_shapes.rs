@@ -19,7 +19,7 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 73, 1_500 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 89, 1_500 * CKB).pack())
                 .lock(limit_order_non_empty.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -28,12 +28,12 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
         .build();
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("non-empty-args limit_order output lock can be created because output locks do not execute");
 
     let out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order_non_empty.clone())
             .type_(Some(helper_type).pack())
             .build(),
@@ -50,7 +50,7 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
         .output_data(Bytes::new().pack())
         .build();
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify_tx(&spend_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -72,7 +72,7 @@ fn cell_using_limit_order_as_both_lock_and_type_is_rejected() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&limit_order, &limit_order, 0).pack())
                 .lock(limit_order.clone())
                 .type_(Some(limit_order).pack())
                 .build(),
@@ -81,7 +81,7 @@ fn cell_using_limit_order_as_both_lock_and_type_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_SCRIPT_MISUSE);
 }
 
@@ -145,16 +145,16 @@ fn lock_only_limit_order_with_both_ratios_null_can_be_created_but_not_spent() {
     );
 }
 
-// Forge a lock-only order with no UDT type and just-enough occupied capacity; creation skips the lock, but spending reaches the input path and traps generically.
+// Forge a lock-only order with no UDT type and exact occupied capacity; spending reaches the typed missing-UDT check.
 #[test]
-fn lock_only_limit_order_missing_udt_type_hits_generic_failure_even_at_valid_capacity() {
+fn lock_only_limit_order_missing_udt_type_returns_typed_error_at_valid_capacity() {
     let mut context = Context::default();
     let funding_lock = always_success_lock(&mut context);
     let limit_order = limit_order_script(&mut context);
     let forged_output = CellOutput::new_builder().lock(limit_order.clone()).build();
     let forged_capacity = forged_output
         .occupied_capacity(
-            ckb_testtool::ckb_types::core::Capacity::bytes(73)
+            ckb_testtool::ckb_types::core::Capacity::bytes(89)
                 .expect("occupied capacity bytes"),
         )
         .expect("occupied capacity")
@@ -180,7 +180,7 @@ fn lock_only_limit_order_missing_udt_type_hits_generic_failure_even_at_valid_cap
         .build();
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("lock-only limit_order output without a UDT type can still be created");
 
     let forged_out_point = context.create_cell(
@@ -199,10 +199,8 @@ fn lock_only_limit_order_missing_udt_type_hits_generic_failure_even_at_valid_cap
         .build();
 
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify_tx(&spend_tx, MAX_CYCLES).unwrap_err();
-    // The committed release binary traps with a generic -1 here instead of surfacing a stable
-    // MissingUdtType code, even when the forged order uses an occupied-capacity-valid layout.
-    assert_script_error(err, ERROR_SCRIPT_PANIC);
+    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
+    assert_script_error(err, ERROR_LIMIT_ORDER_MISSING_UDT_TYPE);
 }
 
 // Create a lock-only output with valid mint data plus trailing bytes, then spend it and fail on the input-side length check.

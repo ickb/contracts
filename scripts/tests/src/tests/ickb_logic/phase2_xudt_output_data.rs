@@ -10,7 +10,7 @@ fn phase2_mint_accepts_xudt_data_with_trailing_bytes() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -24,7 +24,7 @@ fn phase2_mint_accepts_xudt_data_with_trailing_bytes() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(output_data.len() as u64).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, output_data.len()).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -35,7 +35,7 @@ fn phase2_mint_accepts_xudt_data_with_trailing_bytes() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("phase2 mint should accept xudt data with trailing bytes");
 }
 
@@ -49,7 +49,7 @@ fn phase2_mint_rejects_short_xudt_output_data() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -61,7 +61,7 @@ fn phase2_mint_rejects_short_xudt_output_data() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(8).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 8).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -71,7 +71,7 @@ fn phase2_mint_rejects_short_xudt_output_data() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }
 
@@ -85,7 +85,7 @@ fn phase2_mint_rejects_zero_length_xudt_output_data() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -97,7 +97,7 @@ fn phase2_mint_rejects_zero_length_xudt_output_data() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(0).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 0).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -107,6 +107,6 @@ fn phase2_mint_rejects_zero_length_xudt_output_data() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }

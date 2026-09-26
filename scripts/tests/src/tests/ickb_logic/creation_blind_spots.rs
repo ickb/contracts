@@ -9,7 +9,7 @@ fn lock_only_ickb_logic_non_dao_output_can_be_created() {
     let helper_type = helper_type_script(&mut context);
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(500u64.pack())
+            .capacity((500 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -19,7 +19,7 @@ fn lock_only_ickb_logic_non_dao_output_can_be_created() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity((200 * CKB).pack())
                 .lock(ickb_logic.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -29,12 +29,12 @@ fn lock_only_ickb_logic_non_dao_output_can_be_created() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("lock-only misuse cell creation bypasses ickb_logic");
 
     let phantom_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity((200 * CKB).pack())
             .lock(ickb_logic)
             .type_(Some(helper_type).pack())
             .build(),
@@ -44,7 +44,7 @@ fn lock_only_ickb_logic_non_dao_output_can_be_created() {
         .input(CellInput::new_builder().previous_output(phantom_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity((200 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )
@@ -52,7 +52,7 @@ fn lock_only_ickb_logic_non_dao_output_can_be_created() {
         .build();
 
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify_tx(&spend_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SCRIPT_MISUSE);
 }
 
@@ -64,7 +64,7 @@ fn non_empty_args_ickb_logic_lock_output_can_be_created_but_not_spent() {
     let ickb_logic_non_empty = data1_script(&mut context, "ickb_logic", Bytes::from(vec![1]));
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(500u64.pack())
+            .capacity((500 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -74,7 +74,7 @@ fn non_empty_args_ickb_logic_lock_output_can_be_created_but_not_spent() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity((200 * CKB).pack())
                 .lock(ickb_logic_non_empty.clone())
                 .build(),
         )
@@ -82,12 +82,12 @@ fn non_empty_args_ickb_logic_lock_output_can_be_created_but_not_spent() {
         .build();
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("non-empty-args output lock can be created because output locks do not execute");
 
     let out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity((200 * CKB).pack())
             .lock(ickb_logic_non_empty)
             .build(),
         Bytes::new(),
@@ -96,13 +96,13 @@ fn non_empty_args_ickb_logic_lock_output_can_be_created_but_not_spent() {
         .input(CellInput::new_builder().previous_output(out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity((200 * CKB).pack())
                 .lock(always_success_lock(&mut context))
                 .build(),
         )
         .output_data(Bytes::new().pack())
         .build();
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify_tx(&spend_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }

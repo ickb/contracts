@@ -143,7 +143,7 @@ fn mainnet_tx_b866945c_claim_and_limit_order_match_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet one-pair claim plus limit_order match shape should replay locally");
 }
 
@@ -213,9 +213,10 @@ fn mainnet_tx_b866945c_is_input_poisoned_by_non_empty_args_owned_owner_sibling()
         bytes_from_hex("0xffffffff"),
     );
 
+    // The one-byte args make the mainnet owner cell one CKB larger.
     let poisoned_owner_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(u64_from_hex("0x248202200").pack())
+            .capacity((u64_from_hex("0x248202200") + CKB).pack())
             .lock(user_lock.clone())
             .type_(Some(poisoned_owned_owner).pack())
             .build(),
@@ -302,7 +303,7 @@ fn mainnet_tx_b866945c_is_input_poisoned_by_non_empty_args_owned_owner_sibling()
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -472,6 +473,6 @@ fn mainnet_tx_dc92e6a3_mixed_deposit_phase2_and_limit_order_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet mixed deposit phase1 + phase2 + limit_order shape should replay locally");
 }

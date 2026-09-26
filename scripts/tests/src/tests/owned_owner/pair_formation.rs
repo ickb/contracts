@@ -21,7 +21,7 @@ fn valid_output_pair_passes() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -33,7 +33,7 @@ fn valid_output_pair_passes() {
         .type_(Some(dao).pack())
         .build();
     let owner_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
         .lock(owner_lock)
         .type_(Some(owned_owner).pack())
         .build();
@@ -48,7 +48,7 @@ fn valid_output_pair_passes() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("owned_owner should accept a matched output pair");
 }
 
@@ -82,7 +82,7 @@ fn withdrawal_shape_cannot_be_created_without_any_dao_input() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -97,7 +97,7 @@ fn withdrawal_shape_cannot_be_created_without_any_dao_input() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
@@ -123,7 +123,7 @@ fn two_owner_cells_for_one_owned_output_are_rejected() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -131,7 +131,7 @@ fn two_owner_cells_for_one_owned_output_are_rejected() {
     );
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity((200 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -148,12 +148,12 @@ fn two_owner_cells_for_one_owned_output_are_rejected() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -170,7 +170,7 @@ fn two_owner_cells_for_one_owned_output_are_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
 }
 
@@ -195,7 +195,7 @@ fn orphan_withdrawal_request_can_be_created_but_not_claimed() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -218,7 +218,7 @@ fn orphan_withdrawal_request_can_be_created_but_not_claimed() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("phase1 accepts an orphan withdrawal request because the owned_owner output lock never executes");
 
     let orphan_out_point = OutPoint::new(create_tx.hash(), 0);
@@ -251,7 +251,7 @@ fn orphan_withdrawal_request_can_be_created_but_not_claimed() {
         .build();
 
     let claim_tx = context.complete_tx(claim_tx);
-    let err = context.verify_tx(&claim_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&claim_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
 }
 
@@ -265,7 +265,7 @@ fn orphan_owner_output_is_rejected() {
 
     let funding_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(500u64.pack())
+            .capacity((500 * CKB).pack())
             .lock(funding_lock)
             .build(),
         Bytes::new(),
@@ -274,7 +274,7 @@ fn orphan_owner_output_is_rejected() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -283,6 +283,6 @@ fn orphan_owner_output_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
 }

@@ -23,7 +23,7 @@ fn zero_distance_owner_output_is_rejected() {
         .type_(Some(dao).pack())
         .build();
     let owner_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
         .lock(owner_lock)
         .type_(Some(owned_owner).pack())
         .build();
@@ -35,7 +35,7 @@ fn zero_distance_owner_output_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
 }
 
@@ -65,7 +65,7 @@ fn zero_distance_owner_input_is_rejected() {
     context.create_cell_with_out_point(
         owner_input.clone(),
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
             .lock(owner_lock.clone())
             .type_(Some(owned_owner).pack())
             .build(),
@@ -96,7 +96,7 @@ fn zero_distance_owner_input_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
 }
 
@@ -123,7 +123,7 @@ fn non_withdrawal_owned_cell_is_rejected() {
         .type_(Some(dao).pack())
         .build();
     let owner_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
         .lock(owner_lock)
         .type_(Some(owned_owner).pack())
         .build();
@@ -135,7 +135,7 @@ fn non_withdrawal_owned_cell_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
 }
 
@@ -146,13 +146,13 @@ fn lock_only_owned_owner_non_dao_output_can_be_created_but_not_spent() {
     let funding_lock = always_success_lock(&mut context);
     let owned_owner = owned_owner_script(&mut context);
     let helper_type = helper_type_script(&mut context);
-    let funding_input = context.create_cell(CellOutput::new_builder().capacity(500u64.pack()).lock(funding_lock).build(), Bytes::new());
+    let funding_input = context.create_cell(CellOutput::new_builder().capacity((500 * CKB).pack()).lock(funding_lock).build(), Bytes::new());
 
     let create_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity((200 * CKB).pack())
                 .lock(owned_owner.clone())
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
@@ -160,11 +160,11 @@ fn lock_only_owned_owner_non_dao_output_can_be_created_but_not_spent() {
         .output_data(Bytes::new().pack())
         .build();
     let create_tx = context.complete_tx(create_tx);
-    context.verify_tx(&create_tx, MAX_CYCLES).expect("lock-only owned_owner misuse cell can be created because output locks do not execute");
+    context.verify(&create_tx, MAX_CYCLES).expect("lock-only owned_owner misuse cell can be created because output locks do not execute");
 
     let forged_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity((200 * CKB).pack())
             .lock(owned_owner)
             .type_(Some(helper_type).pack())
             .build(),
@@ -172,11 +172,11 @@ fn lock_only_owned_owner_non_dao_output_can_be_created_but_not_spent() {
     );
     let spend_tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(forged_out_point).build())
-        .output(CellOutput::new_builder().capacity(200u64.pack()).lock(always_success_lock(&mut context)).build())
+        .output(CellOutput::new_builder().capacity((200 * CKB).pack()).lock(always_success_lock(&mut context)).build())
         .output_data(Bytes::new().pack())
         .build();
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify_tx(&spend_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
 }
 
@@ -201,7 +201,7 @@ fn lock_only_owned_owner_dao_deposit_output_can_be_created_but_not_spent() {
         .output_data(dao_deposit_data().pack())
         .build();
     let create_tx = context.complete_tx(create_tx);
-    context.verify_tx(&create_tx, MAX_CYCLES).expect("DAO deposit with owned_owner only on the output lock can be created");
+    context.verify(&create_tx, MAX_CYCLES).expect("DAO deposit with owned_owner only on the output lock can be created");
 
     let forged_out_point = context.create_cell(
         CellOutput::new_builder()
@@ -217,7 +217,7 @@ fn lock_only_owned_owner_dao_deposit_output_can_be_created_but_not_spent() {
         .output_data(Bytes::new().pack())
         .build();
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify_tx(&spend_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
 }
 
@@ -229,12 +229,12 @@ fn cell_using_owned_owner_as_both_lock_and_type_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let owned_owner = owned_owner_script(&mut context);
 
-    let funding_input = context.create_cell(CellOutput::new_builder().capacity(500u64.pack()).lock(funding_lock).build(), Bytes::new());
+    let funding_input = context.create_cell(CellOutput::new_builder().capacity((500 * CKB).pack()).lock(funding_lock).build(), Bytes::new());
     let tx = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owned_owner, &owned_owner, 4).pack())
                 .lock(owned_owner.clone())
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -243,6 +243,6 @@ fn cell_using_owned_owner_as_both_lock_and_type_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_SCRIPT_MISUSE);
 }

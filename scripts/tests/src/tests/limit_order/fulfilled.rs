@@ -1,15 +1,15 @@
 use super::*;
 
-// Continue a fulfilled CKB->UDT-shaped match cell as if matching again; the lock path traps before a typed fulfilled-order error is surfaced.
+// An occupied-capacity-valid fulfilled CKB->UDT cell has no capacity left to decrease, so a continuation fails the outer match-shape check.
 #[test]
-fn fulfilled_ckb_to_udt_shape_cannot_reopen_as_match() {
+fn fulfilled_ckb_to_udt_shape_fails_as_invalid_match() {
     let mut context = Context::default();
     let (limit_order, helper_type) = limit_order_and_helper_type_scripts(&mut context);
     let master = OutPoint::new(Byte32::zero(), 5);
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 0).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 0).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -20,7 +20,7 @@ fn fulfilled_ckb_to_udt_shape_cannot_reopen_as_match() {
         .input(CellInput::new_builder().previous_output(input_order).build())
         .output(
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 0).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 0).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -29,10 +29,8 @@ fn fulfilled_ckb_to_udt_shape_cannot_reopen_as_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    // The deployed release binary traps with a generic -1 here instead of surfacing the
-    // internal AttemptToChangeFulfilled branch as a typed script error.
-    assert_script_error(err, ERROR_SCRIPT_PANIC);
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
+    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_MATCH);
 }
 
 // Forge a fulfilled UDT->CKB-shaped cell and try to continue it; this shape never reaches the inner fulfilled guard and instead fails the outer match validation.
@@ -43,7 +41,7 @@ fn fulfilled_udt_to_ckb_shape_cannot_reach_guard_and_fails_as_invalid_match() {
 
     let input_order = context.create_cell(
         CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_500 * CKB).pack())
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
             .lock(limit_order.clone())
             .type_(Some(helper_type.clone()).pack())
             .build(),
@@ -62,7 +60,7 @@ fn fulfilled_udt_to_ckb_shape_cannot_reach_guard_and_fails_as_invalid_match() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 73, 1_520 * CKB).pack())
+                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
                 .lock(limit_order)
                 .type_(Some(helper_type).pack())
                 .build(),
@@ -83,6 +81,6 @@ fn fulfilled_udt_to_ckb_shape_cannot_reach_guard_and_fails_as_invalid_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_MATCH);
 }

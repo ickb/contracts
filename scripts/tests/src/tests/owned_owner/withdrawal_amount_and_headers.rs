@@ -26,7 +26,7 @@ fn withdrawal_accepts_xudt_input_with_trailing_bytes() {
     udt_input_data.push(0xaa);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(udt_input_data.len() as u64).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, udt_input_data.len()).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -43,7 +43,7 @@ fn withdrawal_accepts_xudt_input_with_trailing_bytes() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -54,7 +54,7 @@ fn withdrawal_accepts_xudt_input_with_trailing_bytes() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("withdrawal should accept xudt input with trailing bytes");
 }
 
@@ -80,7 +80,7 @@ fn withdrawal_rejects_short_xudt_input_data() {
 
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(8).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 8).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -97,7 +97,7 @@ fn withdrawal_rejects_short_xudt_input_data() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -107,7 +107,7 @@ fn withdrawal_rejects_short_xudt_input_data() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }
 
@@ -133,7 +133,7 @@ fn withdrawal_rejects_zero_length_xudt_input_data() {
 
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(0).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 0).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -150,7 +150,7 @@ fn withdrawal_rejects_zero_length_xudt_input_data() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -160,7 +160,7 @@ fn withdrawal_rejects_zero_length_xudt_input_data() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }
 
@@ -185,7 +185,7 @@ fn withdrawal_without_deposit_header_dep_is_rejected() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -202,7 +202,7 @@ fn withdrawal_without_deposit_header_dep_is_rejected() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -211,7 +211,7 @@ fn withdrawal_without_deposit_header_dep_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ITEM_MISSING);
 }
 
@@ -249,7 +249,7 @@ fn withdrawal_with_two_deposits_from_distinct_headers_passes() {
     link_cell_to_header(&mut context, &second_deposit, &second_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -260,6 +260,7 @@ fn withdrawal_with_two_deposits_from_distinct_headers_passes() {
         .input(CellInput::new_builder().previous_output(first_deposit).build())
         .input(CellInput::new_builder().previous_output(second_deposit).build())
         .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
         .outputs(vec![
             CellOutput::new_builder()
                 .capacity(first_total_capacity.pack())
@@ -272,12 +273,12 @@ fn withdrawal_with_two_deposits_from_distinct_headers_passes() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -297,7 +298,7 @@ fn withdrawal_with_two_deposits_from_distinct_headers_passes() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("withdrawal should support multiple deposits from distinct headers");
 }
 
@@ -335,7 +336,7 @@ fn withdrawal_with_one_missing_deposit_header_dep_is_rejected() {
     link_cell_to_header(&mut context, &second_deposit, &second_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -358,12 +359,12 @@ fn withdrawal_with_one_missing_deposit_header_dep_is_rejected() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -381,7 +382,7 @@ fn withdrawal_with_one_missing_deposit_header_dep_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ITEM_MISSING);
 }
 
@@ -407,7 +408,7 @@ fn withdrawal_with_zero_accumulated_rate_deposit_header_is_rejected() {
     link_cell_to_header(&mut context, &deposit_input, &malformed_header);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -424,7 +425,7 @@ fn withdrawal_with_zero_accumulated_rate_deposit_header_is_rejected() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -434,7 +435,7 @@ fn withdrawal_with_zero_accumulated_rate_deposit_header_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SCRIPT_PANIC);
 }
 
@@ -461,7 +462,7 @@ fn withdrawal_applies_soft_cap_discount_above_boundary() {
 
     let naive_udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -477,7 +478,7 @@ fn withdrawal_applies_soft_cap_discount_above_boundary() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -486,12 +487,12 @@ fn withdrawal_applies_soft_cap_discount_above_boundary() {
         .header_dep(deposit_header.hash())
         .build();
     let naive_tx = context.complete_tx(naive_tx);
-    let err = context.verify_tx(&naive_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&naive_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 
     let exact_udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -507,7 +508,7 @@ fn withdrawal_applies_soft_cap_discount_above_boundary() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -517,6 +518,6 @@ fn withdrawal_applies_soft_cap_discount_above_boundary() {
         .build();
     let exact_tx = context.complete_tx(exact_tx);
     context
-        .verify_tx(&exact_tx, MAX_CYCLES)
+        .verify(&exact_tx, MAX_CYCLES)
         .expect("withdrawal should require the soft-capped iCKB amount above the 100k boundary");
 }

@@ -18,7 +18,7 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
 
     let receipt_1152 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&owner_lock, &ickb_logic, 12).pack())
             .lock(owner_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -30,7 +30,7 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
         .input(CellInput::new_builder().previous_output(receipt_1152.clone()).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(xudt.clone()).pack())
                 .build(),
@@ -40,7 +40,7 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
         .build();
     let mint_claimed_1000_tx = context.complete_tx(mint_claimed_1000_tx);
     let err = context
-        .verify_tx(&mint_claimed_1000_tx, MAX_CYCLES)
+        .verify(&mint_claimed_1000_tx, MAX_CYCLES)
         .unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 
@@ -48,7 +48,7 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
         .input(CellInput::new_builder().previous_output(receipt_1152).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(xudt.clone()).pack())
                 .build(),
@@ -58,12 +58,12 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
         .build();
     let mint_exact_1152_tx = context.complete_tx(mint_exact_1152_tx);
     context
-        .verify_tx(&mint_exact_1152_tx, MAX_CYCLES)
+        .verify(&mint_exact_1152_tx, MAX_CYCLES)
         .expect("1152 CKB receipt should mint its exact shannon-precision amount");
 
     let receipt_1151 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&owner_lock, &ickb_logic, 12).pack())
             .lock(owner_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -75,7 +75,7 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
         .input(CellInput::new_builder().previous_output(receipt_1151).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
                 .lock(owner_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -84,7 +84,7 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
         .header_dep(receipt_1151_header.hash())
         .build();
     let remint_exact_1152_tx = context.complete_tx(remint_exact_1152_tx);
-    let err = context.verify_tx(&remint_exact_1152_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&remint_exact_1152_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 }
 
@@ -114,7 +114,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
 
     let udt_1000 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -131,7 +131,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -140,7 +140,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
         .header_dep(header.hash())
         .build();
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 
     let deposit_1152_b = context.create_cell(
@@ -154,7 +154,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
     link_cell_to_header(&mut context, &deposit_1152_b, &header);
     let udt_exact = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -170,7 +170,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -180,7 +180,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
         .build();
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("withdrawing 1152 CKB should require the exact shannon-precision iCKB amount");
 
     let deposit_1151 = context.create_cell(
@@ -194,7 +194,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
     link_cell_to_header(&mut context, &deposit_1151, &header);
     let udt_exact_again = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -210,7 +210,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
                 .lock(user_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -219,7 +219,7 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
         .header_dep(header.hash())
         .build();
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 }
 
@@ -234,87 +234,12 @@ fn withdrawal_burn_matches_later_protocol_value_within_one_shannon_across_header
     let withdraw_header = gen_header(2_000_610, withdraw_ar, 575, 2_000_000, 1100);
 
     let mut run_case = |amount: u64, deposit_number: u64, deposit_ar: u64| -> u128 {
-        let deposit_header = gen_header(deposit_number, deposit_ar, 35, 1000, 1000);
-        let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
-        let deposit_occupied_capacity = deposit_total_capacity - amount;
-
-        let deposit_input = context.create_cell(
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            dao_deposit_data(),
+        let (burned_ickb, claim_capacity, deposit_occupied_capacity) = burn_and_claim(
+            &mut context,
+            (&user_lock, &ickb_logic, &dao, &xudt),
+            (&withdraw_header, withdraw_ar),
+            (amount, deposit_number, deposit_ar),
         );
-        link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-
-        let burned_ickb = soft_capped_ickb(amount, deposit_ar);
-        let udt_input = context.create_cell(
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
-                .lock(user_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            udt_data(burned_ickb),
-        );
-
-        let phase1_tx = TransactionBuilder::default()
-            .input(CellInput::new_builder().previous_output(deposit_input).build())
-            .input(CellInput::new_builder().previous_output(udt_input).build())
-            .output(
-                CellOutput::new_builder()
-                    .capacity(deposit_total_capacity.pack())
-                    .lock(user_lock.clone())
-                    .type_(Some(dao.clone()).pack())
-                    .build(),
-            )
-            .output_data(withdrawal_request_data(deposit_number).pack())
-            .header_dep(deposit_header.hash())
-            .build();
-        let phase1_tx = context.complete_tx(phase1_tx);
-        context
-            .verify_tx(&phase1_tx, MAX_CYCLES)
-            .expect("exact phase1 burn should verify for the deposit header");
-
-        let withdrawal_out_point = OutPoint::new(phase1_tx.hash(), 0);
-        let withdrawal_output = phase1_tx.outputs().get(0).expect("withdrawing output");
-        context.create_cell_with_out_point(
-            withdrawal_out_point.clone(),
-            withdrawal_output.clone(),
-            withdrawal_request_data(deposit_number),
-        );
-        link_cell_to_header(&mut context, &withdrawal_out_point, &withdraw_header);
-
-        let claim_capacity = dao_maximum_withdraw_capacity(
-            &withdrawal_output,
-            withdrawal_request_data(deposit_number).len(),
-            deposit_ar,
-            withdraw_ar,
-        );
-        let witness = header_dep_index_witness(1);
-        let claim_tx = TransactionBuilder::default()
-            .input(
-                CellInput::new_builder()
-                    .previous_output(withdrawal_out_point)
-                    .since(0x2003e800000002f4u64.pack())
-                    .build(),
-            )
-            .output(
-                CellOutput::new_builder()
-                    .capacity(claim_capacity.pack())
-                    .lock(user_lock.clone())
-                    .build(),
-            )
-            .output_data(Bytes::new().pack())
-            .header_dep(withdraw_header.hash())
-            .header_dep(deposit_header.hash())
-            .witness(witness.pack())
-            .build();
-        let claim_tx = context.complete_tx(claim_tx);
-        context
-            .verify_tx(&claim_tx, MAX_CYCLES)
-            .expect("phase2 claim should verify for the withdrawal request");
-
         let later_ickb_value =
             soft_capped_ickb(claim_capacity - deposit_occupied_capacity, withdraw_ar);
         assert!(burned_ickb >= later_ickb_value);
@@ -322,7 +247,6 @@ fn withdrawal_burn_matches_later_protocol_value_within_one_shannon_across_header
             burned_ickb - later_ickb_value <= 1,
             "phase1 burn {burned_ickb} and later normalized claim value {later_ickb_value} should differ by at most one shannon"
         );
-
         burned_ickb
     };
 
@@ -338,4 +262,99 @@ fn withdrawal_burn_matches_later_protocol_value_within_one_shannon_across_header
         oversized_deposit_burn > newer_deposit_burn,
         "the oversized deposit should still cost more iCKB than the smaller newer deposit after the haircut"
     );
+}
+
+/// Phase 1 burns exactly the deposit's iCKB value, then phase 2 claims the DAO maximum.
+/// Returns (burned iCKB, claimed capacity, deposit occupied capacity).
+fn burn_and_claim(
+    context: &mut Context,
+    scripts: (&Script, &Script, &Script, &Script),
+    withdraw: (&ckb_testtool::ckb_types::core::HeaderView, u64),
+    (amount, deposit_number, deposit_ar): (u64, u64, u64),
+) -> (u128, u64, u64) {
+    let (user_lock, ickb_logic, dao, xudt) = scripts;
+    let (withdraw_header, withdraw_ar) = withdraw;
+    let deposit_header = gen_header(deposit_number, deposit_ar, 35, 1000, 1000);
+    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
+    let deposit_occupied_capacity = deposit_total_capacity - amount;
+
+    let deposit_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(deposit_total_capacity.pack())
+            .lock(ickb_logic.clone())
+            .type_(Some(dao.clone()).pack())
+            .build(),
+        dao_deposit_data(),
+    );
+    link_cell_to_header(context, &deposit_input, &deposit_header);
+
+    let burned_ickb = soft_capped_ickb(amount, deposit_ar);
+    let udt_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
+            .lock(user_lock.clone())
+            .type_(Some(xudt.clone()).pack())
+            .build(),
+        udt_data(burned_ickb),
+    );
+
+    let phase1_tx = TransactionBuilder::default()
+        .input(CellInput::new_builder().previous_output(deposit_input).build())
+        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .output(
+            CellOutput::new_builder()
+                .capacity(deposit_total_capacity.pack())
+                .lock(user_lock.clone())
+                .type_(Some(dao.clone()).pack())
+                .build(),
+        )
+        .output_data(withdrawal_request_data(deposit_number).pack())
+        .header_dep(deposit_header.hash())
+        .build();
+    let phase1_tx = context.complete_tx(phase1_tx);
+    context
+        .verify(&phase1_tx, MAX_CYCLES)
+        .expect("exact phase1 burn should verify for the deposit header");
+
+    let withdrawal_out_point = OutPoint::new(phase1_tx.hash(), 0);
+    let withdrawal_output = phase1_tx.outputs().get(0).expect("withdrawing output");
+    context.create_cell_with_out_point(
+        withdrawal_out_point.clone(),
+        withdrawal_output.clone(),
+        withdrawal_request_data(deposit_number),
+    );
+    link_cell_to_header(context, &withdrawal_out_point, withdraw_header);
+
+    let claim_capacity = dao_maximum_withdraw_capacity(
+        &withdrawal_output,
+        withdrawal_request_data(deposit_number).len(),
+        deposit_ar,
+        withdraw_ar,
+    );
+    let witness = header_dep_index_witness(1);
+    let claim_tx = TransactionBuilder::default()
+        .input(
+            CellInput::new_builder()
+                .previous_output(withdrawal_out_point)
+                .since(0x2003e800000002f4u64.pack())
+                .build(),
+        )
+        .output(
+            CellOutput::new_builder()
+                .capacity(claim_capacity.pack())
+                .lock(user_lock.clone())
+                .build(),
+        )
+        .output_data(Bytes::new().pack())
+        .header_dep(withdraw_header.hash())
+        .header_dep(deposit_header.hash())
+        .witness(witness.pack())
+        .build();
+    let claim_tx = context.complete_tx(claim_tx);
+    context
+        .verify(&claim_tx, MAX_CYCLES)
+        .expect("phase2 claim should verify for the withdrawal request");
+
+
+    (burned_ickb, claim_capacity, deposit_occupied_capacity)
 }

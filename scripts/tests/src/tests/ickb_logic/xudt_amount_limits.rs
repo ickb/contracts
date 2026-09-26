@@ -16,7 +16,7 @@ fn oversized_output_udt_amount_is_rejected() {
     );
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -29,7 +29,7 @@ fn oversized_output_udt_amount_is_rejected() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -39,7 +39,7 @@ fn oversized_output_udt_amount_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_AMOUNT_UNREASONABLY_BIG);
 }
 
@@ -52,7 +52,7 @@ fn xudt_amount_at_u64_max_boundary_is_allowed() {
 
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
             .lock(user_lock.clone())
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -63,7 +63,7 @@ fn xudt_amount_at_u64_max_boundary_is_allowed() {
         .input(CellInput::new_builder().previous_output(udt_input).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
                 .lock(user_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -73,6 +73,6 @@ fn xudt_amount_at_u64_max_boundary_is_allowed() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("u64::MAX should remain a valid xUDT amount boundary");
 }

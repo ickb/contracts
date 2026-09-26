@@ -28,7 +28,7 @@ fn real_order_match_cannot_rewrite_master_outpoint_to_an_arbitrary_master() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
@@ -59,7 +59,7 @@ fn real_limit_order_can_transition_from_mint_to_match_without_consuming_master()
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("a real minted order should be able to move into a match-state output without consuming its master");
 }
 
@@ -89,6 +89,6 @@ fn real_limit_order_match_rejects_rewriting_order_info() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
 }

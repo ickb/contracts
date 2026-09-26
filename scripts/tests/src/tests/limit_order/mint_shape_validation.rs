@@ -27,7 +27,7 @@ fn mint_accepts_ckb_min_match_log_64() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
                 .lock(owner_lock)
                 .type_(Some(limit_order).pack())
                 .build(),
@@ -43,7 +43,7 @@ fn mint_accepts_ckb_min_match_log_64() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("ckb_min_match_log == 64 should be accepted at the encoding boundary");
 }
 
@@ -74,7 +74,7 @@ fn mint_rejects_ckb_min_match_log_65() {
         )
         .output(
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
                 .lock(owner_lock)
                 .type_(Some(limit_order).pack())
                 .build(),
@@ -89,7 +89,7 @@ fn mint_rejects_ckb_min_match_log_65() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CKB_MIN_MATCH_LOG);
 }
 
@@ -112,12 +112,12 @@ fn two_master_outputs_fail_as_invalid_configuration_not_duplicate_master() {
         .input(CellInput::new_builder().previous_output(funding_input).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(limit_order.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
                 .lock(owner_lock)
                 .type_(Some(limit_order).pack())
                 .build(),
@@ -126,6 +126,6 @@ fn two_master_outputs_fail_as_invalid_configuration_not_duplicate_master() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }

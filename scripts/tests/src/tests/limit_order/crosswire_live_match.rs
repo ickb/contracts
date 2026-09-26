@@ -1,8 +1,8 @@
 use super::*;
 
-// Continue two indistinguishable real orders into swapped match outputs; the match path accepts, then the swapped master lock can melt while the original master can no longer do so.
+// Continue two indistinguishable real orders into permuted match outputs; each output remains redeemable by the master encoded in its data.
 #[test]
-fn cloned_live_orders_can_swap_masters_during_match() {
+fn cloned_live_orders_can_permute_without_stranding_either_master() {
     let mut context = Context::default();
     let (owner1_key, owner1_lock, owner1_secp_data_dep) = secp_lock(&mut context);
     let (owner2_key, owner2_lock, owner2_secp_data_dep) = secp_lock(&mut context);
@@ -35,12 +35,12 @@ fn cloned_live_orders_can_swap_masters_during_match() {
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
     context
-        .verify_tx(&crosswire_tx, MAX_CYCLES)
+        .verify(&crosswire_tx, MAX_CYCLES)
         .expect("two cloned live orders with indistinguishable checked state can be re-emitted as matched orders that permute their master metapoints");
 
-    // Materialize both matched outputs as live cells; the follow-up check only spends order1.
+    // Materialize both matched outputs and redeem each by its encoded master.
     let crosswired_order1 = seed_verified_output(&mut context, &crosswire_tx, 0, matched_order1_data);
-    seed_verified_output(&mut context, &crosswire_tx, 1, matched_order2_data);
+    let crosswired_order2 = seed_verified_output(&mut context, &crosswire_tx, 1, matched_order2_data);
 
     let rebound_melt = TransactionBuilder::default()
         .input(CellInput::new_builder().previous_output(crosswired_order1.clone()).build())
@@ -58,11 +58,11 @@ fn cloned_live_orders_can_swap_masters_during_match() {
         .build();
     let rebound_melt = sign_tx_by_input_group(context.complete_tx(rebound_melt), &owner2_key, 1, 1);
     context
-        .verify_tx(&rebound_melt, MAX_CYCLES)
+        .verify(&rebound_melt, MAX_CYCLES)
         .expect("the alternate master can melt the permuted cloned continuation after the metapoint swap");
 
-    let intended_melt = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(crosswired_order1).build())
+    let other_melt = TransactionBuilder::default()
+        .input(CellInput::new_builder().previous_output(crosswired_order2).build())
         .input(CellInput::new_builder().previous_output(master1_input).build())
         .output(
             CellOutput::new_builder()
@@ -75,9 +75,10 @@ fn cloned_live_orders_can_swap_masters_during_match() {
         .witness(empty_witness().pack())
         .cell_dep(owner1_secp_data_dep)
         .build();
-    let intended_melt = sign_tx_by_input_group(context.complete_tx(intended_melt), &owner1_key, 1, 1);
-    let err = context.verify_tx(&intended_melt, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+    let other_melt = sign_tx_by_input_group(context.complete_tx(other_melt), &owner1_key, 1, 1);
+    context
+        .verify(&other_melt, MAX_CYCLES)
+        .expect("the other permuted continuation should remain redeemable by its encoded master");
 }
 
 // Mix a forged match-shaped input with one real order, keep each metapoint on its own output, and confirm only the real lineage still melts with the real master.
@@ -122,7 +123,7 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
 
     let hybrid_tx = context.complete_tx(hybrid_tx);
     context
-        .verify_tx(&hybrid_tx, MAX_CYCLES)
+        .verify(&hybrid_tx, MAX_CYCLES)
         .expect("a fake match-shaped input can coexist with a real order in one valid match tx");
 
     let hybrid_hash = hybrid_tx.hash();
@@ -155,7 +156,7 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
         .build();
     let real_lineage_melt = sign_tx_by_input_group(context.complete_tx(real_lineage_melt), &owner_key, 1, 1);
     context
-        .verify_tx(&real_lineage_melt, MAX_CYCLES)
+        .verify(&real_lineage_melt, MAX_CYCLES)
         .expect("the real master should still authorize the melt on the real metapoint in the hybrid match");
 
     let fake_lineage_melt_with_real_master = TransactionBuilder::default()
@@ -179,7 +180,7 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
         1,
     );
     let err = context
-        .verify_tx(&fake_lineage_melt_with_real_master, MAX_CYCLES)
+        .verify(&fake_lineage_melt_with_real_master, MAX_CYCLES)
         .unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }

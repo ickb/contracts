@@ -24,7 +24,7 @@ fn repeated_deposit_bucket_can_be_matched_by_one_multi_quantity_receipt() {
             .build()
     };
     let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(12).pack())
+        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
         .lock(funding_lock)
         .type_(Some(ickb_logic.clone()).pack())
         .build();
@@ -37,7 +37,7 @@ fn repeated_deposit_bucket_can_be_matched_by_one_multi_quantity_receipt() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("one receipt with quantity 2 should match two equal-sized deposits");
 }
 
@@ -51,7 +51,7 @@ fn multi_quantity_receipt_can_be_converted_in_phase2() {
     let deposit_amount = 1_000 * CKB;
     let receipt_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(12).pack())
+            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
             .lock(funding_lock.clone())
             .type_(Some(ickb_logic.clone()).pack())
             .build(),
@@ -63,7 +63,7 @@ fn multi_quantity_receipt_can_be_converted_in_phase2() {
         .input(CellInput::new_builder().previous_output(receipt_out_point).build())
         .output(
             CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
+                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
                 .lock(funding_lock)
                 .type_(Some(xudt).pack())
                 .build(),
@@ -74,6 +74,6 @@ fn multi_quantity_receipt_can_be_converted_in_phase2() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("a valid receipt with quantity 2 should mint the combined iCKB amount in phase2");
 }

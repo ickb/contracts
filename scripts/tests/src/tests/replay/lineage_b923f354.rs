@@ -88,7 +88,7 @@ fn mainnet_tx_b923f354_live_limit_order_match_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet pure limit_order match shape should replay locally");
 }
 
@@ -192,6 +192,6 @@ fn mainnet_tx_3d26da3b_limit_order_melt_shape() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("live mainnet limit_order melt shape should replay locally");
 }

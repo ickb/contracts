@@ -26,7 +26,7 @@ fn weak_lock_can_reassign_withdrawal_owner_output() {
         .type_(Some(dao).pack())
         .build();
     let owner_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity(occupied_capacity(&attacker_lock, &owned_owner, 4).pack())
         .lock(attacker_lock)
         .type_(Some(owned_owner).pack())
         .build();
@@ -41,7 +41,7 @@ fn weak_lock_can_reassign_withdrawal_owner_output() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("weak lock should allow reassigning the withdrawal owner output");
 }
 
@@ -75,7 +75,7 @@ fn sighash_lock_binds_withdrawal_owner_output_to_the_signed_transaction() {
                 .type_(Some(dao).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -89,7 +89,7 @@ fn sighash_lock_binds_withdrawal_owner_output_to_the_signed_transaction() {
 
     let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 1, 1);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("signed withdrawal request should verify");
 
     let tampered_tx = tx
@@ -101,13 +101,13 @@ fn sighash_lock_binds_withdrawal_owner_output_to_the_signed_transaction() {
                 .type_(Some(dao_script(&mut context)).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4).pack())
                 .lock(attacker_lock)
                 .type_(Some(owned_owner_script(&mut context)).pack())
                 .build(),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
@@ -147,7 +147,7 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
     link_cell_to_header(&mut context, &deposit2, &header2);
     let strong_udt = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -155,7 +155,7 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
     );
     let weak_udt = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&weak_lock, &xudt, 16).pack())
             .lock(weak_lock)
             .type_(Some(xudt).pack())
             .build(),
@@ -179,12 +179,12 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
                 .lock(owner_lock.clone())
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -209,7 +209,7 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
 
     let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 2, 1);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("mixed strong+weak withdrawal batch should verify when signed");
 
     let tampered_tx = tx
@@ -226,18 +226,18 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
                 .type_(Some(dao_script(&mut context)).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4).pack())
                 .lock(attacker_lock.clone())
                 .type_(Some(owned_owner_script(&mut context)).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4).pack())
                 .lock(attacker_lock)
                 .type_(Some(owned_owner_script(&mut context)).pack())
                 .build(),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
@@ -277,7 +277,7 @@ fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {
     link_cell_to_header(&mut context, &deposit2, &header2);
     let weak_udt_1 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&weak_lock_1, &xudt, 16).pack())
             .lock(weak_lock_1)
             .type_(Some(xudt.clone()).pack())
             .build(),
@@ -285,7 +285,7 @@ fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {
     );
     let weak_udt_2 = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&weak_lock_2, &xudt, 16).pack())
             .lock(weak_lock_2)
             .type_(Some(xudt).pack())
             .build(),
@@ -309,12 +309,12 @@ fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&attacker_lock, &owned_owner, 4).pack())
                 .lock(attacker_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&attacker_lock, &owned_owner, 4).pack())
                 .lock(attacker_lock)
                 .type_(Some(owned_owner).pack())
                 .build(),
@@ -334,6 +334,6 @@ fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("all-weak withdrawal inputs can reassign both withdrawal owner outputs");
 }

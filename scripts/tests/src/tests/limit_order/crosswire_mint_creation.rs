@@ -1,6 +1,6 @@
 use super::*;
 
-// Create two mint pairs with crosswired distances while neither master lock executes; creation passes, the swapped master can melt, and the intuitive pairing fails.
+// Create two mint pairs with crosswired distances: the script still pairs each order with exactly one master, so creation passes, the swapped master can melt, and the intuitive pairing fails.
 #[test]
 fn mint_crosswire_swaps_order_masters() {
     let mut context = Context::default();
@@ -25,7 +25,7 @@ fn mint_crosswire_swaps_order_masters() {
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner1_lock, &limit_order, 0).pack())
                 .lock(owner1_lock.clone())
                 .type_(Some(limit_order.clone()).pack())
                 .build(),
@@ -35,7 +35,7 @@ fn mint_crosswire_swaps_order_masters() {
                 .type_(Some(helper_type.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&owner2_lock, &limit_order, 0).pack())
                 .lock(owner2_lock.clone())
                 .type_(Some(limit_order.clone()).pack())
                 .build(),
@@ -53,7 +53,7 @@ fn mint_crosswire_swaps_order_masters() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("cross-wired master assignment should pass deployed mint validation");
 
     let tx_hash = create_tx.hash();
@@ -95,7 +95,7 @@ fn mint_crosswire_swaps_order_masters() {
         .build();
     let melt_other_users_order = context.complete_tx(melt_other_users_order);
     context
-        .verify_tx(&melt_other_users_order, MAX_CYCLES)
+        .verify(&melt_other_users_order, MAX_CYCLES)
         .expect("master1 is bound to order2 when mint distances are cross-wired");
 
     let melt_expected_order = TransactionBuilder::default()
@@ -110,11 +110,11 @@ fn mint_crosswire_swaps_order_masters() {
         .output_data(Bytes::new().pack())
         .build();
     let melt_expected_order = context.complete_tx(melt_expected_order);
-    let err = context.verify_tx(&melt_expected_order, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&melt_expected_order, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
-// Create the same crosswire through sparse output spacing and negative distances; mint passes without executing master locks, and the far paired master remains the valid melt path.
+// Create the same crosswire through sparse output spacing and negative distances; limit_order runs at mint and accepts the crosswired distances, and the far paired master remains the valid melt path.
 #[test]
 fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     let mut context = Context::default();
@@ -142,7 +142,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     for _ in 0..8 {
         outputs.push(
             CellOutput::new_builder()
-                .capacity(100u64.pack())
+                .capacity((100 * CKB).pack())
                 .lock(filler_lock.clone())
                 .build(),
         );
@@ -158,14 +158,14 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     outputs_data.push(order_data_mint(0, 3, (1, 1)));
     outputs.push(
         CellOutput::new_builder()
-            .capacity(100u64.pack())
+            .capacity((100 * CKB).pack())
             .lock(filler_lock)
             .build(),
     );
     outputs_data.push(Bytes::new());
     outputs.push(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner2_lock, &limit_order, 0).pack())
             .lock(owner2_lock.clone())
             .type_(Some(limit_order.clone()).pack())
             .build(),
@@ -173,7 +173,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     outputs_data.push(Bytes::new());
     outputs.push(
         CellOutput::new_builder()
-            .capacity(200u64.pack())
+            .capacity(occupied_capacity(&owner1_lock, &limit_order, 0).pack())
             .lock(owner1_lock.clone())
             .type_(Some(limit_order.clone()).pack())
             .build(),
@@ -188,7 +188,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("sparse far-distance crosswire should still pass deployed mint validation");
 
     let tx_hash = create_tx.hash();
@@ -231,7 +231,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
 
     let melt_crosswired = context.complete_tx(melt_crosswired);
     context
-        .verify_tx(&melt_crosswired, MAX_CYCLES)
+        .verify(&melt_crosswired, MAX_CYCLES)
         .expect("far-distance sparse layout still binds order1 to owner2's master");
 
     let melt_expected = TransactionBuilder::default()
@@ -246,6 +246,6 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
         .output_data(Bytes::new().pack())
         .build();
     let melt_expected = context.complete_tx(melt_expected);
-    let err = context.verify_tx(&melt_expected, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&melt_expected, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }

@@ -15,10 +15,13 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
     let foreign_deposit_capacity = 123_456_780_000u64;
+    // For deposits since block 10,000,000 the node keeps a withdrawal request's lock the same size as
+    // its deposit's, so only a foreign deposit whose lock has Owned Owner's size (empty args) can be wrapped.
+    let wrappable_lock = always_success_lock(&mut context);
     let foreign_deposit_input = context.create_cell(
         CellOutput::new_builder()
             .capacity(foreign_deposit_capacity.pack())
-            .lock(foreign_owner_lock.clone())
+            .lock(wrappable_lock)
             .type_(Some(dao.clone()).pack())
             .build(),
         dao_deposit_data(),
@@ -39,7 +42,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
 
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&protocol_owner_lock, &xudt, 16).pack())
             .lock(protocol_owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -50,6 +53,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
         .input(CellInput::new_builder().previous_output(foreign_deposit_input).build())
         .input(CellInput::new_builder().previous_output(protocol_deposit_input).build())
         .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
         .outputs(vec![
             CellOutput::new_builder()
                 .capacity(foreign_deposit_capacity.pack())
@@ -62,12 +66,12 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
                 .type_(Some(dao.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&foreign_owner_lock, &owned_owner, 4).pack())
                 .lock(foreign_owner_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
             CellOutput::new_builder()
-                .capacity(200u64.pack())
+                .capacity(occupied_capacity(&protocol_owner_lock, &owned_owner, 4).pack())
                 .lock(protocol_owner_lock.clone())
                 .type_(Some(owned_owner.clone()).pack())
                 .build(),
@@ -87,7 +91,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("owned_owner should accept a weak-lock mixed foreign-plus-iCKB withdrawal batch with crosswired later claim assignments");
 
     let batch_hash = create_tx.hash();
@@ -150,7 +154,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
         .build();
     let claim_with_crosswired_foreign_owner = context.complete_tx(claim_with_crosswired_foreign_owner);
     context
-        .verify_tx(&claim_with_crosswired_foreign_owner, MAX_CYCLES)
+        .verify(&claim_with_crosswired_foreign_owner, MAX_CYCLES)
         .expect("under weak owner locks, the foreign owner cell should be able to claim the real iCKB withdrawal once the mixed batch crosswires the later claim assignment");
 
     let claim_with_intended_protocol_owner = TransactionBuilder::default()
@@ -183,7 +187,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
         .build();
     let claim_with_intended_protocol_owner = context.complete_tx(claim_with_intended_protocol_owner);
     let err = context
-        .verify_tx(&claim_with_intended_protocol_owner, MAX_CYCLES)
+        .verify(&claim_with_intended_protocol_owner, MAX_CYCLES)
         .unwrap_err();
     assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
 }

@@ -26,6 +26,100 @@ use fixtures::*;
 use replay_helpers::*;
 use signing::*;
 
+// ckb-testtool runs scripts only, so a fixture could build a cell consensus rejects and still pass.
+// Tests verify through this check, which first holds every input and output to its occupied capacity.
+trait VerifyRealistic {
+    fn verify(&self, tx: &TransactionView, max_cycles: u64) -> Result<u64, Error>;
+}
+
+impl VerifyRealistic for Context {
+    fn verify(&self, tx: &TransactionView, max_cycles: u64) -> Result<u64, Error> {
+        let check = |side: &str, index: usize, cell: &CellOutput, data_len: usize| {
+            let occupied = cell
+                .occupied_capacity(ckb_testtool::ckb_types::core::Capacity::bytes(data_len).expect("data length"))
+                .expect("occupied capacity")
+                .as_u64();
+            let capacity: u64 = cell.capacity().unpack();
+            assert!(
+                capacity >= occupied,
+                "{side} {index} holds {capacity} shannons, below its occupied capacity {occupied}"
+            );
+        };
+        for (index, input) in tx.inputs().into_iter().enumerate() {
+            if let Some((cell, data)) = self.get_cell(&input.previous_output()) {
+                check("input", index, &cell, data.len());
+            }
+        }
+        for (index, (cell, data)) in tx.outputs().into_iter().zip(tx.outputs_data()).enumerate() {
+            check("output", index, &cell, data.raw_data().len());
+        }
+        let cycles = self.verify_tx(tx, max_cycles)?;
+        // A transaction the scripts accept must also pass the node's DaoScriptSizeVerifier: a
+        // deposit and the withdrawal request at its index use locks of the same serialized size.
+        let dao_code_hash = build_genesis_type_id_script(OUTPUT_INDEX_DAO).calc_script_hash();
+        let is_dao = |cell: &CellOutput| {
+            cell.type_().to_opt().map_or(false, |script| {
+                script.code_hash() == dao_code_hash && script.hash_type() == ScriptHashType::Type.into()
+            })
+        };
+        for (index, (input, output)) in tx.inputs().into_iter().zip(tx.outputs()).enumerate() {
+            let Some((deposit, data)) = self.get_cell(&input.previous_output()) else {
+                continue;
+            };
+            if is_dao(&deposit) && is_dao(&output) && data.iter().all(|byte| *byte == 0) {
+                assert_eq!(
+                    deposit.lock().total_size(),
+                    output.lock().total_size(),
+                    "DAO output {index} changes the lock size of the deposit it withdraws"
+                );
+            }
+        }
+        Ok(cycles)
+    }
+}
+
+#[test]
+#[should_panic(expected = "below its occupied capacity")]
+fn verify_rejects_a_cell_below_its_occupied_capacity() {
+    let mut context = Context::default();
+    let lock = always_success_lock(&mut context);
+    let input = context.create_cell(
+        CellOutput::new_builder().capacity((1_000 * CKB).pack()).lock(lock.clone()).build(),
+        Bytes::new(),
+    );
+    let tx = TransactionBuilder::default()
+        .input(CellInput::new_builder().previous_output(input).build())
+        .output(CellOutput::new_builder().capacity((40 * CKB).pack()).lock(lock).build())
+        .output_data(Bytes::new().pack())
+        .build();
+    let tx = context.complete_tx(tx);
+    let _ = context.verify(&tx, MAX_CYCLES);
+}
+
+#[test]
+#[should_panic(expected = "changes the lock size of the deposit it withdraws")]
+fn verify_rejects_a_withdrawal_request_whose_lock_size_differs() {
+    let mut context = Context::default();
+    let deposit_lock = named_always_success_lock(&mut context, b"depositor");
+    let request_lock = always_success_lock(&mut context);
+    let dao = dao_script(&mut context);
+    let capacity = 1_000 * CKB;
+    let deposit = context.create_cell(
+        CellOutput::new_builder().capacity(capacity.pack()).lock(deposit_lock).type_(Some(dao.clone()).pack()).build(),
+        dao_deposit_data(),
+    );
+    let header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
+    link_cell_to_header(&mut context, &deposit, &header);
+    let tx = TransactionBuilder::default()
+        .input(CellInput::new_builder().previous_output(deposit).build())
+        .output(CellOutput::new_builder().capacity(capacity.pack()).lock(request_lock).type_(Some(dao).pack()).build())
+        .output_data(withdrawal_request_data(1554).pack())
+        .header_dep(header.hash())
+        .build();
+    let tx = context.complete_tx(tx);
+    let _ = context.verify(&tx, MAX_CYCLES);
+}
+
 // Shared test constants and on-chain error codes.
 const MAX_CYCLES: u64 = 10_000_000;
 const CKB: u64 = 100_000_000;
@@ -46,6 +140,7 @@ const ERROR_LENGTH_NOT_ENOUGH: i8 = 3;
 const ERROR_AMOUNT_MISMATCH: i8 = 11;
 const ERROR_AMOUNT_UNREASONABLY_BIG: i8 = 12;
 const ERROR_DAO_INVALID_WITHDRAW_BLOCK: i8 = -14;
+const ERROR_DAO_INVALID_WITHDRAWING_CELL: i8 = -20;
 const ERROR_DAO_INCORRECT_CAPACITY: i8 = -15;
 const ERROR_LIMIT_ORDER_INVALID_CONFIGURATION: i8 = 21;
 const ERROR_LIMIT_ORDER_DIFFERENT_INFO: i8 = 16;
@@ -59,6 +154,7 @@ const ERROR_LIMIT_ORDER_INVALID_RATIO: i8 = 9;
 const ERROR_LIMIT_ORDER_INVALID_CKB_MIN_MATCH_LOG: i8 = 10;
 const ERROR_LIMIT_ORDER_CONCAVE_RATIO: i8 = 11;
 const ERROR_LIMIT_ORDER_BOTH_RATIOS_NULL: i8 = 12;
+const ERROR_LIMIT_ORDER_MISSING_UDT_TYPE: i8 = 13;
 const ERROR_LIMIT_ORDER_INVALID_MATCH: i8 = 17;
 const ERROR_LIMIT_ORDER_DECREASING_VALUE: i8 = 18;
 const ERROR_LIMIT_ORDER_INSUFFICIENT_MATCH: i8 = 20;
@@ -130,7 +226,7 @@ fn scaffolding_tests_fail_for_the_reasons_reported() {
     let ickb_logic = data1_script(&mut context, "ickb_logic", Bytes::from(vec![42]));
     let input_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(1000u64.pack())
+            .capacity((1000 * CKB).pack())
             .lock(ickb_logic.clone())
             .build(),
         Bytes::new(),
@@ -139,25 +235,25 @@ fn scaffolding_tests_fail_for_the_reasons_reported() {
         .input(CellInput::new_builder().previous_output(input_out_point).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(500u64.pack())
+                .capacity((500 * CKB).pack())
                 .lock(ickb_logic.clone())
                 .build(),
             CellOutput::new_builder()
-                .capacity(500u64.pack())
+                .capacity((500 * CKB).pack())
                 .lock(ickb_logic)
                 .build(),
         ])
         .outputs_data(vec![Bytes::new(), Bytes::new()].pack())
         .build();
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 
     let mut context = Context::default();
     let ickb_logic = ickb_logic_script(&mut context);
     let input_out_point = context.create_cell(
         CellOutput::new_builder()
-            .capacity(1000u64.pack())
+            .capacity((1000 * CKB).pack())
             .lock(ickb_logic.clone())
             .build(),
         Bytes::new(),
@@ -166,17 +262,17 @@ fn scaffolding_tests_fail_for_the_reasons_reported() {
         .input(CellInput::new_builder().previous_output(input_out_point).build())
         .outputs(vec![
             CellOutput::new_builder()
-                .capacity(500u64.pack())
+                .capacity((500 * CKB).pack())
                 .lock(ickb_logic.clone())
                 .build(),
             CellOutput::new_builder()
-                .capacity(500u64.pack())
+                .capacity((500 * CKB).pack())
                 .lock(ickb_logic)
                 .build(),
         ])
         .outputs_data(vec![Bytes::new(), Bytes::new()].pack())
         .build();
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SCRIPT_MISUSE);
 }

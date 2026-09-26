@@ -169,7 +169,7 @@ fn weak_mainnet_eight_claim_batch_can_reassign_later_phase2_claimants() {
 
     let first_tx = context.complete_tx(first_tx);
     context
-        .verify_tx(&first_tx, MAX_CYCLES)
+        .verify(&first_tx, MAX_CYCLES)
         .expect("weak authorization should reassign the mainnet batch fresh owner outputs");
 
     let batch_withdraw_header = rpc_header(
@@ -223,7 +223,7 @@ fn weak_mainnet_eight_claim_batch_can_reassign_later_phase2_claimants() {
 
     let claim_tx = sign_tx_by_input_group(context.complete_tx(claim_tx), &attacker_privkey, 1, 1);
     context
-        .verify_tx(&claim_tx, MAX_CYCLES)
+        .verify(&claim_tx, MAX_CYCLES)
         .expect("reassigned mainnet batch owner output should allow a later phase2 claim");
 }
 
@@ -413,7 +413,7 @@ fn sighash_mainnet_eight_claim_batch_binds_fresh_owner_outputs() {
 
     let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 8, 2);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("one strong input group should still verify in the mainnet batch");
 
     let tampered_tx = tx
@@ -444,6 +444,6 @@ fn sighash_mainnet_eight_claim_batch_binds_fresh_owner_outputs() {
             tx.outputs().get(18).expect("change output"),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }

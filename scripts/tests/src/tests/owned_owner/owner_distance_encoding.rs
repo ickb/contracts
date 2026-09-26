@@ -14,7 +14,7 @@ fn truncated_owner_distance_output_is_rejected() {
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -31,7 +31,7 @@ fn truncated_owner_distance_output_is_rejected() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
 
     let owner_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
         .lock(owner_lock.clone())
         .type_(Some(owned_owner.clone()).pack())
         .build();
@@ -50,7 +50,7 @@ fn truncated_owner_distance_output_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }
 
@@ -66,7 +66,7 @@ fn zero_length_owner_distance_output_is_rejected_as_encoding() {
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -83,7 +83,7 @@ fn zero_length_owner_distance_output_is_rejected_as_encoding() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
 
     let owner_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
         .lock(owner_lock.clone())
         .type_(Some(owned_owner.clone()).pack())
         .build();
@@ -102,7 +102,7 @@ fn zero_length_owner_distance_output_is_rejected_as_encoding() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_ENCODING);
 }
 
@@ -118,7 +118,7 @@ fn owner_distance_trailing_bytes_are_ignored() {
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let udt_input = context.create_cell(
         CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
             .lock(owner_lock.clone())
             .type_(Some(xudt).pack())
             .build(),
@@ -135,7 +135,7 @@ fn owner_distance_trailing_bytes_are_ignored() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
 
     let owner_output = CellOutput::new_builder()
-        .capacity(200u64.pack())
+        .capacity(occupied_capacity(&owner_lock, &owned_owner, 6).pack())
         .lock(owner_lock.clone())
         .type_(Some(owned_owner.clone()).pack())
         .build();
@@ -161,6 +161,6 @@ fn owner_distance_trailing_bytes_are_ignored() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("owned_owner should ignore trailing bytes in owner distance data");
 }
