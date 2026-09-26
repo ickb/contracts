@@ -88,6 +88,65 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
     assert_script_error(err, ERROR_AMOUNT_MISMATCH);
 }
 
+// Pin the shifted soft-cap edge under a non-genesis AR: normalization reaches the cap at 110k CKB. Ten shannons past it, normalizing first mints cap+9 while applying the haircut first would mint cap+8, so the passing cap+9 mint proves normalization precedes the per-deposit haircut; eleven past it, cap+10 must fail.
+#[test]
+fn non_genesis_ar_soft_cap_boundary_preserves_integer_operation_order() {
+    let mut context = Context::default();
+    let owner_lock = always_success_lock(&mut context);
+    let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
+
+    let ar = 11_000_000_000_000_000u64;
+    let soft_cap = 100_000 * CKB as u128;
+    let shifted_boundary = 110_000 * CKB;
+    let normalized = |amount: u64| {
+        u128::from(amount) * u128::from(GENESIS_AR) / u128::from(ar)
+    };
+
+    assert_eq!(normalized(shifted_boundary), soft_cap);
+    assert_eq!(normalized(shifted_boundary + 10), soft_cap + 9);
+    assert_eq!(normalized(shifted_boundary + 11), soft_cap + 10);
+    assert_eq!(soft_capped_ickb(shifted_boundary + 10, ar), soft_cap + 9);
+    assert_eq!(soft_capped_ickb(shifted_boundary + 11, ar), soft_cap + 9);
+
+    let mut assert_mint = |block_number: u64, amount: u64, minted: u128, should_pass: bool| {
+        let receipt = context.create_cell(
+            CellOutput::new_builder()
+                .capacity(occupied_capacity(&owner_lock, &ickb_logic, 12).pack())
+                .lock(owner_lock.clone())
+                .type_(Some(ickb_logic.clone()).pack())
+                .build(),
+            receipt_data(1, amount),
+        );
+        let receipt_header = gen_header(block_number, ar, 1, 1, 1000);
+        link_cell_to_header(&mut context, &receipt, &receipt_header);
+        let tx = TransactionBuilder::default()
+            .input(CellInput::new_builder().previous_output(receipt).build())
+            .output(
+                CellOutput::new_builder()
+                    .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
+                    .lock(owner_lock.clone())
+                    .type_(Some(xudt.clone()).pack())
+                    .build(),
+            )
+            .output_data(udt_data(minted).pack())
+            .header_dep(receipt_header.hash())
+            .build();
+        let tx = context.complete_tx(tx);
+        let result = context.verify(&tx, MAX_CYCLES);
+
+        if should_pass {
+            result.expect("exact mint at the AR-shifted soft-cap boundary should verify");
+        } else {
+            assert_script_error(result.unwrap_err(), ERROR_AMOUNT_MISMATCH);
+        }
+    };
+
+    assert_mint(1, shifted_boundary, soft_cap, true);
+    assert_mint(2, shifted_boundary + 10, soft_cap + 9, true);
+    assert_mint(3, shifted_boundary + 11, soft_cap + 10, false);
+    assert_mint(4, shifted_boundary + 11, soft_cap + 9, true);
+}
+
 // Build phase1 deposit-to-withdrawal conversions around the same rounding claim: burning a rounded-down iCKB amount fails, but burning the exact header-normalized amount passes, so withdrawal initiation also enforces shannon-precise value matching.
 #[test]
 fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
@@ -357,4 +416,33 @@ fn burn_and_claim(
 
 
     (burned_ickb, claim_capacity, deposit_occupied_capacity)
+}
+
+// The iCKB value counts only unoccupied capacity, while the DAO claim also returns the occupied 82 CKB:
+// per iCKB burned, a small deposit returns more CKB than a standard one. This is the whitepaper's
+// intended penalty on small deposits, collected by whoever withdraws them.
+#[test]
+fn smaller_deposits_return_more_ckb_per_ickb_burned_by_their_occupied_capacity() {
+    let mut context = Context::default();
+    let user_lock = always_success_lock(&mut context);
+    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
+    let withdraw_ar = 12_000_000_000_000_000u64;
+    let withdraw_header = gen_header(2_000_610, withdraw_ar, 575, 2_000_000, 1100);
+    let deposit_ar = 11_000_000_000_000_000u64;
+
+    let mut ckb_per_ickb = |amount: u64, deposit_number: u64| {
+        // The verified claim is the unoccupied capacity grown by the AR ratio, plus the occupied capacity.
+        let (burned, claimed, _) = burn_and_claim(
+            &mut context,
+            (&user_lock, &ickb_logic, &dao, &xudt),
+            (&withdraw_header, withdraw_ar),
+            (amount, deposit_number, deposit_ar),
+        );
+        (claimed, burned)
+    };
+    let (small_claim, small_burn) = ckb_per_ickb(1_000 * CKB, 1554);
+    let (standard_claim, standard_burn) = ckb_per_ickb(100_000 * CKB, 1555);
+
+    // Compare claim / burn without division: small_claim * standard_burn > standard_claim * small_burn.
+    assert!(u128::from(small_claim) * standard_burn > u128::from(standard_claim) * small_burn);
 }

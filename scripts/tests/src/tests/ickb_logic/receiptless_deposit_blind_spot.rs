@@ -74,6 +74,92 @@ fn receiptless_dao_shaped_output_is_accepted_as_deposit() {
         .expect("later phase1 withdrawal request should accept the receiptless DAO-shaped output as a structurally valid deposit input");
 }
 
+// The deposit bounds live in ickb_logic's output check, which runs only when the creating tx also
+// carries a receipt; a receiptless deposit of any size is created without it. Below the minimum (500 CKB
+// and 0 CKB unoccupied), such a deposit is still withdrawn at its exact iCKB value.
+#[test]
+fn receiptless_deposits_below_the_minimum_are_created_and_withdrawn_at_value() {
+    for deposit_amount in [500 * CKB, 0] {
+        let mut context = Context::default();
+        let user_lock = always_success_lock(&mut context);
+        let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
+        let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, deposit_amount);
+
+        let funding_input = context.create_cell(
+            CellOutput::new_builder()
+                .capacity(deposit_total_capacity.pack())
+                .lock(user_lock.clone())
+                .build(),
+            Bytes::new(),
+        );
+        let create_tx = TransactionBuilder::default()
+            .input(CellInput::new_builder().previous_output(funding_input).build())
+            .output(
+                CellOutput::new_builder()
+                    .capacity(deposit_total_capacity.pack())
+                    .lock(ickb_logic.clone())
+                    .type_(Some(dao.clone()).pack())
+                    .build(),
+            )
+            .output_data(dao_deposit_data().pack())
+            .build();
+        let create_tx = context.complete_tx(create_tx);
+        context
+            .verify(&create_tx, MAX_CYCLES)
+            .expect("a receiptless deposit below the minimum is created without running the bounds check");
+
+        let deposit_input = context.create_cell(
+            CellOutput::new_builder()
+                .capacity(deposit_total_capacity.pack())
+                .lock(ickb_logic.clone())
+                .type_(Some(dao.clone()).pack())
+                .build(),
+            dao_deposit_data(),
+        );
+        let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
+        link_cell_to_header(&mut context, &deposit_input, &deposit_header);
+
+        // At the genesis AR a deposit below the soft cap is worth exactly its unoccupied capacity.
+        let mut burns = vec![u128::from(deposit_amount)];
+        if deposit_amount > 0 {
+            burns.push(u128::from(deposit_amount) - 1);
+        }
+        for burned in burns {
+            let mut builder = TransactionBuilder::default()
+                .input(CellInput::new_builder().previous_output(deposit_input.clone()).build());
+            if burned > 0 {
+                let udt_input = context.create_cell(
+                    CellOutput::new_builder()
+                        .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
+                        .lock(user_lock.clone())
+                        .type_(Some(xudt.clone()).pack())
+                        .build(),
+                    udt_data(burned),
+                );
+                builder = builder.input(CellInput::new_builder().previous_output(udt_input).build());
+            }
+            let withdraw_tx = builder
+                .output(
+                    CellOutput::new_builder()
+                        .capacity(deposit_total_capacity.pack())
+                        .lock(user_lock.clone())
+                        .type_(Some(dao.clone()).pack())
+                        .build(),
+                )
+                .output_data(withdrawal_request_data(1554).pack())
+                .header_dep(deposit_header.hash())
+                .build();
+            let withdraw_tx = context.complete_tx(withdraw_tx);
+            let result = context.verify(&withdraw_tx, MAX_CYCLES);
+            if burned == u128::from(deposit_amount) {
+                result.expect("burning exactly the deposit's value withdraws it");
+            } else {
+                assert_script_error(result.unwrap_err(), ERROR_AMOUNT_MISMATCH);
+            }
+        }
+    }
+}
+
 // Build one tx that combines a legitimate split receipt with a separately funded receiptless aggregate deposit and rolls the aggregate into withdrawal: only the soft-cap spread should mint as xUDT, so the exact delta passes and any extra principal remains excluded.
 #[test]
 fn split_receipt_against_receiptless_aggregate_mints_only_spread() {

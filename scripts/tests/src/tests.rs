@@ -189,6 +189,62 @@ fn load_binary(name: &str) -> Bytes {
     Loader::default().load_binary(name)
 }
 
+#[test]
+fn type_role_scan_with_512_unrelated_outputs_stays_within_test_cycle_budget() {
+    const PADDING_OUTPUTS: usize = 512;
+
+    let mut context = Context::default();
+    let user_lock = always_success_lock(&mut context);
+    let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
+    let deposit_amount = 1_000 * CKB;
+    let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
+    let receipt_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
+            .lock(user_lock.clone())
+            .type_(Some(ickb_logic).pack())
+            .build(),
+        receipt_data(1, deposit_amount),
+    );
+    link_cell_to_header(&mut context, &receipt_input, &deposit_header);
+    let funding_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(((PADDING_OUTPUTS as u64 + 1) * 100 * CKB).pack())
+            .lock(user_lock.clone())
+            .build(),
+        Bytes::new(),
+    );
+
+    let mut outputs = vec![CellOutput::new_builder()
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
+            .lock(user_lock.clone())
+            .type_(Some(xudt).pack())
+            .build()];
+    let mut outputs_data = vec![udt_data(u128::from(deposit_amount))];
+    for _ in 0..PADDING_OUTPUTS {
+        outputs.push(
+            CellOutput::new_builder()
+                .capacity((100 * CKB).pack())
+                .lock(user_lock.clone())
+                .build(),
+        );
+        outputs_data.push(Bytes::new());
+    }
+
+    let tx = TransactionBuilder::default()
+        .input(CellInput::new_builder().previous_output(receipt_input).build())
+        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .outputs(outputs)
+        .outputs_data(outputs_data.pack())
+        .header_dep(deposit_header.hash())
+        .build();
+    let tx = context.complete_tx(tx);
+    // verify fails with ExceededMaximumCycles above the budget, so passing is the bound.
+    context
+        .verify(&tx, MAX_CYCLES)
+        .expect("type-role scan with 512 unrelated outputs should stay within the test cycle budget");
+}
+
 // Harness sanity checks.
 #[test]
 fn release_binary_hashes_match_deployment_references() {

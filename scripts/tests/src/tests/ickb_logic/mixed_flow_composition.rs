@@ -234,3 +234,153 @@ fn all_three_scripts_can_compose_in_one_live_state_transition() {
         .verify(&tx, MAX_CYCLES)
         .expect("a live receipt, live deposit, and live limit order should compose in one valid transaction");
 }
+
+// Scenario 4F: withdrawing a deposit and re-depositing its value in one transaction must leave the
+// withdrawal request at the deposit's index. Putting the fresh deposit there instead would restart
+// the deposit's age in place; NervosDAO phase 1 rejects that layout.
+#[test]
+fn fresh_deposit_cannot_replace_a_withdrawn_deposit_at_its_index() {
+    let mut context = Context::default();
+    let user_lock = always_success_lock(&mut context);
+    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
+
+    let amount = 1_500 * CKB;
+    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
+    let deposit_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(deposit_total_capacity.pack())
+            .lock(ickb_logic.clone())
+            .type_(Some(dao.clone()).pack())
+            .build(),
+        dao_deposit_data(),
+    );
+    let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
+    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
+    let udt_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
+            .lock(user_lock.clone())
+            .type_(Some(xudt).pack())
+            .build(),
+        udt_data(u128::from(amount)),
+    );
+    let funding_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity((2 * deposit_total_capacity).pack())
+            .lock(user_lock.clone())
+            .build(),
+        Bytes::new(),
+    );
+
+    let request = (
+        CellOutput::new_builder()
+            .capacity(deposit_total_capacity.pack())
+            .lock(user_lock.clone())
+            .type_(Some(dao.clone()).pack())
+            .build(),
+        withdrawal_request_data(1554),
+    );
+    let fresh_deposit = (
+        CellOutput::new_builder()
+            .capacity(deposit_total_capacity.pack())
+            .lock(ickb_logic.clone())
+            .type_(Some(dao.clone()).pack())
+            .build(),
+        dao_deposit_data(),
+    );
+    let receipt = (
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
+            .lock(user_lock.clone())
+            .type_(Some(ickb_logic.clone()).pack())
+            .build(),
+        receipt_data(1, amount),
+    );
+
+    let tx = |outputs: Vec<(CellOutput, Bytes)>| {
+        let (cells, data): (Vec<_>, Vec<_>) = outputs.into_iter().unzip();
+        let tx: TransactionView = TransactionBuilder::default()
+            .input(CellInput::new_builder().previous_output(deposit_input.clone()).build())
+            .input(CellInput::new_builder().previous_output(udt_input.clone()).build())
+            .input(CellInput::new_builder().previous_output(funding_input.clone()).build())
+            .outputs(cells)
+            .outputs_data(data.pack())
+            .header_dep(deposit_header.hash())
+            .build();
+        tx
+    };
+
+    let withdraw_and_redeposit = context.complete_tx(tx(vec![request.clone(), fresh_deposit.clone(), receipt.clone()]));
+    context
+        .verify(&withdraw_and_redeposit, MAX_CYCLES)
+        .expect("withdrawing with the request at the deposit's index and re-depositing elsewhere verifies");
+
+    // Same cells with the two DAO outputs swapped: the fresh deposit takes the withdrawn deposit's index.
+    let reset_in_place = context.complete_tx(tx(vec![fresh_deposit, request, receipt]));
+    let err = context.verify(&reset_in_place, MAX_CYCLES).unwrap_err();
+    assert_script_error(err, ERROR_DAO_INVALID_WITHDRAWING_CELL);
+}
+
+// Scenario 6G: a deposit and its receipt created in the same block read the same accumulated rate,
+// so a later transaction spending both (receipt to phase 2, deposit to withdrawal) mints nothing.
+#[test]
+fn same_block_receipt_and_deposit_mint_nothing_when_spent_together() {
+    let mut context = Context::default();
+    let user_lock = always_success_lock(&mut context);
+    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
+
+    let amount = 1_500 * CKB;
+    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
+    let creation_header = gen_header(1554, SYNTHETIC_WITHDRAW_AR, 35, 1000, 1000);
+    let deposit_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(deposit_total_capacity.pack())
+            .lock(ickb_logic.clone())
+            .type_(Some(dao.clone()).pack())
+            .build(),
+        dao_deposit_data(),
+    );
+    let receipt_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
+            .lock(user_lock.clone())
+            .type_(Some(ickb_logic.clone()).pack())
+            .build(),
+        receipt_data(1, amount),
+    );
+    link_cell_to_header(&mut context, &deposit_input, &creation_header);
+    link_cell_to_header(&mut context, &receipt_input, &creation_header);
+
+    for minted in [0u128, 1] {
+        let mut builder = TransactionBuilder::default()
+            .input(CellInput::new_builder().previous_output(deposit_input.clone()).build())
+            .input(CellInput::new_builder().previous_output(receipt_input.clone()).build())
+            .output(
+                CellOutput::new_builder()
+                    .capacity(deposit_total_capacity.pack())
+                    .lock(user_lock.clone())
+                    .type_(Some(dao.clone()).pack())
+                    .build(),
+            )
+            .output_data(withdrawal_request_data(1554).pack())
+            .header_dep(creation_header.hash());
+        if minted > 0 {
+            builder = builder
+                .output(
+                    CellOutput::new_builder()
+                        .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
+                        .lock(user_lock.clone())
+                        .type_(Some(xudt.clone()).pack())
+                        .build(),
+                )
+                .output_data(udt_data(minted).pack());
+        }
+        let tx = context.complete_tx(builder.build());
+        let result = context.verify(&tx, MAX_CYCLES);
+        if minted == 0 {
+            result.expect("the receipt's value exactly pays for the same-rate deposit");
+        } else {
+            assert_script_error(result.unwrap_err(), ERROR_AMOUNT_MISMATCH);
+        }
+    }
+}

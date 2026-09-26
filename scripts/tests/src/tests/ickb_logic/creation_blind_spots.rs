@@ -106,3 +106,58 @@ fn non_empty_args_ickb_logic_lock_output_can_be_created_but_not_spent() {
     let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
 }
+
+// A withdrawal request keeps the deposit's DAO type but carries non-zero data, so it is no deposit;
+// locked by ickb_logic it matches no valid shape and the script rejects it rather than treating it as Unknown.
+#[test]
+fn withdrawal_request_locked_by_ickb_logic_is_script_misuse() {
+    let mut context = Context::default();
+    let user_lock = always_success_lock(&mut context);
+    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
+
+    let deposit_amount = 1_500 * CKB;
+    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, deposit_amount);
+    let deposit_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(deposit_total_capacity.pack())
+            .lock(ickb_logic.clone())
+            .type_(Some(dao.clone()).pack())
+            .build(),
+        dao_deposit_data(),
+    );
+    let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
+    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
+    let udt_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
+            .lock(user_lock.clone())
+            .type_(Some(xudt).pack())
+            .build(),
+        udt_data(u128::from(deposit_amount)),
+    );
+
+    let withdraw_tx = |request_lock: &Script| {
+        TransactionBuilder::default()
+            .input(CellInput::new_builder().previous_output(deposit_input.clone()).build())
+            .input(CellInput::new_builder().previous_output(udt_input.clone()).build())
+            .output(
+                CellOutput::new_builder()
+                    .capacity(deposit_total_capacity.pack())
+                    .lock(request_lock.clone())
+                    .type_(Some(dao.clone()).pack())
+                    .build(),
+            )
+            .output_data(withdrawal_request_data(1554).pack())
+            .header_dep(deposit_header.hash())
+            .build()
+    };
+
+    let control = context.complete_tx(withdraw_tx(&user_lock));
+    context
+        .verify(&control, MAX_CYCLES)
+        .expect("the same request under a user lock is a valid phase1 withdrawal");
+
+    let misuse = context.complete_tx(withdraw_tx(&ickb_logic));
+    let err = context.verify(&misuse, MAX_CYCLES).unwrap_err();
+    assert_script_error(err, ERROR_SCRIPT_MISUSE);
+}
