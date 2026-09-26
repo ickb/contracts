@@ -31,11 +31,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         deposit_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0xa5e67c62b2c").pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0xa5e67c62b2c"), &ickb_logic, Some(&dao)),
         bytes_from_hex("0x0000000000000000"),
     );
     link_cell_to_header(&mut context, &deposit_input, &fresh_deposit_header);
@@ -46,10 +42,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         change_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x13b71a4e3b").pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x13b71a4e3b"), &user_lock, None),
         Bytes::new(),
     );
 
@@ -59,11 +52,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         udt_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x3663a5200").pack())
-            .lock(user_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x3663a5200"), &user_lock, Some(&xudt)),
         bytes_from_hex("0xca482089660200000000000000000000"),
     );
 
@@ -73,11 +62,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0xa5e673651b7").pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0xa5e673651b7"), &owned_owner, Some(&dao)),
         bytes_from_hex("0xdb6ede0000000000"),
     );
     link_cell_to_header(&mut context, &owned_input, &prior_withdraw_header);
@@ -88,11 +73,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x248202200").pack())
-            .lock(user_lock.clone())
-            .type_(Some(owned_owner.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x248202200"), &user_lock, Some(&owned_owner)),
         bytes_from_hex("0xfeffffff"),
     );
 
@@ -102,11 +83,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         order_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x2f9ea8dd8e2c").pack())
-            .lock(limit_order.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x2f9ea8dd8e2c"), &limit_order, Some(&xudt)),
         bytes_from_hex(
             "0xfc643f14592300000000000000000000010000001594bf3a65929bf5ee706f3c34e5c92d993adc405e58c3934661aeaa4e19264704000000000000000000000000000000000000000000c16ff28623008cb96cb2f30b290021",
         ),
@@ -115,42 +92,23 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     context.insert_header(prior_deposit_header.clone());
 
     let first_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
-        .input(CellInput::new_builder().previous_output(change_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(input(deposit_input))
+        .input(input(change_input))
+        .input(input(udt_input))
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
                 .since(u64_from_hex("0x20070804f20029d3").pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
-        .input(CellInput::new_builder().previous_output(order_input).build())
+        .input(input(owner_input))
+        .input(input(order_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xa5e67c62b2c").pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x3a20c2ac1968").pack())
-                .lock(limit_order.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x248202200").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x3663a5200").pack())
-                .lock(user_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x13b55a06cc").pack())
-                .lock(user_lock.clone())
-                .build(),
+            cell(u64_from_hex("0xa5e67c62b2c"), &owned_owner, Some(&dao)),
+            cell(u64_from_hex("0x3a20c2ac1968"), &limit_order, Some(&xudt)),
+            cell(u64_from_hex("0x248202200"), &attacker_lock, Some(&owned_owner)),
+            cell(u64_from_hex("0x3663a5200"), &user_lock, Some(&xudt)),
+            cell(u64_from_hex("0x13b55a06cc"), &user_lock, None),
         ])
         .outputs_data(
             vec![
@@ -180,7 +138,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
 
     let first_tx = context.complete_tx(first_tx);
     context
-        .verify_tx(&first_tx, MAX_CYCLES)
+        .verify(&first_tx, MAX_CYCLES)
         .expect("weak mixed restake should reassign the fresh owner output");
 
     let fresh_withdraw_header = rpc_header(
@@ -209,11 +167,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         later_order_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x4487f6435e53").pack())
-            .lock(limit_order.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x4487f6435e53"), &limit_order, Some(&xudt)),
         bytes_from_hex(
             "0x5565b9a23f1100000000000000000000010000001594bf3a65929bf5ee706f3c34e5c92d993adc405e58c3934661aeaa4e19264704000000000000000000000000000000000000000000c16ff28623008cb96cb2f30b290021",
         ),
@@ -225,11 +179,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         later_udt_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x3663a5200").pack())
-            .lock(user_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x3663a5200"), &user_lock, Some(&xudt)),
         bytes_from_hex("0x276736ac670b00000000000000000000"),
     );
 
@@ -239,39 +189,25 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
     );
     context.create_cell_with_out_point(
         later_change_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x30e25b5441").pack())
-            .lock(user_lock)
-            .build(),
+        cell(u64_from_hex("0x30e25b5441"), &user_lock, None),
         Bytes::new(),
     );
 
     let second_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(later_change_input).build())
-        .input(CellInput::new_builder().previous_output(later_udt_input).build())
+        .input(input(later_change_input))
+        .input(input(later_udt_input))
         .input(
             CellInput::new_builder()
                 .previous_output(fresh_owned)
                 .since(u64_from_hex("0x200708057c0029d3").pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(fresh_owner).build())
-        .input(CellInput::new_builder().previous_output(later_order_input).build())
+        .input(input(fresh_owner))
+        .input(input(later_order_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x4f0a109fcf57").pack())
-                .lock(limit_order)
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x3663a5200").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x3329ed7100").pack())
-                .lock(attacker_lock)
-                .build(),
+            cell(u64_from_hex("0x4f0a109fcf57"), &limit_order, Some(&xudt)),
+            cell(u64_from_hex("0x3663a5200"), &attacker_lock, Some(&xudt)),
+            cell(u64_from_hex("0x3329ed7100"), &attacker_lock, None),
         ])
         .outputs_data(
             vec![
@@ -297,7 +233,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
 
     let second_tx = context.complete_tx(second_tx);
     context
-        .verify_tx(&second_tx, MAX_CYCLES)
+        .verify(&second_tx, MAX_CYCLES)
         .expect("reassigned fresh owner output should enable the later phase2 claim");
 }
 
@@ -333,10 +269,7 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
     );
     context.create_cell_with_out_point(
         change_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x13b71a4e3b").pack())
-            .lock(strong_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x13b71a4e3b"), &strong_lock, None),
         Bytes::new(),
     );
     let udt_input = out_point_from_hex(
@@ -345,11 +278,7 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
     );
     context.create_cell_with_out_point(
         udt_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x3663a5200").pack())
-            .lock(strong_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x3663a5200"), &strong_lock, Some(&xudt)),
         bytes_from_hex("0xca482089660200000000000000000000"),
     );
     let owner_input = out_point_from_hex(
@@ -358,11 +287,7 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x248202200").pack())
-            .lock(weak_lock.clone())
-            .type_(Some(owned_owner.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x248202200"), &weak_lock, Some(&owned_owner)),
         bytes_from_hex("0xfeffffff"),
     );
 
@@ -372,11 +297,7 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
     );
     context.create_cell_with_out_point(
         deposit_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0xa5e67c62b2c").pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0xa5e67c62b2c"), &ickb_logic, Some(&dao)),
         bytes_from_hex("0x0000000000000000"),
     );
     link_cell_to_header(&mut context, &deposit_input, &fresh_deposit_header);
@@ -387,11 +308,7 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
     );
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0xa5e673651b7").pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0xa5e673651b7"), &owned_owner, Some(&dao)),
         bytes_from_hex("0xdb6ede0000000000"),
     );
     link_cell_to_header(&mut context, &owned_input, &prior_withdraw_header);
@@ -402,11 +319,7 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
     );
     context.create_cell_with_out_point(
         order_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x2f9ea8dd8e2c").pack())
-            .lock(limit_order.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x2f9ea8dd8e2c"), &limit_order, Some(&xudt)),
         bytes_from_hex(
             "0xfc643f14592300000000000000000000010000001594bf3a65929bf5ee706f3c34e5c92d993adc405e58c3934661aeaa4e19264704000000000000000000000000000000000000000000c16ff28623008cb96cb2f30b290021",
         ),
@@ -415,42 +328,23 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
     context.insert_header(prior_deposit_header.clone());
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
-        .input(CellInput::new_builder().previous_output(change_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(input(deposit_input))
+        .input(input(change_input))
+        .input(input(udt_input))
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
                 .since(u64_from_hex("0x20070804f20029d3").pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
-        .input(CellInput::new_builder().previous_output(order_input).build())
+        .input(input(owner_input))
+        .input(input(order_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xa5e67c62b2c").pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x3a20c2ac1968").pack())
-                .lock(limit_order.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x248202200").pack())
-                .lock(weak_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x3663a5200").pack())
-                .lock(strong_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x13b55a06cc").pack())
-                .lock(strong_lock.clone())
-                .build(),
+            cell(u64_from_hex("0xa5e67c62b2c"), &owned_owner, Some(&dao)),
+            cell(u64_from_hex("0x3a20c2ac1968"), &limit_order, Some(&xudt)),
+            cell(u64_from_hex("0x248202200"), &weak_lock, Some(&owned_owner)),
+            cell(u64_from_hex("0x3663a5200"), &strong_lock, Some(&xudt)),
+            cell(u64_from_hex("0x13b55a06cc"), &strong_lock, None),
         ])
         .outputs_data(
             vec![
@@ -481,7 +375,7 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
 
     let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 1, 2);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("one strong input group should still verify in the live mixed restake shape");
 
     let tampered_tx = tx
@@ -489,15 +383,10 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
         .set_outputs(vec![
             tx.outputs().get(0).expect("fresh owned output"),
             tx.outputs().get(1).expect("order output"),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x248202200").pack())
-                .lock(attacker_lock)
-                .type_(Some(owned_owner).pack())
-                .build(),
+            cell(u64_from_hex("0x248202200"), &attacker_lock, Some(&owned_owner)),
             tx.outputs().get(3).expect("udt output"),
             tx.outputs().get(4).expect("change output"),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }

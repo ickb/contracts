@@ -10,38 +10,30 @@ fn distinct_mint_capacities_block_master_crosswire() {
         &mut context,
         owner1_lock.clone(),
         helper_type.clone(),
-        1_600 * SHANNONS,
+        1_600 * CKB,
     );
     let (order2_input, master2_input) = build_real_limit_order_and_master_with_capacity(
         &mut context,
         owner2_lock.clone(),
         helper_type.clone(),
-        1_500 * SHANNONS,
+        1_500 * CKB,
     );
 
     let limit_order = limit_order_script(&mut context);
-    let crosswired_order1_data = order_data_match(100 * SHANNONS as u128, &master2_input, (1, 1));
-    let crosswired_order2_data = order_data_match(100 * SHANNONS as u128, &master1_input, (1, 1));
+    let crosswired_order1_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
+    let crosswired_order2_data = order_data_match(100 * CKB as u128, &master1_input, (1, 1));
     let crosswire_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order1_input).build())
-        .input(CellInput::new_builder().previous_output(order2_input).build())
+        .input(input(order1_input))
+        .input(input(order2_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
+            cell(1_500 * CKB, &limit_order, Some(&helper_type)),
+            cell(1_400 * CKB, &limit_order, Some(&helper_type)),
         ])
         .outputs_data(vec![crosswired_order1_data.clone(), crosswired_order2_data].pack())
         .build();
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify_tx(&crosswire_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
     assert_script_error_in(
         err,
         &[
@@ -61,31 +53,25 @@ fn distinct_match_progress_blocks_master_crosswire() {
         &mut context,
         owner1_lock.clone(),
         helper_type.clone(),
-        1_600 * SHANNONS,
+        1_600 * CKB,
     );
     let (order2_input, master2_input) = build_real_limit_order_and_master_with_capacity(
         &mut context,
         owner2_lock.clone(),
         helper_type.clone(),
-        1_500 * SHANNONS,
+        1_500 * CKB,
     );
     let limit_order = limit_order_script(&mut context);
 
-    let order1_matched_data = order_data_match(100 * SHANNONS as u128, &master1_input, (1, 1));
+    let order1_matched_data = order_data_match(100 * CKB as u128, &master1_input, (1, 1));
     let order1_match_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order1_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-        )
+        .input(input(order1_input))
+        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
         .output_data(order1_matched_data.clone().pack())
         .build();
     let order1_match_tx = context.complete_tx(order1_match_tx);
     context
-        .verify_tx(&order1_match_tx, MAX_CYCLES)
+        .verify(&order1_match_tx, MAX_CYCLES)
         .expect("order1 should enter its first match state");
     let order1_matched = OutPoint::new(order1_match_tx.hash(), 0);
     context.create_cell_with_out_point(
@@ -94,21 +80,15 @@ fn distinct_match_progress_blocks_master_crosswire() {
         order1_matched_data,
     );
 
-    let order2_matched_data = order_data_match(200 * SHANNONS as u128, &master2_input, (1, 1));
+    let order2_matched_data = order_data_match(200 * CKB as u128, &master2_input, (1, 1));
     let order2_match_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order2_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_300 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-        )
+        .input(input(order2_input))
+        .output(cell(1_300 * CKB, &limit_order, Some(&helper_type)))
         .output_data(order2_matched_data.clone().pack())
         .build();
     let order2_match_tx = context.complete_tx(order2_match_tx);
     context
-        .verify_tx(&order2_match_tx, MAX_CYCLES)
+        .verify(&order2_match_tx, MAX_CYCLES)
         .expect("order2 should enter a later match state with different progress");
     let order2_matched = OutPoint::new(order2_match_tx.hash(), 0);
     context.create_cell_with_out_point(
@@ -117,28 +97,20 @@ fn distinct_match_progress_blocks_master_crosswire() {
         order2_matched_data,
     );
 
-    let crosswired_order1_data = order_data_match(200 * SHANNONS as u128, &master2_input, (1, 1));
-    let crosswired_order2_data = order_data_match(300 * SHANNONS as u128, &master1_input, (1, 1));
+    let crosswired_order1_data = order_data_match(200 * CKB as u128, &master2_input, (1, 1));
+    let crosswired_order2_data = order_data_match(300 * CKB as u128, &master1_input, (1, 1));
     let crosswire_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order1_matched).build())
-        .input(CellInput::new_builder().previous_output(order2_matched).build())
+        .input(input(order1_matched))
+        .input(input(order2_matched))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((1_200 * SHANNONS).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
+            cell(1_400 * CKB, &limit_order, Some(&helper_type)),
+            cell(1_200 * CKB, &limit_order, Some(&helper_type)),
         ])
         .outputs_data(vec![crosswired_order1_data.clone(), crosswired_order2_data].pack())
         .build();
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify_tx(&crosswire_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
     assert_script_error_in(
         err,
         &[
@@ -158,31 +130,25 @@ fn real_mint_and_match_orders_cannot_crosswire_masters() {
         &mut context,
         owner1_lock.clone(),
         helper_type.clone(),
-        1_600 * SHANNONS,
+        1_600 * CKB,
     );
     let (match_order_seed, master2_input) = build_real_limit_order_and_master_with_capacity(
         &mut context,
         owner2_lock.clone(),
         helper_type.clone(),
-        1_500 * SHANNONS,
+        1_500 * CKB,
     );
     let limit_order = limit_order_script(&mut context);
 
-    let match_order_data = order_data_match(100 * SHANNONS as u128, &master2_input, (1, 1));
+    let match_order_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
     let seed_match_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(match_order_seed).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-        )
+        .input(input(match_order_seed))
+        .output(cell(1_400 * CKB, &limit_order, Some(&helper_type)))
         .output_data(match_order_data.clone().pack())
         .build();
     let seed_match_tx = context.complete_tx(seed_match_tx);
     context
-        .verify_tx(&seed_match_tx, MAX_CYCLES)
+        .verify(&seed_match_tx, MAX_CYCLES)
         .expect("the second real order should enter match state before the mixed crosswire");
     let match_order_input = OutPoint::new(seed_match_tx.hash(), 0);
     context.create_cell_with_out_point(
@@ -191,28 +157,20 @@ fn real_mint_and_match_orders_cannot_crosswire_masters() {
         match_order_data,
     );
 
-    let crosswired_mint_data = order_data_match(100 * SHANNONS as u128, &master2_input, (1, 1));
-    let crosswired_match_data = order_data_match(200 * SHANNONS as u128, &master1_input, (1, 1));
+    let crosswired_mint_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
+    let crosswired_match_data = order_data_match(200 * CKB as u128, &master1_input, (1, 1));
     let crosswire_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(mint_order_input).build())
-        .input(CellInput::new_builder().previous_output(match_order_input).build())
+        .input(input(mint_order_input))
+        .input(input(match_order_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((1_300 * SHANNONS).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
+            cell(1_500 * CKB, &limit_order, Some(&helper_type)),
+            cell(1_300 * CKB, &limit_order, Some(&helper_type)),
         ])
         .outputs_data(vec![crosswired_mint_data.clone(), crosswired_match_data].pack())
         .build();
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify_tx(&crosswire_tx, MAX_CYCLES).unwrap_err();
+    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
     assert_script_error_in(
         err,
         &[
@@ -251,40 +209,24 @@ fn different_info_mainnet_orders_cannot_crosswire_during_match() {
 
     context.create_cell_with_out_point(
         master_a_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x23c346000").pack())
-            .lock(owner_a_lock.clone())
-            .type_(Some(limit_order.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x23c346000"), &owner_a_lock, Some(&limit_order)),
         Bytes::new(),
     );
     context.create_cell_with_out_point(
         master_b_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x230489e00").pack())
-            .lock(owner_b_lock.clone())
-            .type_(Some(limit_order.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x230489e00"), &owner_b_lock, Some(&limit_order)),
         Bytes::new(),
     );
     context.create_cell_with_out_point(
         order_a_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x641d5c5e1c4").pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x641d5c5e1c4"), &limit_order, Some(&helper_type)),
         bytes_from_hex(
             "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff28623005b03be74cf7a2a000000000000000000000000000000000021",
         ),
     );
     context.create_cell_with_out_point(
         order_b_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x4a221e700").pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&helper_type)),
         bytes_from_hex(
             "0xff2222085e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000000000000000000000000000000000c16ff28623000a1338d4d7672a0021",
         ),
@@ -329,23 +271,12 @@ fn different_info_mainnet_orders_cannot_crosswire_during_match() {
     );
 
     let crosswire_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order_a_input).build())
-        .input(CellInput::new_builder().previous_output(order_b_input).build())
+        .input(input(order_a_input))
+        .input(input(order_b_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x4a221e700").pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x74deeef1ad").pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x5ccf6d6f017").pack())
-                .lock(change_lock)
-                .build(),
+            cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&helper_type)),
+            cell(u64_from_hex("0x74deeef1ad"), &limit_order, Some(&helper_type)),
+            cell(u64_from_hex("0x5ccf6d6f017"), &change_lock, None),
         ])
         .outputs_data(
             vec![
@@ -358,6 +289,5 @@ fn different_info_mainnet_orders_cannot_crosswire_during_match() {
         .build();
 
     let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify_tx(&crosswire_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
+    fail(&context, &crosswire_tx, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
 }

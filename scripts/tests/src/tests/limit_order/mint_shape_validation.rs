@@ -9,28 +9,15 @@ fn mint_accepts_ckb_min_match_log_64() {
     let limit_order = limit_order_script(&mut context);
     let helper_type = helper_type_script(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
+        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
         .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity(200u64.pack())
-                .lock(owner_lock)
-                .type_(Some(limit_order).pack())
-                .build(),
+            cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
         )
         .outputs_data(
             vec![
@@ -43,7 +30,7 @@ fn mint_accepts_ckb_min_match_log_64() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("ckb_min_match_log == 64 should be accepted at the encoding boundary");
 }
 
@@ -56,28 +43,15 @@ fn mint_rejects_ckb_min_match_log_65() {
     let limit_order = limit_order_script(&mut context);
     let helper_type = helper_type_script(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
+        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
         .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity(200u64.pack())
-                .lock(owner_lock)
-                .type_(Some(limit_order).pack())
-                .build(),
+            cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
         )
         .outputs_data(
             vec![
@@ -89,8 +63,7 @@ fn mint_rejects_ckb_min_match_log_65() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CKB_MIN_MATCH_LOG);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_INVALID_CKB_MIN_MATCH_LOG);
 }
 
 // Create two would-be master outputs and no order output; the creation path fails as invalid configuration before any duplicate-master-specific conclusion applies.
@@ -101,31 +74,19 @@ fn two_master_outputs_fail_as_invalid_configuration_not_duplicate_master() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let limit_order = limit_order_script(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_000 * SHANNONS).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(1_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(200u64.pack())
-                .lock(owner_lock.clone())
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(200u64.pack())
-                .lock(owner_lock)
-                .type_(Some(limit_order).pack())
-                .build(),
+            cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
+            cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
         ])
         .outputs_data(vec![Bytes::new(), Bytes::new()].pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }

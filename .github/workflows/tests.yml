@@ -1,0 +1,27 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # rustup reads scripts/rust-toolchain, so both steps use the pinned Rust.
+      - name: Test the release binaries
+        run: cargo test --locked -p tests
+      # The suite compiles only vector-gen/src/vectors.rs; build the JSON writer too.
+      - name: Build the vector generator
+        working-directory: scripts/vector-gen
+        run: cargo build --locked --release

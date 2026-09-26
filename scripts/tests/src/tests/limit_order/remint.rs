@@ -10,40 +10,26 @@ fn can_atomically_melt_and_remint_with_negative_distance_and_filler() {
     let (old_order_out_point, old_master_out_point) =
         build_real_limit_order_and_master(&mut context, owner_lock.clone(), helper_type.clone());
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(100u64.pack())
-            .lock(funding_lock)
-            .build(),
+        cell(100 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let limit_order = limit_order_script(&mut context);
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(old_order_out_point).build())
-        .input(CellInput::new_builder().previous_output(old_master_out_point).build())
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(old_order_out_point))
+        .input(input(old_master_out_point))
+        .input(input(funding_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(200u64.pack())
-                .lock(owner_lock.clone())
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(100u64.pack())
-                .lock(filler_lock)
-                .build(),
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
+            cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
+            cell(100 * CKB, &filler_lock, None),
+            cell(1_500 * CKB, &limit_order, Some(&helper_type)),
         ])
         .outputs_data(vec![Bytes::new(), Bytes::new(), order_data_mint(0, -2, (1, 1))].pack())
         .build();
 
     let create_tx = context.complete_tx(create_tx);
     context
-        .verify_tx(&create_tx, MAX_CYCLES)
+        .verify(&create_tx, MAX_CYCLES)
         .expect("limit_order should allow canceling one pair while minting a new sparse negative-distance pair in the same tx");
 
     let tx_hash = create_tx.hash();
@@ -61,18 +47,14 @@ fn can_atomically_melt_and_remint_with_negative_distance_and_filler() {
     );
 
     let melt_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(new_order).build())
-        .input(CellInput::new_builder().previous_output(new_master).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(new_order))
+        .input(input(new_master))
+        .input(input(funding_cell(&mut context)))
+        .output(cell(1_700 * CKB, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .build();
     let melt_tx = context.complete_tx(melt_tx);
     context
-        .verify_tx(&melt_tx, MAX_CYCLES)
+        .verify(&melt_tx, MAX_CYCLES)
         .expect("the reminted sparse pair should remain a valid melt target");
 }

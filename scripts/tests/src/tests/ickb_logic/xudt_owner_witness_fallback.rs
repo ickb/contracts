@@ -8,30 +8,20 @@ fn xudt_owner_script_output_witness_cannot_mint_without_live_owner_mode() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((500 * SHANNONS).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(500 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let witness = witness_with_output_type(xudt_owner_script_witness(ickb_logic));
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(funding_input))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(1).pack())
         .witness(witness.pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_XUDT_AMOUNT);
+    fail(&context, &tx, ERROR_XUDT_AMOUNT);
 }
 
 // Build a plain xUDT self-transfer that increases the amount while supplying the xUDT owner-script witness in `input_type`: without a live iCKB owner-mode route, the fallback witness still cannot authorize minting, so verification fails.
@@ -41,30 +31,16 @@ fn xudt_owner_script_input_witness_cannot_mint_without_live_owner_mode() {
     let user_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
-            .lock(user_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
-        udt_data(1),
-    );
+    let udt_input = create_udt(&mut context, &user_lock, &xudt, 1);
 
     let witness = witness_with_input_type(xudt_owner_script_witness(ickb_logic));
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(udt_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
-                .lock(user_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(udt_input))
+        .output(cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt)))
         .output_data(udt_data(2).pack())
         .witness(witness.pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_XUDT_AMOUNT);
+    fail(&context, &tx, ERROR_XUDT_AMOUNT);
 }

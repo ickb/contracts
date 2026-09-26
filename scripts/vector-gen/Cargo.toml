@@ -1,0 +1,12 @@
+[package]
+name = "vector-gen"
+version = "0.1.0"
+edition = "2021"
+
+# Standalone on purpose: the empty [workspace] table keeps this generator out of
+# the contracts workspace in ../Cargo.toml. The contract tests include its
+# src/vectors.rs directly, so the vectors have one definition.
+[workspace]
+
+[dependencies]
+primitive-types = { version = "0.12.2", default-features = false }

@@ -7,27 +7,16 @@ fn receipt_trailing_bytes_do_not_change_creation_accounting() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let deposit_data = dao_deposit_data();
-    let deposit_output = CellOutput::new_builder()
-        .capacity(deposit_capacity(&ickb_logic, &dao, deposit_data.len(), deposit_amount).pack())
-        .lock(ickb_logic.clone())
-        .type_(Some(dao).pack())
-        .build();
-    let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(15).pack())
-        .lock(funding_lock)
-        .type_(Some(ickb_logic).pack())
-        .build();
+    let deposit_output = cell(deposit_capacity(&ickb_logic, &dao, deposit_data.len(), deposit_amount), &ickb_logic, Some(&dao));
+    let receipt_output = cell(occupied_capacity(&funding_lock, &ickb_logic, 15), &funding_lock, Some(&ickb_logic));
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .outputs(vec![deposit_output, receipt_output])
         .outputs_data(
             vec![
@@ -40,7 +29,7 @@ fn receipt_trailing_bytes_do_not_change_creation_accounting() {
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("receipt trailing bytes should not affect accounting");
 }
 
@@ -51,7 +40,7 @@ fn receipt_trailing_bytes_do_not_change_phase2_conversion() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (receipt_out_point, receipt_header) = create_receipt_input(
         &mut context,
         funding_lock.clone(),
@@ -62,21 +51,16 @@ fn receipt_trailing_bytes_do_not_change_phase2_conversion() {
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .header_dep(receipt_header.clone())
         .build();
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("receipt trailing bytes should not affect phase2 conversion");
 }
 
@@ -87,27 +71,16 @@ fn truncated_receipt_output_with_small_amount_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let deposit_data = dao_deposit_data();
-    let deposit_output = CellOutput::new_builder()
-        .capacity(deposit_capacity(&ickb_logic, &dao, deposit_data.len(), deposit_amount).pack())
-        .lock(ickb_logic.clone())
-        .type_(Some(dao).pack())
-        .build();
-    let receipt_output = CellOutput::new_builder()
-        .capacity(capacity_for_data(9).pack())
-        .lock(funding_lock)
-        .type_(Some(ickb_logic).pack())
-        .build();
+    let deposit_output = cell(deposit_capacity(&ickb_logic, &dao, deposit_data.len(), deposit_amount), &ickb_logic, Some(&dao));
+    let receipt_output = cell(occupied_capacity(&funding_lock, &ickb_logic, 9), &funding_lock, Some(&ickb_logic));
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .outputs(vec![deposit_output, receipt_output])
         .outputs_data(
             vec![dao_deposit_data(), truncated_bytes(receipt_data(1, deposit_amount), 9)].pack(),
@@ -115,8 +88,7 @@ fn truncated_receipt_output_with_small_amount_is_rejected() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_ENCODING);
+    fail(&context, &tx, ERROR_ENCODING);
 }
 
 // Build a phase2 mint from a live receipt input whose stored receipt payload is truncated to 9 bytes: conversion cannot decode the amount bucket, so verification fails on encoding.
@@ -126,7 +98,7 @@ fn truncated_receipt_input_with_small_amount_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
-    let deposit_amount = 1_000 * SHANNONS;
+    let deposit_amount = 1_000 * CKB;
     let (receipt_out_point, receipt_header) = create_receipt_input(
         &mut context,
         funding_lock.clone(),
@@ -137,19 +109,12 @@ fn truncated_receipt_input_with_small_amount_is_rejected() {
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .header_dep(receipt_header.clone())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_ENCODING);
+    fail(&context, &tx, ERROR_ENCODING);
 }

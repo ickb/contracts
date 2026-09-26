@@ -1,34 +1,25 @@
 use super::*;
 
-// Create a mint-shaped output lock with no real master cell behind its distance; creation passes because no master lock executes on output.
+// Create a mint-shaped output lock with no real master cell behind its distance; creation passes because the transaction holds no master cell, so limit_order never runs, and the order's own lock does not execute on output.
 #[test]
 fn phantom_mint_output_can_be_created() {
     let mut context = Context::default();
     let (funding_lock, limit_order, helper_type) = funding_limit_order_and_helper_type_scripts(&mut context);
 
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
+        .input(input(funding_input))
+        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
         .output_data(order_data_mint(0, 5, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("phantom order creation should bypass limit_order validation");
 }
 
@@ -39,34 +30,20 @@ fn phantom_mint_lineage_can_enter_match_without_real_master() {
     let (limit_order, helper_type) = limit_order_and_helper_type_scripts(&mut context);
 
     let phantom_order_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(1_500 * CKB, &limit_order, Some(&helper_type)),
         order_data_mint(0, 5, (1, 1)),
     );
     let phantom_master_out_point = OutPoint::new(phantom_order_out_point.tx_hash(), 5);
 
     let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(phantom_order_out_point)
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
-        .output_data(order_data_match(100 * SHANNONS as u128, &phantom_master_out_point, (1, 1)).pack())
+        .input(input(phantom_order_out_point))
+        .output(cell(1_400 * CKB, &limit_order, Some(&helper_type)))
+        .output_data(order_data_match(100 * CKB as u128, &phantom_master_out_point, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("a phantom mint-shaped order should be able to transition into match state without any real master");
 }
 
@@ -77,34 +54,19 @@ fn phantom_mint_lineage_cannot_rebind_to_an_arbitrary_fake_match_master() {
     let (limit_order, helper_type) = limit_order_and_helper_type_scripts(&mut context);
 
     let phantom_order_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(1_500 * CKB, &limit_order, Some(&helper_type)),
         order_data_mint(0, 5, (1, 1)),
     );
     let fake_master = OutPoint::new(Byte32::from_slice(&[7u8; 32]).expect("byte32"), 9);
 
     let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(phantom_order_out_point)
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
-        .output_data(order_data_match(100 * SHANNONS as u128, &fake_master, (1, 1)).pack())
+        .input(input(phantom_order_out_point))
+        .output(cell(1_400 * CKB, &limit_order, Some(&helper_type)))
+        .output_data(order_data_match(100 * CKB as u128, &fake_master, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
 // Continue a phantom mint into match state while changing its ratio info; the match path still enforces same-order info and rejects the rewrite.
@@ -114,34 +76,19 @@ fn phantom_limit_order_match_still_requires_same_order_info() {
     let (limit_order, helper_type) = limit_order_and_helper_type_scripts(&mut context);
 
     let phantom_order_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(1_500 * CKB, &limit_order, Some(&helper_type)),
         order_data_mint(0, 5, (1, 1)),
     );
     let phantom_master_out_point = OutPoint::new(phantom_order_out_point.tx_hash(), 5);
 
     let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(phantom_order_out_point)
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_400 * SHANNONS).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
-        .output_data(order_data_match(100 * SHANNONS as u128, &phantom_master_out_point, (2, 1)).pack())
+        .input(input(phantom_order_out_point))
+        .output(cell(1_400 * CKB, &limit_order, Some(&helper_type)))
+        .output_data(order_data_match(100 * CKB as u128, &phantom_master_out_point, (2, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
 }
 
 // Try to melt a phantom mint without any master input; the melt path rejects because no matching master lock/type pair is present.
@@ -151,32 +98,18 @@ fn phantom_limit_order_cannot_be_melted_without_a_master_input() {
     let (limit_order, helper_type) = limit_order_and_helper_type_scripts(&mut context);
 
     let phantom_order_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
-            .lock(limit_order)
-            .type_(Some(helper_type).pack())
-            .build(),
+        cell(1_500 * CKB, &limit_order, Some(&helper_type)),
         order_data_mint(0, 5, (1, 1)),
     );
 
     let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(phantom_order_out_point)
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(always_success_lock(&mut context))
-                .build(),
-        )
+        .input(input(phantom_order_out_point))
+        .output(cell(1_500 * CKB, &always_success_lock(&mut context), None))
         .output_data(Bytes::new().pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
 // Try to melt a phantom mint against an unrelated real master cell; the melt path rejects because the derived metapoint does not match that master.
@@ -187,45 +120,23 @@ fn phantom_limit_order_cannot_be_melted_with_an_unrelated_master() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
 
     let phantom_order_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_500 * SHANNONS).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(1_500 * CKB, &limit_order, Some(&helper_type)),
         order_data_mint(0, 5, (1, 1)),
     );
     let unrelated_master_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(200u64.pack())
-            .lock(owner_lock.clone())
-            .type_(Some(limit_order).pack())
-            .build(),
+        cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(phantom_order_out_point)
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(unrelated_master_out_point)
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_700 * SHANNONS).pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(phantom_order_out_point))
+        .input(input(unrelated_master_out_point))
+        .output(cell(1_700 * CKB, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify_tx(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
 // Create a lock-only output that already carries match data and a fake master; creation succeeds because output locks do not execute.
@@ -236,28 +147,19 @@ fn lock_only_limit_order_output_can_be_created_with_match_order_data() {
     let helper_type = helper_type_script(&mut context);
     let limit_order = limit_order_script(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * SHANNONS).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
     let fake_master = OutPoint::new(Byte32::from_slice(&[7u8; 32]).expect("byte32"), 9);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * SHANNONS).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
+        .input(input(funding_input))
+        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
         .output_data(order_data_match(0, &fake_master, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("lock-only output can be created with MatchOrderData");
 }

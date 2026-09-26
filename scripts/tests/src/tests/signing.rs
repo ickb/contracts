@@ -16,8 +16,23 @@ pub(super) fn sign_tx_by_input_group(
     begin_index: usize,
     group_len: usize,
 ) -> TransactionView {
+    let group_indices = (begin_index..(begin_index + group_len)).collect::<Vec<_>>();
+    sign_tx_by_input_indices(tx, key, &group_indices)
+}
+
+pub(super) fn sign_tx_by_input_indices(
+    tx: TransactionView,
+    key: &Privkey,
+    group_indices: &[usize],
+) -> TransactionView {
     let tx_hash = tx.hash();
     let inputs_len = tx.inputs().len();
+    let (&begin_index, rest_group_indices) = group_indices.split_first().expect("non-empty input group");
+    assert!(
+        group_indices.windows(2).all(|indices| indices[0] < indices[1]),
+        "input group indices must be strictly increasing"
+    );
+    assert!(group_indices.last().expect("input group") < &inputs_len, "input group index out of bounds");
     let mut signed_witnesses: Vec<ckb_testtool::ckb_types::packed::Bytes> = tx
         .inputs()
         .into_iter()
@@ -36,7 +51,7 @@ pub(super) fn sign_tx_by_input_group(
                 blake2b.update(&witness_for_digest.as_bytes());
                 // CKB sighash signs the rest of the current input group, then any trailing extra
                 // witnesses after all inputs. It does not cover other input groups.
-                ((i + 1)..(i + group_len)).for_each(|n| {
+                rest_group_indices.iter().for_each(|&n| {
                     let witness = tx.witnesses().get(n).unwrap();
                     let witness_len = witness.raw_data().len() as u64;
                     blake2b.update(&witness_len.to_le_bytes());
@@ -89,14 +104,12 @@ fn sign_tx_by_input_group_covers_group_witnesses_and_trailing_extras_only() {
     let build_tx = |target_lock: &[u8], grouped_lock: &[u8], other_group_lock: &[u8], trailing_extra: &[u8]| {
         let inputs = (0..4)
             .map(|index| {
-                CellInput::new_builder()
-                    .previous_output(
-                        OutPoint::new_builder()
-                            .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
-                            .index((index as u32).pack())
-                            .build(),
-                    )
-                    .build()
+                input(
+                    OutPoint::new_builder()
+                        .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
+                        .index((index as u32).pack())
+                        .build(),
+                )
             })
             .collect::<Vec<_>>();
         let witnesses = vec![
@@ -167,14 +180,12 @@ fn sign_tx_binds_the_full_witness_set() {
     let build_tx = |trailing_lock: &[u8]| {
         let inputs = (0..2)
             .map(|index| {
-                CellInput::new_builder()
-                    .previous_output(
-                        OutPoint::new_builder()
-                            .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
-                            .index((index as u32).pack())
-                            .build(),
-                    )
-                    .build()
+                input(
+                    OutPoint::new_builder()
+                        .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
+                        .index((index as u32).pack())
+                        .build(),
+                )
             })
             .collect::<Vec<_>>();
         let witnesses = vec![
@@ -219,30 +230,19 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
     let (privkey, protected_lock, secp_data_dep) = secp_lock(&mut context);
 
     let passthrough_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(1_000u64.pack())
-            .lock(passthrough_lock.clone())
-            .build(),
+        cell(1_000 * CKB, &passthrough_lock, None),
         Bytes::new(),
     );
     let protected_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(1_000u64.pack())
-            .lock(protected_lock)
-            .build(),
+        cell(1_000 * CKB, &protected_lock, None),
         Bytes::new(),
     );
 
     let trailing_extra = Bytes::from_static(b"trailing-extra");
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(passthrough_input).build())
-        .input(CellInput::new_builder().previous_output(protected_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(1_800u64.pack())
-                .lock(passthrough_lock)
-                .build(),
-        )
+        .input(input(passthrough_input))
+        .input(input(protected_input))
+        .output(cell(1_800 * CKB, &passthrough_lock, None))
         .output_data(Bytes::new().pack())
         .witness(Bytes::new().pack())
         .witness(empty_witness().pack())
@@ -252,7 +252,7 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
 
     let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 1, 1);
     context
-        .verify_tx(&tx, MAX_CYCLES)
+        .verify(&tx, MAX_CYCLES)
         .expect("later secp input group should verify when the trailing extra witness stays unchanged");
 
     let tampered_tx = tx
@@ -263,6 +263,52 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
             Bytes::from_static(b"trailing-extra-updated").pack(),
         ])
         .build();
-    let err = context.verify_tx(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+}
+
+#[test]
+fn sign_tx_by_input_indices_signs_a_noncontiguous_secp_group() {
+    let mut context = Context::default();
+    let passthrough_lock = always_success_lock(&mut context);
+    let (privkey, protected_lock, secp_data_dep) = secp_lock(&mut context);
+
+    let protected_input_0 = context.create_cell(
+        cell(1_000 * CKB, &protected_lock, None),
+        Bytes::new(),
+    );
+    let passthrough_input = context.create_cell(
+        cell(1_000 * CKB, &passthrough_lock, None),
+        Bytes::new(),
+    );
+    let protected_input_2 = context.create_cell(
+        cell(1_000 * CKB, &protected_lock, None),
+        Bytes::new(),
+    );
+
+    let tx = TransactionBuilder::default()
+        .input(input(protected_input_0))
+        .input(input(passthrough_input))
+        .input(input(protected_input_2))
+        .output(cell(2_800 * CKB, &passthrough_lock, None))
+        .output_data(Bytes::new().pack())
+        .witness(empty_witness().pack())
+        .witness(Bytes::new().pack())
+        .witness(Bytes::from_static(b"noncontiguous-group-witness").pack())
+        .cell_dep(secp_data_dep)
+        .build();
+
+    let tx = sign_tx_by_input_indices(context.complete_tx(tx), &privkey, &[0, 2]);
+    context
+        .verify(&tx, MAX_CYCLES)
+        .expect("noncontiguous secp input group should verify");
+
+    let tampered_tx = tx
+        .as_advanced_builder()
+        .set_witnesses(vec![
+            tx.witnesses().get(0).expect("signed witness"),
+            tx.witnesses().get(1).expect("passthrough witness"),
+            Bytes::from_static(b"tampered-group-witness").pack(),
+        ])
+        .build();
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
