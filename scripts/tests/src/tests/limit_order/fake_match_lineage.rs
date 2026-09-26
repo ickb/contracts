@@ -92,6 +92,7 @@ fn foreign_token_fake_order_with_arbitrary_info_can_strand_real_order() {
     let tx = TransactionBuilder::default()
         .input(input(phantom_order_out_point))
         .input(input(real_master_out_point.clone()))
+        .input(input(funding_cell(&mut context)))
         .output(cell(1_700 * CKB, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .build();

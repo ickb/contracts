@@ -22,6 +22,7 @@ fn phase2_mint_applies_soft_cap_discount_above_boundary() {
 
     let exact_tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
         .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(soft_capped_ickb(amount, GENESIS_AR)).pack())
         .header_dep(receipt_header.clone())
@@ -47,6 +48,7 @@ fn phase2_mint_does_not_discount_at_soft_cap_boundary() {
 
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
         .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(amount)).pack())
         .header_dep(receipt_header)
@@ -86,6 +88,7 @@ fn multi_quantity_phase2_mint_applies_soft_cap_per_deposit() {
 
     let exact_tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
         .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(exact).pack())
         .header_dep(receipt_header.clone())

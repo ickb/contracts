@@ -179,11 +179,13 @@ pub(super) fn create_deposit(context: &mut Context, capacity: u64, lock: &Script
 
 /// A plain CKB cell that funds a transaction's outputs, as a wallet adds one on chain.
 pub(super) fn funding_cell(context: &mut Context) -> OutPoint {
+    funding_cell_of(context, 1_000 * CKB)
+}
+
+/// A plain CKB cell holding exactly `capacity`.
+pub(super) fn funding_cell_of(context: &mut Context, capacity: u64) -> OutPoint {
     let lock = named_always_success_lock(context, b"funding");
-    context.create_cell(
-        cell(1_000 * CKB, &lock, None),
-        Bytes::new(),
-    )
+    context.create_cell(cell(capacity, &lock, None), Bytes::new())
 }
 
 /// The least capacity a cell with this lock, type and data length can hold on chain.
@@ -361,6 +363,7 @@ pub(super) fn build_real_limit_order_and_master_with_capacity(
     );
     let tx = TransactionBuilder::default()
         .input(input(funding_input))
+        .input(input(funding_cell(context)))
         .output(cell(capacity, &limit_order, Some(&helper_type)))
         .output(
             cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),

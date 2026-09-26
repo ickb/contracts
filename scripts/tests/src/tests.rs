@@ -55,19 +55,33 @@ impl VerifyRealistic for Context {
             check("output", index, &cell, data.raw_data().len());
         }
         let cycles = self.verify_tx(tx, max_cycles)?;
-        // A transaction the scripts accept must also pass the node's DaoScriptSizeVerifier: a
-        // deposit and the withdrawal request at its index use locks of the same serialized size.
+        // A transaction the scripts accept must also pass the node's transaction checks that
+        // ckb-testtool skips: CapacityVerifier and DaoScriptSizeVerifier.
         let dao_code_hash = build_genesis_type_id_script(OUTPUT_INDEX_DAO).calc_script_hash();
         let is_dao = |cell: &CellOutput| {
             cell.type_().to_opt().map_or(false, |script| {
                 script.code_hash() == dao_code_hash && script.hash_type() == ScriptHashType::Type.into()
             })
         };
-        for (index, (input, output)) in tx.inputs().into_iter().zip(tx.outputs()).enumerate() {
-            let Some((deposit, data)) = self.get_cell(&input.previous_output()) else {
+        let inputs: Vec<_> = tx.inputs().into_iter().map(|input| (input.previous_output(), self.get_cell(&input.previous_output()))).collect();
+        // Outputs may not exceed inputs, except in a transaction with a DAO input, whose
+        // compensation the DAO script checks instead.
+        if !inputs.iter().any(|(_, cell)| cell.as_ref().map_or(false, |(cell, _)| is_dao(cell))) {
+            let inputs_sum: u64 = inputs.iter().filter_map(|(_, cell)| cell.as_ref()).map(|(cell, _)| Unpack::<u64>::unpack(&cell.capacity())).sum();
+            let outputs_sum: u64 = tx.outputs().into_iter().map(|cell| Unpack::<u64>::unpack(&cell.capacity())).sum();
+            assert!(outputs_sum <= inputs_sum, "outputs hold {outputs_sum} shannons, more than the inputs' {inputs_sum}");
+        }
+        // A deposit committed since the node's starting block and the withdrawal request at its
+        // index use locks of the same serialized size; older deposits are exempt.
+        for (index, ((out_point, deposit), output)) in inputs.iter().zip(tx.outputs()).enumerate() {
+            let Some((deposit, data)) = deposit else {
                 continue;
             };
-            if is_dao(&deposit) && is_dao(&output) && data.iter().all(|byte| *byte == 0) {
+            let exempt = self
+                .transaction_infos
+                .get(out_point)
+                .map_or(false, |info| info.block_number < DAO_LOCK_SIZE_RULE_START_BLOCK);
+            if !exempt && is_dao(deposit) && is_dao(&output) && data.iter().all(|byte| *byte == 0) {
                 assert_eq!(
                     deposit.lock().total_size(),
                     output.lock().total_size(),
@@ -97,29 +111,42 @@ fn verify_rejects_a_cell_below_its_occupied_capacity() {
     let _ = context.verify(&tx, MAX_CYCLES);
 }
 
-#[test]
-#[should_panic(expected = "changes the lock size of the deposit it withdraws")]
-fn verify_rejects_a_withdrawal_request_whose_lock_size_differs() {
+/// A phase 1 withdrawal whose request lock is smaller than its deposit's, for a deposit
+/// committed at `block_number`.
+fn verify_withdrawal_with_smaller_request_lock(block_number: u64) {
     let mut context = Context::default();
     let deposit_lock = named_always_success_lock(&mut context, b"depositor");
     let request_lock = always_success_lock(&mut context);
     let dao = dao_script(&mut context);
     let capacity = 1_000 * CKB;
     let deposit = create_deposit(&mut context, capacity, &deposit_lock, &dao);
-    let header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
+    let header = gen_header(block_number, GENESIS_AR, 35, block_number - 10, 1000);
     link_cell_to_header(&mut context, &deposit, &header);
     let tx = TransactionBuilder::default()
         .input(input(deposit))
         .output(cell(capacity, &request_lock, Some(&dao)))
-        .output_data(withdrawal_request_data(1554).pack())
+        .output_data(withdrawal_request_data(block_number).pack())
         .header_dep(header.hash())
         .build();
     let tx = context.complete_tx(tx);
-    let _ = context.verify(&tx, MAX_CYCLES);
+    context.verify(&tx, MAX_CYCLES).expect("the DAO script accepts the withdrawal");
+}
+
+#[test]
+#[should_panic(expected = "changes the lock size of the deposit it withdraws")]
+fn verify_rejects_a_withdrawal_request_whose_lock_size_differs() {
+    verify_withdrawal_with_smaller_request_lock(DAO_LOCK_SIZE_RULE_START_BLOCK);
+}
+
+#[test]
+fn verify_exempts_deposits_older_than_the_lock_size_rule() {
+    verify_withdrawal_with_smaller_request_lock(DAO_LOCK_SIZE_RULE_START_BLOCK - 1);
 }
 
 // Shared test constants and on-chain error codes.
 const MAX_CYCLES: u64 = 10_000_000;
+// The node's starting_block_limiting_dao_withdrawing_lock (ckb spec/src/consensus.rs).
+const DAO_LOCK_SIZE_RULE_START_BLOCK: u64 = 10_000_000;
 const CKB: u64 = 100_000_000;
 const GENESIS_AR: u64 = 10_000_000_000_000_000;
 const SIGNATURE_SIZE: usize = 65;

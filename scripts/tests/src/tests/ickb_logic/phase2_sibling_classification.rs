@@ -111,6 +111,7 @@ fn foreign_xudt_output_lock_is_ignored() {
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
         .input(input(extra_input))
+        .input(input(funding_cell(&mut context)))
         .outputs(vec![
             cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
             cell(capacity_for_data(16), &foreign_xudt, None),
@@ -145,6 +146,7 @@ fn foreign_xudt_type_output_is_ignored() {
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
         .input(input(extra_input))
+        .input(input(funding_cell(&mut context)))
         .outputs(vec![
             cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
             cell(occupied_capacity(&funding_lock, &foreign_xudt, 16), &funding_lock, Some(&foreign_xudt)),
@@ -177,6 +179,7 @@ fn withdrawal_request_shaped_dao_output_lock_is_ignored() {
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
         .input(input(extra_input))
+        .input(input(funding_cell(&mut context)))
         .outputs(vec![
             cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
             cell(capacity_for_data(8), &dao, None),

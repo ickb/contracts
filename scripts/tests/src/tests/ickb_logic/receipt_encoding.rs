@@ -52,6 +52,7 @@ fn receipt_trailing_bytes_do_not_change_phase2_conversion() {
 
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
         .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .header_dep(receipt_header.clone())

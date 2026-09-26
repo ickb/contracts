@@ -13,10 +13,9 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
     let deposit_capacity_value = 123_456_780_000u64;
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
-    // For deposits since block 10,000,000 the node keeps a withdrawal request's lock the same size as
-    // its deposit's, so only a deposit whose lock has Owned Owner's size (empty args) can be wrapped.
-    let wrappable_lock = always_success_lock(&mut context);
-    let deposit_input = create_deposit(&mut context, deposit_capacity_value, &wrappable_lock, &dao);
+    // A deposit from before block 10,000,000 is exempt from the node's lock-size rule, so one under an
+    // ordinary user lock can be wrapped; since then, only a lock of Owned Owner's size can.
+    let deposit_input = create_deposit(&mut context, deposit_capacity_value, &user_lock, &dao);
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let funding_input = context.create_cell(
         cell(200 * CKB, &funding_lock, None),

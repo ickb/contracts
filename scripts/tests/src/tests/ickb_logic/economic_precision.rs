@@ -30,6 +30,7 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
 
     let mint_exact_1152_tx = TransactionBuilder::default()
         .input(input(receipt_1152))
+        .input(input(funding_cell(&mut context)))
         .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
         .output_data(udt_data(exact_ickb_1152).pack())
         .header_dep(receipt_1152_header.hash())
@@ -78,6 +79,7 @@ fn non_genesis_ar_soft_cap_boundary_preserves_integer_operation_order() {
         link_cell_to_header(&mut context, &receipt, &receipt_header);
         let tx = TransactionBuilder::default()
             .input(input(receipt))
+            .input(input(funding_cell(&mut context)))
             .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
             .output_data(udt_data(minted).pack())
             .header_dep(receipt_header.hash())

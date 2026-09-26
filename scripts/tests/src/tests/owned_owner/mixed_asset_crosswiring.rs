@@ -15,10 +15,9 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
     let foreign_deposit_capacity = 123_456_780_000u64;
-    // For deposits since block 10,000,000 the node keeps a withdrawal request's lock the same size as
-    // its deposit's, so only a foreign deposit whose lock has Owned Owner's size (empty args) can be wrapped.
-    let wrappable_lock = always_success_lock(&mut context);
-    let foreign_deposit_input = create_deposit(&mut context, foreign_deposit_capacity, &wrappable_lock, &dao);
+    // The foreign deposit predates block 10,000,000, so the node's lock-size rule does not stop its
+    // ordinary user lock from being wrapped.
+    let foreign_deposit_input = create_deposit(&mut context, foreign_deposit_capacity, &foreign_owner_lock, &dao);
     link_cell_to_header(&mut context, &foreign_deposit_input, &foreign_deposit_header);
 
     let protocol_deposit_amount = 1_000 * CKB;

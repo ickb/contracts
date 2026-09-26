@@ -27,6 +27,7 @@ fn every_deposit_vector_mints_exactly_its_expected_ickb() {
         for minted in [row.expected_ickb, row.expected_ickb + 1, row.expected_ickb - 1] {
             let tx = TransactionBuilder::default()
                 .input(input(receipt.clone()))
+                .input(input(funding_cell(&mut context)))
                 .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
                 .output_data(udt_data(minted).pack())
                 .header_dep(header.clone())
@@ -79,9 +80,12 @@ fn every_limit_order_vector_gets_the_verdict_of_the_copied_validate() {
         let (output_cell, output_data) = order(out_unoccupied, out_udt);
         let order_input = context.create_cell(input_cell, input_data);
 
-        // ckb-testtool runs scripts only, so the transaction needs no capacity balancing.
+        // The matcher funds any CKB the order gains; the extra 100 CKB covers the funding cell's own
+        // 61 CKB of occupied capacity and leaves the rest as fee.
+        let funding = funding_cell_of(&mut context, out_unoccupied.saturating_sub(in_unoccupied) + 100 * CKB);
         let tx = TransactionBuilder::default()
             .input(input(order_input))
+            .input(input(funding))
             .output(output_cell)
             .output_data(output_data.pack())
             .build();

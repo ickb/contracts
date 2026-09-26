@@ -15,6 +15,7 @@ fn phase2_mint_accepts_xudt_data_with_trailing_bytes() {
     output_data.push(0xaa);
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
         .output(
             cell(occupied_capacity(&funding_lock, &xudt, output_data.len()), &funding_lock, Some(&xudt)),
         )

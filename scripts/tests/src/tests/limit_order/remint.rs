@@ -49,6 +49,7 @@ fn can_atomically_melt_and_remint_with_negative_distance_and_filler() {
     let melt_tx = TransactionBuilder::default()
         .input(input(new_order))
         .input(input(new_master))
+        .input(input(funding_cell(&mut context)))
         .output(cell(1_700 * CKB, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .build();

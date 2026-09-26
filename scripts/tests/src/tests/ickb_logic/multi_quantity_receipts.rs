@@ -43,6 +43,7 @@ fn multi_quantity_receipt_can_be_converted_in_phase2() {
 
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
         .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(2 * deposit_amount)).pack())
         .header_dep(receipt_header.clone())

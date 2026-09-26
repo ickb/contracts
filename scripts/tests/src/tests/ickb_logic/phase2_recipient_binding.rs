@@ -20,6 +20,7 @@ fn weak_lock_receipt_can_reassign_phase2_mint_recipient() {
 
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
         .output(cell(occupied_capacity(&attacker_lock, &xudt, 16), &attacker_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .header_dep(receipt_header.clone())
@@ -45,6 +46,7 @@ fn sighash_lock_binds_phase2_mint_outputs_to_the_signed_transaction() {
 
     let tx = TransactionBuilder::default()
         .input(input(receipt_out_point))
+        .input(input(funding_cell(&mut context)))
         .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .witness(empty_witness().pack())
@@ -52,7 +54,8 @@ fn sighash_lock_binds_phase2_mint_outputs_to_the_signed_transaction() {
         .header_dep(receipt_header.clone())
         .build();
 
-    let tx = sign_tx(context.complete_tx(tx), &privkey);
+    // Only the receipt is under the secp lock; the funding input is its own lock group.
+    let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 0, 1);
     context
         .verify(&tx, MAX_CYCLES)
         .expect("signed owner transaction should verify");

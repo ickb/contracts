@@ -66,6 +66,7 @@ fn mint_crosswire_swaps_order_masters() {
     let melt_other_users_order = TransactionBuilder::default()
         .input(input(order2))
         .input(input(master1.clone()))
+        .input(input(funding_cell(&mut context)))
         .output(cell(1_700 * CKB, &owner1_lock, None))
         .output_data(Bytes::new().pack())
         .build();
@@ -159,6 +160,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     let melt_crosswired = TransactionBuilder::default()
         .input(input(order1.clone()))
         .input(input(master2.clone()))
+        .input(input(funding_cell(&mut context)))
         .output(cell(1_700 * CKB, &owner2_lock, None))
         .output_data(Bytes::new().pack())
         .build();
@@ -198,6 +200,7 @@ fn mint_pairs_each_order_with_exactly_one_master() {
         let (cells, data): (Vec<_>, Vec<_>) = outputs.into_iter().unzip();
         let tx = TransactionBuilder::default()
             .input(input(funding))
+            .input(input(funding_cell(&mut context)))
             .outputs(cells)
             .outputs_data(data.pack())
             .build();
