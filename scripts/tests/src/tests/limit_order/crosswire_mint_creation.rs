@@ -249,3 +249,68 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     let err = context.verify(&melt_expected, MAX_CYCLES).unwrap_err();
     assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
+
+// A master's type script runs at mint and pairs every order with exactly one master: one order per
+// master passes, two orders on one master fail, a master without an order fails, and an order
+// pointing at a cell that is no master fails.
+#[test]
+fn mint_pairs_each_order_with_exactly_one_master() {
+    let mut context = Context::default();
+    let owner_lock = named_always_success_lock(&mut context, b"owner");
+    let (_, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner");
+    let limit_order = limit_order_script(&mut context);
+    let order = || {
+        CellOutput::new_builder()
+            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
+            .lock(limit_order.clone())
+            .type_(Some(helper_type.clone()).pack())
+            .build()
+    };
+    let master = || {
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
+            .lock(owner_lock.clone())
+            .type_(Some(limit_order.clone()).pack())
+            .build()
+    };
+    let mut mint = |outputs: Vec<(CellOutput, Bytes)>| {
+        let funding = funding_cell(&mut context);
+        let (cells, data): (Vec<_>, Vec<_>) = outputs.into_iter().unzip();
+        let tx = TransactionBuilder::default()
+            .input(CellInput::new_builder().previous_output(funding).build())
+            .outputs(cells)
+            .outputs_data(data.pack())
+            .build();
+        let tx = context.complete_tx(tx);
+        context.verify(&tx, MAX_CYCLES)
+    };
+
+    mint(vec![(order(), order_data_mint(0, 1, (1, 1))), (master(), Bytes::new())])
+        .expect("one order with its own master mints");
+
+    let two_orders_one_master = mint(vec![
+        (order(), order_data_mint(0, 2, (1, 1))),
+        (order(), order_data_mint(0, 1, (1, 1))),
+        (master(), Bytes::new()),
+    ]);
+    assert_script_error(two_orders_one_master.unwrap_err(), ERROR_LIMIT_ORDER_SAME_MASTER);
+
+    let master_without_order = mint(vec![
+        (order(), order_data_mint(0, 1, (1, 1))),
+        (master(), Bytes::new()),
+        (master(), Bytes::new()),
+    ]);
+    assert_script_error(master_without_order.unwrap_err(), ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+
+    let plain = CellOutput::new_builder()
+        .capacity((100 * CKB).pack())
+        .lock(owner_lock.clone())
+        .build();
+    let order_without_master = mint(vec![
+        (order(), order_data_mint(0, 1, (1, 1))),
+        (master(), Bytes::new()),
+        (order(), order_data_mint(0, 1, (1, 1))),
+        (plain, Bytes::new()),
+    ]);
+    assert_script_error(order_without_master.unwrap_err(), ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+}
