@@ -174,6 +174,83 @@ fn two_owner_cells_for_one_owned_output_are_rejected() {
     assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
 }
 
+// The reverse of the case above: two owned withdrawal requests and a single owner cell.
+// Expectation: Owned Owner rejects the request left without an owner.
+#[test]
+fn two_owned_outputs_for_one_owner_cell_are_rejected() {
+    let mut context = Context::default();
+    let owner_lock = named_always_success_lock(&mut context, b"owner");
+    let funding_lock = named_always_success_lock(&mut context, b"funding");
+    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
+
+    let deposit_amount = 1_000 * CKB;
+    let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
+    let mut deposit = || {
+        let input = context.create_cell(
+            CellOutput::new_builder()
+                .capacity(deposit_total_capacity.pack())
+                .lock(ickb_logic.clone())
+                .type_(Some(dao.clone()).pack())
+                .build(),
+            dao_deposit_data(),
+        );
+        link_cell_to_header(&mut context, &input, &deposit_header);
+        input
+    };
+    let (first_deposit, second_deposit) = (deposit(), deposit());
+    let udt_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
+            .lock(owner_lock.clone())
+            .type_(Some(xudt).pack())
+            .build(),
+        udt_data(2 * u128::from(deposit_amount)),
+    );
+    let funding_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity((200 * CKB).pack())
+            .lock(funding_lock)
+            .build(),
+        Bytes::new(),
+    );
+
+    let owned_request = || {
+        CellOutput::new_builder()
+            .capacity(deposit_total_capacity.pack())
+            .lock(owned_owner.clone())
+            .type_(Some(dao.clone()).pack())
+            .build()
+    };
+    let tx = TransactionBuilder::default()
+        .input(CellInput::new_builder().previous_output(first_deposit).build())
+        .input(CellInput::new_builder().previous_output(second_deposit).build())
+        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .outputs(vec![
+            owned_request(),
+            owned_request(),
+            CellOutput::new_builder()
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
+                .lock(owner_lock)
+                .type_(Some(owned_owner.clone()).pack())
+                .build(),
+        ])
+        .outputs_data(
+            vec![
+                withdrawal_request_data(1554),
+                withdrawal_request_data(1554),
+                owner_distance_data(-2),
+            ]
+            .pack(),
+        )
+        .header_dep(deposit_header.hash())
+        .build();
+
+    let tx = context.complete_tx(tx);
+    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
+    assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
+}
+
 // Output-lock creation can admit an orphan withdrawal request, but the later claim still fails once Owned Owner executes.
 #[test]
 fn orphan_withdrawal_request_can_be_created_but_not_claimed() {

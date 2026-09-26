@@ -246,3 +246,126 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
         .verify(&claim_tx, MAX_CYCLES)
         .expect("a sparse positive-distance pair should remain spendable in DAO phase2 at the exact claim capacity");
 }
+
+// Scenario: phase 1 consumes two noncontiguous inputs protected by the same secp lock, then phase 2 spends the signed owner cell.
+// Expectation: both signed transactions verify and the sparse Owned Owner pair completes its DAO claim.
+#[test]
+fn secp_protected_sparse_pair_can_complete_signed_phase2_claim() {
+    let mut context = Context::default();
+    let (privkey, owner_lock, secp_data_dep) = secp_lock(&mut context);
+    let filler_lock = named_always_success_lock(&mut context, b"filler");
+    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
+
+    let deposit_amount = 1_000 * CKB;
+    let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+    let funding_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity((100 * CKB).pack())
+            .lock(owner_lock.clone())
+            .build(),
+        Bytes::new(),
+    );
+    let filler_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity((100 * CKB).pack())
+            .lock(filler_lock.clone())
+            .build(),
+        Bytes::new(),
+    );
+    let deposit_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(deposit_total_capacity.pack())
+            .lock(ickb_logic)
+            .type_(Some(dao.clone()).pack())
+            .build(),
+        dao_deposit_data(),
+    );
+    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
+    let udt_input = context.create_cell(
+        CellOutput::new_builder()
+            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
+            .lock(owner_lock.clone())
+            .type_(Some(xudt).pack())
+            .build(),
+        udt_data(u128::from(deposit_amount)),
+    );
+
+    let create_tx = TransactionBuilder::default()
+        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(CellInput::new_builder().previous_output(filler_input).build())
+        .input(CellInput::new_builder().previous_output(deposit_input).build())
+        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .outputs(vec![
+            CellOutput::new_builder()
+                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
+                .lock(owner_lock.clone())
+                .type_(Some(owned_owner.clone()).pack())
+                .build(),
+            CellOutput::new_builder()
+                .capacity((100 * CKB).pack())
+                .lock(filler_lock)
+                .build(),
+            CellOutput::new_builder()
+                .capacity(deposit_total_capacity.pack())
+                .lock(owned_owner.clone())
+                .type_(Some(dao.clone()).pack())
+                .build(),
+        ])
+        .outputs_data(
+            vec![
+                owner_distance_data(2),
+                Bytes::new(),
+                withdrawal_request_data(1554),
+            ]
+            .pack(),
+        )
+        .header_dep(deposit_header.hash())
+        .witness(empty_witness().pack())
+        .witness(Bytes::new().pack())
+        .witness(Bytes::new().pack())
+        .witness(Bytes::new().pack())
+        .cell_dep(secp_data_dep.clone())
+        .build();
+    let create_tx = sign_tx_by_input_indices(context.complete_tx(create_tx), &privkey, &[0, 3]);
+    context
+        .verify(&create_tx, MAX_CYCLES)
+        .expect("signed phase1 creation with a noncontiguous secp group should verify");
+
+    let owner_out_point = seed_verified_output(&mut context, &create_tx, 0, owner_distance_data(2));
+    let owned_out_point = seed_verified_output(&mut context, &create_tx, 2, withdrawal_request_data(1554));
+    link_cell_to_header(&mut context, &owned_out_point, &withdraw_header);
+    context.insert_header(deposit_header.clone());
+
+    let exact_capacity = dao_maximum_withdraw_capacity(
+        &create_tx.outputs().get(2).expect("owned output"),
+        withdrawal_request_data(1554).len(),
+        GENESIS_AR as u64,
+        SYNTHETIC_WITHDRAW_AR,
+    );
+    let claim_tx = TransactionBuilder::default()
+        .input(
+            CellInput::new_builder()
+                .previous_output(owned_out_point)
+                .since(0x2003e800000002f4u64.pack())
+                .build(),
+        )
+        .input(CellInput::new_builder().previous_output(owner_out_point).build())
+        .output(
+            CellOutput::new_builder()
+                .capacity(exact_capacity.pack())
+                .lock(owner_lock)
+                .build(),
+        )
+        .output_data(Bytes::new().pack())
+        .header_dep(withdraw_header.hash())
+        .header_dep(deposit_header.hash())
+        .witness(header_dep_index_witness(1).pack())
+        .witness(empty_witness().pack())
+        .cell_dep(secp_data_dep)
+        .build();
+    let claim_tx = sign_tx_by_input_group(context.complete_tx(claim_tx), &privkey, 1, 1);
+    context
+        .verify(&claim_tx, MAX_CYCLES)
+        .expect("signed secp-protected owner should complete the phase2 DAO claim");
+}
