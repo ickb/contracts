@@ -7,6 +7,7 @@
 - `src/tests/signing.rs`: sighash signing helpers for whole-transaction-binding tests.
 - `src/tests/replay_helpers.rs`: live-shape parsers and batch builders used by replay-heavy cases.
 - `src/tests/helpers.rs`: focused unit tests for shared encoders.
+- `src/tests/protocol_vectors.rs`: replays the golden vectors of `../vector-gen` (the values the contracts' own Rust logic gives each case) against the release binaries, except two named vectors that describe cells consensus cannot create.
 - `src/tests/ickb_logic.rs`, `owned_owner.rs`, `limit_order.rs`, `replay.rs`: thin suite roots that wire topic-focused files under `src/tests/ickb_logic/`, `owned_owner/`, `limit_order/`, and `replay/`.
 
 Some replay tests intentionally rebuild live transaction shapes instead of minimizing the fixture. Those cases keep the audit claims tied to realistic batching, witness layout, header dependencies, and cross-script interaction patterns.

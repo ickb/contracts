@@ -1595,6 +1595,7 @@ dependencies = [
  "ckb-system-scripts",
  "ckb-testtool",
  "hex",
+ "primitive-types",
 ]
 
 [[package]]
