@@ -17,20 +17,12 @@ fn live_claim_cannot_roll_into_fresh_pair() {
 
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(123_456_780_000u64.pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(123_456_780_000u64, &owned_owner, Some(&dao)),
         withdrawal_request_data(1554),
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&old_owner_lock, &owned_owner, 4).pack())
-            .lock(old_owner_lock)
-            .type_(Some(owned_owner.clone()).pack())
-            .build(),
+        cell(occupied_capacity(&old_owner_lock, &owned_owner, 4), &old_owner_lock, Some(&owned_owner)),
         owner_distance_data(-1),
     );
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
@@ -44,18 +36,10 @@ fn live_claim_cannot_roll_into_fresh_pair() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
+        .input(input(owner_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(123_456_780_000u64.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&new_owner_lock, &owned_owner, 4).pack())
-                .lock(new_owner_lock)
-                .type_(Some(owned_owner).pack())
-                .build(),
+            cell(123_456_780_000u64, &owned_owner, Some(&dao)),
+            cell(occupied_capacity(&new_owner_lock, &owned_owner, 4), &new_owner_lock, Some(&owned_owner)),
         ])
         .outputs_data(
             vec![
@@ -70,8 +54,7 @@ fn live_claim_cannot_roll_into_fresh_pair() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
+    fail(&context, &tx, ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
 // Consuming multiple live pairs still cannot rotate them into a new set of live pairs once the full DAO claim rules are enforced.
@@ -90,59 +73,22 @@ fn live_claims_cannot_rotate_into_new_pairs() {
     let deposit_header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
     let withdraw_header1 = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let withdraw_header2 = gen_header(2_000_621, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
-    let deposit1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(total1.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
-    let deposit2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(total2.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
+    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
     link_cell_to_header(&mut context, &deposit1, &deposit_header1);
     link_cell_to_header(&mut context, &deposit2, &deposit_header2);
-    let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&user1_lock, &xudt, 16).pack())
-            .lock(user1_lock.clone())
-            .type_(Some(xudt).pack())
-            .build(),
-        udt_data(u128::from(amount1 + amount2)),
-    );
+    let udt_input = create_udt(&mut context, &user1_lock, &xudt, u128::from(amount1 + amount2));
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit1).build())
-        .input(CellInput::new_builder().previous_output(deposit2).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
-        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
+        .input(input(deposit1))
+        .input(input(deposit2))
+        .input(input(udt_input))
+        .input(input(funding_cell(&mut context)))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(total1.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(total2.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user1_lock, &owned_owner, 4).pack())
-                .lock(user1_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user2_lock, &owned_owner, 4).pack())
-                .lock(user2_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
+            cell(total1, &owned_owner, Some(&dao)),
+            cell(total2, &owned_owner, Some(&dao)),
+            cell(occupied_capacity(&user1_lock, &owned_owner, 4), &user1_lock, Some(&owned_owner)),
+            cell(occupied_capacity(&user2_lock, &owned_owner, 4), &user2_lock, Some(&owned_owner)),
         ])
         .outputs_data(
             vec![
@@ -207,29 +153,13 @@ fn live_claims_cannot_rotate_into_new_pairs() {
                 .since(0x2003e802340002f3u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner1).build())
-        .input(CellInput::new_builder().previous_output(owner2).build())
+        .input(input(owner1))
+        .input(input(owner2))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(total1.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(total2.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user1_lock, &owned_owner, 4).pack())
-                .lock(user1_lock)
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user2_lock, &owned_owner, 4).pack())
-                .lock(user2_lock)
-                .type_(Some(owned_owner).pack())
-                .build(),
+            cell(total1, &owned_owner, Some(&dao)),
+            cell(total2, &owned_owner, Some(&dao)),
+            cell(occupied_capacity(&user1_lock, &owned_owner, 4), &user1_lock, Some(&owned_owner)),
+            cell(occupied_capacity(&user2_lock, &owned_owner, 4), &user2_lock, Some(&owned_owner)),
         ])
         .outputs_data(
             vec![
@@ -249,6 +179,5 @@ fn live_claims_cannot_rotate_into_new_pairs() {
         .build();
 
     let rotate_tx = context.complete_tx(rotate_tx);
-    let err = context.verify(&rotate_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_DAO_NEWLY_CREATED_CELL);
+    fail(&context, &rotate_tx, ERROR_DAO_NEWLY_CREATED_CELL);
 }

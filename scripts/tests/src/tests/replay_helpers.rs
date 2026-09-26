@@ -22,11 +22,7 @@ pub(super) fn build_many_header_phase2_batch(
     for i in 0..input_count {
         let deposit_number = 1_554u64 + i as u64;
         let deposit_header = gen_header(deposit_number, GENESIS_AR as u64, 35, 1000, 1000);
-        let withdrawing_output = CellOutput::new_builder()
-            .capacity(input_capacity.pack())
-            .lock(owner_lock.clone())
-            .type_(Some(dao.clone()).pack())
-            .build();
+        let withdrawing_output = cell(input_capacity, &owner_lock, Some(&dao));
         let withdrawing_input = context.create_cell(
             withdrawing_output.clone(),
             withdrawal_request_data(deposit_number),
@@ -40,18 +36,16 @@ pub(super) fn build_many_header_phase2_batch(
                 .build(),
         );
         outputs.push(
-            CellOutput::new_builder()
-                .capacity(
-                    dao_maximum_withdraw_capacity(
-                        &withdrawing_output,
-                        withdrawal_request_data(deposit_number).len(),
-                        GENESIS_AR as u64,
-                        SYNTHETIC_WITHDRAW_AR,
-                    )
-                    .pack(),
-                )
-                .lock(owner_lock.clone())
-                .build(),
+            cell(
+                dao_maximum_withdraw_capacity(
+                    &withdrawing_output,
+                    withdrawal_request_data(deposit_number).len(),
+                    GENESIS_AR as u64,
+                    SYNTHETIC_WITHDRAW_AR,
+                ),
+                &owner_lock,
+                None,
+            ),
         );
         outputs_data.push(Bytes::new());
         header_deps.push(deposit_header.hash());
@@ -131,9 +125,7 @@ mod tests {
         assert_eq!(u64_from_hex("0x2a"), 42);
         assert_eq!(bytes_from_hex("0x1234"), Bytes::from(vec![0x12, 0x34]));
         assert_eq!(
-            byte32_from_hex(
-                "0x1111111111111111111111111111111111111111111111111111111111111111",
-            )
+            byte32_from_hex("0x1111111111111111111111111111111111111111111111111111111111111111")
             .as_slice(),
             [0x11; 32],
         );

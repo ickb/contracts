@@ -8,23 +8,13 @@ fn fake_match_lineage_can_keep_advancing_without_real_master() {
     let fake_master = OutPoint::new(Byte32::from_slice(&[7u8; 32]).expect("byte32"), 9);
 
     let initial_order = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_500 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(1_500 * CKB, &limit_order, Some(&helper_type)),
         order_data_match(0, &fake_master, (1, 1)),
     );
 
     let first_match_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(initial_order).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_400 * CKB).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-        )
+        .input(input(initial_order))
+        .output(cell(1_400 * CKB, &limit_order, Some(&helper_type)))
         .output_data(order_data_match(100 * CKB as u128, &fake_master, (1, 1)).pack())
         .build();
 
@@ -41,14 +31,8 @@ fn fake_match_lineage_can_keep_advancing_without_real_master() {
     );
 
     let second_match_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(first_match_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_300 * CKB).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
+        .input(input(first_match_out_point))
+        .output(cell(1_300 * CKB, &limit_order, Some(&helper_type)))
         .output_data(order_data_match(200 * CKB as u128, &fake_master, (1, 1)).pack())
         .build();
 
@@ -66,25 +50,14 @@ fn foreign_token_fake_order_with_arbitrary_info_can_strand_real_order() {
     let limit_order = limit_order_script(&mut context);
     let funding_lock = always_success_lock(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_700 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(1_700 * CKB, &funding_lock, None),
         Bytes::new(),
     );
     let mint_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((1_500 * CKB).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
+            cell(1_500 * CKB, &limit_order, Some(&helper_type)),
+            cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
         ])
         .outputs_data(vec![order_data_mint(0, 1, (1, 1)), Bytes::new()].pack())
         .build();
@@ -112,31 +85,14 @@ fn foreign_token_fake_order_with_arbitrary_info_can_strand_real_order() {
         42,
     );
     let phantom_order_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_500 * CKB).pack())
-            .lock(limit_order)
-            .type_(Some(foreign_token).pack())
-            .build(),
+        cell(1_500 * CKB, &limit_order, Some(&foreign_token)),
         fake_data,
     );
 
     let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(phantom_order_out_point)
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(real_master_out_point.clone())
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_700 * CKB).pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(phantom_order_out_point))
+        .input(input(real_master_out_point.clone()))
+        .output(cell(1_700 * CKB, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .build();
 
@@ -146,20 +102,10 @@ fn foreign_token_fake_order_with_arbitrary_info_can_strand_real_order() {
         .expect("a foreign-token fake order with arbitrary pricing should melt against the referenced real master");
 
     let stranded_order_tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(real_order_out_point)
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * CKB).pack())
-                .lock(always_success_lock(&mut context))
-                .build(),
-        )
+        .input(input(real_order_out_point))
+        .output(cell(1_500 * CKB, &always_success_lock(&mut context), None))
         .output_data(Bytes::new().pack())
         .build();
     let stranded_order_tx = context.complete_tx(stranded_order_tx);
-    let err = context.verify(&stranded_order_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+    fail(&context, &stranded_order_tx, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }

@@ -53,11 +53,7 @@ fn weak_mainnet_eight_claim_batch_can_reassign_later_phase2_claimants() {
     let mut deposit_inputs = Vec::with_capacity(deposit_specs.len());
     for (capacity, header_index) in deposit_specs {
         let out_point = context.create_cell(
-            CellOutput::new_builder()
-                .capacity(u64_from_hex(capacity).pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
+            cell(u64_from_hex(capacity), &ickb_logic, Some(&dao)),
             bytes_from_hex("0x0000000000000000"),
         );
         link_cell_to_header(&mut context, &out_point, &deposit_headers[header_index]);
@@ -65,18 +61,11 @@ fn weak_mainnet_eight_claim_batch_can_reassign_later_phase2_claimants() {
     }
 
     let change_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x2a31a45188").pack())
-            .lock(weak_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x2a31a45188"), &weak_lock, None),
         Bytes::new(),
     );
     let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x372261400").pack())
-            .lock(weak_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x372261400"), &weak_lock, Some(&xudt)),
         bytes_from_hex("0x4a026c96844b00000000000000000000"),
     );
 
@@ -104,49 +93,20 @@ fn weak_mainnet_eight_claim_batch_can_reassign_later_phase2_claimants() {
     let mut outputs = Vec::new();
     let mut outputs_data = Vec::new();
     for (capacity, data) in owned_capacities.iter().zip(owned_datas.iter()) {
-        outputs.push(
-            CellOutput::new_builder()
-                .capacity(u64_from_hex(capacity).pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-        );
+        outputs.push(cell(u64_from_hex(capacity), &owned_owner, Some(&dao)));
         outputs_data.push(bytes_from_hex(data));
     }
     for _ in 0..8 {
-        outputs.push(
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x2540be400").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-        );
+        outputs.push(cell(u64_from_hex("0x2540be400"), &attacker_lock, Some(&owned_owner)));
         outputs_data.push(bytes_from_hex("0xf8ffffff"));
     }
-    outputs.push(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x23c346000").pack())
-            .lock(weak_lock.clone())
-            .type_(Some(limit_order.clone()).pack())
-            .build(),
-    );
+    outputs.push(cell(u64_from_hex("0x23c346000"), &weak_lock, Some(&limit_order)));
     outputs_data.push(Bytes::new());
-    outputs.push(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x4a221e700").pack())
-            .lock(limit_order)
-            .type_(Some(xudt.clone()).pack())
-            .build(),
-    );
+    outputs.push(cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&xudt)));
     outputs_data.push(bytes_from_hex(
         "0xd45e0323c20200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000000000000000000000000000000000c16ff2862300fe12a4eaa0ca290021",
     ));
-    outputs.push(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x142514df48").pack())
-            .lock(weak_lock.clone())
-            .build(),
-    );
+    outputs.push(cell(u64_from_hex("0x142514df48"), &weak_lock, None));
     outputs_data.push(Bytes::new());
 
     let first_tx = TransactionBuilder::default()
@@ -155,7 +115,7 @@ fn weak_mainnet_eight_claim_batch_can_reassign_later_phase2_claimants() {
                 .iter()
                 .cloned()
                 .chain([change_input.clone(), udt_input.clone()])
-                .map(|out_point| CellInput::new_builder().previous_output(out_point).build())
+                .map(input)
                 .collect::<Vec<_>>(),
         )
         .outputs(outputs)
@@ -206,13 +166,8 @@ fn weak_mainnet_eight_claim_batch_can_reassign_later_phase2_claimants() {
                 .since(u64_from_hex("0x2004ad01f0003124").pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(fresh_owner).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(claim_capacity.pack())
-                .lock(attacker_lock.clone())
-                .build(),
-        )
+        .input(input(fresh_owner))
+        .output(cell(claim_capacity, &attacker_lock, None))
         .output_data(Bytes::new().pack())
         .witness(witness.pack())
         .witness(empty_witness().pack())
@@ -281,11 +236,7 @@ fn sighash_mainnet_eight_claim_batch_binds_fresh_owner_outputs() {
     let mut deposit_inputs = Vec::with_capacity(deposit_specs.len());
     for (capacity, header_index) in deposit_specs {
         let out_point = context.create_cell(
-            CellOutput::new_builder()
-                .capacity(u64_from_hex(capacity).pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
+            cell(u64_from_hex(capacity), &ickb_logic, Some(&dao)),
             bytes_from_hex("0x0000000000000000"),
         );
         link_cell_to_header(&mut context, &out_point, &deposit_headers[header_index]);
@@ -293,18 +244,11 @@ fn sighash_mainnet_eight_claim_batch_binds_fresh_owner_outputs() {
     }
 
     let change_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x2a31a45188").pack())
-            .lock(strong_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x2a31a45188"), &strong_lock, None),
         Bytes::new(),
     );
     let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x372261400").pack())
-            .lock(strong_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x372261400"), &strong_lock, Some(&xudt)),
         bytes_from_hex("0x4a026c96844b00000000000000000000"),
     );
 
@@ -332,49 +276,20 @@ fn sighash_mainnet_eight_claim_batch_binds_fresh_owner_outputs() {
     let mut outputs = Vec::new();
     let mut outputs_data = Vec::new();
     for (capacity, data) in owned_capacities.iter().zip(owned_datas.iter()) {
-        outputs.push(
-            CellOutput::new_builder()
-                .capacity(u64_from_hex(capacity).pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-        );
+        outputs.push(cell(u64_from_hex(capacity), &owned_owner, Some(&dao)));
         outputs_data.push(bytes_from_hex(data));
     }
     for _ in 0..8 {
-        outputs.push(
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x2540be400").pack())
-                .lock(weak_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-        );
+        outputs.push(cell(u64_from_hex("0x2540be400"), &weak_lock, Some(&owned_owner)));
         outputs_data.push(bytes_from_hex("0xf8ffffff"));
     }
-    outputs.push(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x23c346000").pack())
-            .lock(strong_lock.clone())
-            .type_(Some(limit_order.clone()).pack())
-            .build(),
-    );
+    outputs.push(cell(u64_from_hex("0x23c346000"), &strong_lock, Some(&limit_order)));
     outputs_data.push(Bytes::new());
-    outputs.push(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x4a221e700").pack())
-            .lock(limit_order)
-            .type_(Some(xudt.clone()).pack())
-            .build(),
-    );
+    outputs.push(cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&xudt)));
     outputs_data.push(bytes_from_hex(
         "0xd45e0323c20200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000000000000000000000000000000000c16ff2862300fe12a4eaa0ca290021",
     ));
-    outputs.push(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x142514df48").pack())
-            .lock(strong_lock.clone())
-            .build(),
-    );
+    outputs.push(cell(u64_from_hex("0x142514df48"), &strong_lock, None));
     outputs_data.push(Bytes::new());
 
     let tx = TransactionBuilder::default()
@@ -383,7 +298,7 @@ fn sighash_mainnet_eight_claim_batch_binds_fresh_owner_outputs() {
                 .iter()
                 .cloned()
                 .chain([change_input.clone(), udt_input.clone()])
-                .map(|out_point| CellInput::new_builder().previous_output(out_point).build())
+                .map(input)
                 .collect::<Vec<_>>(),
         )
         .outputs(outputs)
@@ -427,11 +342,7 @@ fn sighash_mainnet_eight_claim_batch_binds_fresh_owner_outputs() {
             tx.outputs().get(5).expect("fresh owned output 5"),
             tx.outputs().get(6).expect("fresh owned output 6"),
             tx.outputs().get(7).expect("fresh owned output 7"),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x2540be400").pack())
-                .lock(attacker_lock)
-                .type_(Some(owned_owner).pack())
-                .build(),
+            cell(u64_from_hex("0x2540be400"), &attacker_lock, Some(&owned_owner)),
             tx.outputs().get(9).expect("fresh owner output 1"),
             tx.outputs().get(10).expect("fresh owner output 2"),
             tx.outputs().get(11).expect("fresh owner output 3"),
@@ -444,6 +355,5 @@ fn sighash_mainnet_eight_claim_batch_binds_fresh_owner_outputs() {
             tx.outputs().get(18).expect("change output"),
         ])
         .build();
-    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }

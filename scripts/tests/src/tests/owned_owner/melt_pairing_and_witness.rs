@@ -13,11 +13,7 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
     let shared_tx_hash = Byte32::from_slice(&[7u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);
-    let owned_input_output = CellOutput::new_builder()
-        .capacity(123_456_780_000u64.pack())
-        .lock(owned_owner.clone())
-        .type_(Some(dao).pack())
-        .build();
+    let owned_input_output = cell(123_456_780_000u64, &owned_owner, Some(&dao));
     context.create_cell_with_out_point(
         owned_input.clone(),
         owned_input_output.clone(),
@@ -25,11 +21,7 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &owned_owner, 6).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(owned_owner).pack())
-            .build(),
+        cell(occupied_capacity(&owner_lock, &owned_owner, 6), &owner_lock, Some(&owned_owner)),
         owner_distance_data_with_trailing_bytes(-1, &[0xaa, 0xbb]),
     );
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
@@ -49,13 +41,8 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(exact_capacity.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_input))
+        .output(cell(exact_capacity, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -81,11 +68,7 @@ fn valid_melt_pair_passes() {
     let shared_tx_hash = Byte32::from_slice(&[6u8; 32]).expect("shared tx hash");
     let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
     let owner_input = OutPoint::new(shared_tx_hash, 1);
-    let owned_input_output = CellOutput::new_builder()
-        .capacity(123_456_780_000u64.pack())
-        .lock(owned_owner.clone())
-        .type_(Some(dao).pack())
-        .build();
+    let owned_input_output = cell(123_456_780_000u64, &owned_owner, Some(&dao));
     context.create_cell_with_out_point(
         owned_input.clone(),
         owned_input_output.clone(),
@@ -93,11 +76,7 @@ fn valid_melt_pair_passes() {
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(owned_owner).pack())
-            .build(),
+        cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
         owner_distance_data(-1),
     );
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
@@ -117,13 +96,8 @@ fn valid_melt_pair_passes() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(exact_capacity.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_input))
+        .output(cell(exact_capacity, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -152,20 +126,12 @@ fn melt_rejects_misbound_deposit_header_index() {
 
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(123_456_780_000u64.pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao).pack())
-            .build(),
+        cell(123_456_780_000u64, &owned_owner, Some(&dao)),
         withdrawal_request_data(1554),
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(owned_owner).pack())
-            .build(),
+        cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
         owner_distance_data(-1),
     );
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
@@ -178,13 +144,8 @@ fn melt_rejects_misbound_deposit_header_index() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(123_468_106_670u64.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_input))
+        .output(cell(123_468_106_670u64, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -192,8 +153,7 @@ fn melt_rejects_misbound_deposit_header_index() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_DAO_INVALID_WITHDRAW_BLOCK);
+    fail(&context, &tx, ERROR_DAO_INVALID_WITHDRAW_BLOCK);
 }
 
 // Scenario: the witness input_type is too short to hold a u64 header index.
@@ -212,20 +172,12 @@ fn melt_rejects_short_header_dep_index_witness() {
 
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(123_456_780_000u64.pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(123_456_780_000u64, &owned_owner, Some(&dao)),
         withdrawal_request_data(1554),
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(owned_owner).pack())
-            .build(),
+        cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
         owner_distance_data(-1),
     );
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
@@ -239,13 +191,8 @@ fn melt_rejects_short_header_dep_index_witness() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(123_468_106_670u64.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_input))
+        .output(cell(123_468_106_670u64, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -253,8 +200,7 @@ fn melt_rejects_short_header_dep_index_witness() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -11);
+    fail(&context, &tx, -11);
 }
 
 // Scenario: the witness places the header index in output_type instead of input_type.
@@ -273,20 +219,12 @@ fn melt_rejects_header_dep_index_witness_in_output_type() {
 
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(123_456_780_000u64.pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(123_456_780_000u64, &owned_owner, Some(&dao)),
         withdrawal_request_data(1554),
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(owned_owner).pack())
-            .build(),
+        cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
         owner_distance_data(-1),
     );
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
@@ -300,13 +238,8 @@ fn melt_rejects_header_dep_index_witness_in_output_type() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(123_468_106_670u64.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_input))
+        .output(cell(123_468_106_670u64, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -314,8 +247,7 @@ fn melt_rejects_header_dep_index_witness_in_output_type() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, -11);
+    fail(&context, &tx, -11);
 }
 
 // Scenario: the owner input distance is truncated during phase 2.
@@ -333,20 +265,12 @@ fn melt_rejects_truncated_owner_distance_on_input() {
     let owner_input = OutPoint::new(shared_tx_hash, 1);
     context.create_cell_with_out_point(
         owned_input.clone(),
-        CellOutput::new_builder()
-            .capacity(123_456_780_000u64.pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao).pack())
-            .build(),
+        cell(123_456_780_000u64, &owned_owner, Some(&dao)),
         withdrawal_request_data(1554),
     );
     context.create_cell_with_out_point(
         owner_input.clone(),
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(owned_owner).pack())
-            .build(),
+        cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
         truncated_bytes(owner_distance_data(-1), 1),
     );
     link_cell_to_header(&mut context, &owned_input, &withdraw_header);
@@ -360,13 +284,8 @@ fn melt_rejects_truncated_owner_distance_on_input() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(123_468_106_670u64.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_input))
+        .output(cell(123_468_106_670u64, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -374,8 +293,7 @@ fn melt_rejects_truncated_owner_distance_on_input() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_ENCODING);
+    fail(&context, &tx, ERROR_ENCODING);
 }
 
 // Scenario: two separate Owned Owner pairs are consumed with the owner cells deliberately swapped.
@@ -389,51 +307,34 @@ fn pairs_cannot_be_swapped_during_melt() {
     let user2_lock = named_always_success_lock(&mut context, b"user2");
 
     let owned1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1000 * CKB).pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(1000 * CKB, &owned_owner, Some(&dao)),
         withdrawal_request_data(1554),
     );
     let owner1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&user1_lock, &owned_owner, 4).pack())
-            .lock(user1_lock.clone())
-            .type_(Some(owned_owner.clone()).pack())
-            .build(),
+        cell(occupied_capacity(&user1_lock, &owned_owner, 4), &user1_lock, Some(&owned_owner)),
         owner_distance_data(1),
     );
     let owned2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1000 * CKB).pack())
-            .lock(owned_owner.clone())
-            .type_(Some(dao).pack())
-            .build(),
+        cell(1000 * CKB, &owned_owner, Some(&dao)),
         withdrawal_request_data(1555),
     );
     let owner2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&user2_lock, &owned_owner, 4).pack())
-            .lock(user2_lock.clone())
-            .type_(Some(owned_owner).pack())
-            .build(),
+        cell(occupied_capacity(&user2_lock, &owned_owner, 4), &user2_lock, Some(&owned_owner)),
         owner_distance_data(-1),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(owned1).build())
-        .input(CellInput::new_builder().previous_output(owner2).build())
-        .input(CellInput::new_builder().previous_output(owned2).build())
-        .input(CellInput::new_builder().previous_output(owner1).build())
+        .input(input(owned1))
+        .input(input(owner2))
+        .input(input(owned2))
+        .input(input(owner1))
         .outputs(vec![
-            CellOutput::new_builder().capacity((600 * CKB).pack()).lock(user1_lock).build(),
-            CellOutput::new_builder().capacity((600 * CKB).pack()).lock(user2_lock).build(),
+            cell(600 * CKB, &user1_lock, None),
+            cell(600 * CKB, &user2_lock, None),
         ])
         .outputs_data(vec![Bytes::new(), Bytes::new()].pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
+    fail(&context, &tx, ERROR_OWNED_OWNER_MISMATCH);
 }

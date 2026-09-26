@@ -9,11 +9,7 @@ fn mainnet_tx_9df44c51_withdrawal_and_owned_owner_shape() {
         ickb_logic_limit_order_owned_owner_dao_and_xudt_scripts(&mut context);
 
     let deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0xad543d30c47").pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0xad543d30c47"), &ickb_logic, Some(&dao)),
         bytes_from_hex("0x0000000000000000"),
     );
     let deposit_header = rpc_header(
@@ -24,11 +20,7 @@ fn mainnet_tx_9df44c51_withdrawal_and_owned_owner_shape() {
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
 
     let order_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0xa67ecbf8ac4").pack())
-            .lock(limit_order.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0xa67ecbf8ac4"), &limit_order, Some(&xudt)),
         bytes_from_hex(
             "0x0000000000000000000000000000000001000000814c44c45e33a496dc30f18131e01bf4b72282be58abd7f0fefff9a95b5c0dbc00000000000000000000000000000000000000000000c16ff2862300a714425582642a0021",
         ),
@@ -39,60 +31,30 @@ fn mainnet_tx_9df44c51_withdrawal_and_owned_owner_shape() {
     );
     context.create_cell_with_out_point(
         master_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x23c346000").pack())
-            .lock(user_lock.clone())
-            .type_(Some(limit_order.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x23c346000"), &user_lock, Some(&limit_order)),
         Bytes::new(),
     );
     let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x372261400").pack())
-            .lock(user_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x372261400"), &user_lock, Some(&xudt)),
         bytes_from_hex("0xfc3c6a4e180900000000000000000000"),
     );
     let change_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x180631dd8a2f").pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x180631dd8a2f"), &user_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
-        .input(CellInput::new_builder().previous_output(order_input).build())
-        .input(CellInput::new_builder().previous_output(master_input).build())
-        .input(CellInput::new_builder().previous_output(change_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(input(deposit_input))
+        .input(input(order_input))
+        .input(input(master_input))
+        .input(input(change_input))
+        .input(input(udt_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xad543d30c47").pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x2540be400").pack())
-                .lock(user_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x23c346000").pack())
-                .lock(user_lock.clone())
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x4a221e700").pack())
-                .lock(limit_order)
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x226a9a954e53").pack())
-                .lock(user_lock)
-                .build(),
+            cell(u64_from_hex("0xad543d30c47"), &owned_owner, Some(&dao)),
+            cell(u64_from_hex("0x2540be400"), &user_lock, Some(&owned_owner)),
+            cell(u64_from_hex("0x23c346000"), &user_lock, Some(&limit_order)),
+            cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&xudt)),
+            cell(u64_from_hex("0x226a9a954e53"), &user_lock, None),
         ])
         .outputs_data(
             vec![

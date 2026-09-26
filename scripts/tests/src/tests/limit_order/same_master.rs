@@ -8,29 +8,17 @@ fn match_rejects_two_outputs_sharing_one_master() {
     let master = OutPoint::new(Byte32::zero(), 5);
 
     let input_order_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB), &limit_order, Some(&helper_type)),
         order_data_match(0, &master, (1, 1)),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input_order_out_point).build())
+        .input(input(input_order_out_point))
         .output(
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_400 * CKB).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
+            cell(deposit_capacity(&limit_order, &helper_type, 89, 1_400 * CKB), &limit_order, Some(&helper_type)),
         )
         .output(
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 100 * CKB).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
+            cell(deposit_capacity(&limit_order, &helper_type, 89, 100 * CKB), &limit_order, Some(&helper_type)),
         )
         .outputs_data(
             vec![
@@ -42,8 +30,7 @@ fn match_rejects_two_outputs_sharing_one_master() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_SAME_MASTER);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_SAME_MASTER);
 }
 
 // Spend two independent match-shaped inputs that already point at the same master; verification rejects the shared metapoint collision on inputs.
@@ -54,37 +41,23 @@ fn same_master_collision_on_inputs_is_rejected() {
     let master = OutPoint::new(Byte32::zero(), 5);
 
     let first_order = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB), &limit_order, Some(&helper_type)),
         order_data_match(0, &master, (1, 1)),
     );
     let second_order = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_400 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order, &helper_type, 89, 1_400 * CKB), &limit_order, Some(&helper_type)),
         order_data_match(0, &master, (1, 1)),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(first_order).build())
-        .input(CellInput::new_builder().previous_output(second_order).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((2_900 * CKB).pack())
-                .lock(always_success_lock(&mut context))
-                .build(),
-        )
+        .input(input(first_order))
+        .input(input(second_order))
+        .output(cell(2_900 * CKB, &always_success_lock(&mut context), None))
         .output_data(Bytes::new().pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_SAME_MASTER);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_SAME_MASTER);
 }
 
 // Attempt to spend the exact same master input twice; transaction validation blocks the duplicate input before any contract duplicate-master branch can execute.
@@ -96,14 +69,9 @@ fn duplicate_master_input_shape_is_blocked_before_script_invariants() {
         build_real_limit_order_and_master(&mut context, owner_lock.clone(), helper_type);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(real_master_out_point.clone()).build())
-        .input(CellInput::new_builder().previous_output(real_master_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((400 * CKB).pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(real_master_out_point.clone()))
+        .input(input(real_master_out_point))
+        .output(cell(400 * CKB, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .build();
 

@@ -18,63 +18,26 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
     // For deposits since block 10,000,000 the node keeps a withdrawal request's lock the same size as
     // its deposit's, so only a foreign deposit whose lock has Owned Owner's size (empty args) can be wrapped.
     let wrappable_lock = always_success_lock(&mut context);
-    let foreign_deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(foreign_deposit_capacity.pack())
-            .lock(wrappable_lock)
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let foreign_deposit_input = create_deposit(&mut context, foreign_deposit_capacity, &wrappable_lock, &dao);
     link_cell_to_header(&mut context, &foreign_deposit_input, &foreign_deposit_header);
 
     let protocol_deposit_amount = 1_000 * CKB;
     let protocol_deposit_capacity = deposit_capacity(&ickb_logic, &dao, 8, protocol_deposit_amount);
-    let protocol_deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(protocol_deposit_capacity.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let protocol_deposit_input = create_deposit(&mut context, protocol_deposit_capacity, &ickb_logic, &dao);
     link_cell_to_header(&mut context, &protocol_deposit_input, &protocol_deposit_header);
 
-    let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&protocol_owner_lock, &xudt, 16).pack())
-            .lock(protocol_owner_lock.clone())
-            .type_(Some(xudt).pack())
-            .build(),
-        udt_data(u128::from(protocol_deposit_amount)),
-    );
+    let udt_input = create_udt(&mut context, &protocol_owner_lock, &xudt, u128::from(protocol_deposit_amount));
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(foreign_deposit_input).build())
-        .input(CellInput::new_builder().previous_output(protocol_deposit_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
-        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
+        .input(input(foreign_deposit_input))
+        .input(input(protocol_deposit_input))
+        .input(input(udt_input))
+        .input(input(funding_cell(&mut context)))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(foreign_deposit_capacity.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(protocol_deposit_capacity.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&foreign_owner_lock, &owned_owner, 4).pack())
-                .lock(foreign_owner_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&protocol_owner_lock, &owned_owner, 4).pack())
-                .lock(protocol_owner_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
+            cell(foreign_deposit_capacity, &owned_owner, Some(&dao)),
+            cell(protocol_deposit_capacity, &owned_owner, Some(&dao)),
+            cell(occupied_capacity(&foreign_owner_lock, &owned_owner, 4), &foreign_owner_lock, Some(&owned_owner)),
+            cell(occupied_capacity(&protocol_owner_lock, &owned_owner, 4), &protocol_owner_lock, Some(&owned_owner)),
         ])
         .outputs_data(
             vec![
@@ -131,20 +94,18 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
                 .since(0x2003e802340002f3u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(foreign_owner.clone()).build())
+        .input(input(foreign_owner.clone()))
         .output(
-            CellOutput::new_builder()
-                .capacity(
-                    dao_maximum_withdraw_capacity(
-                        &create_tx.outputs().get(1).expect("protocol owned output"),
-                        withdrawal_request_data(protocol_deposit_number).len(),
-                        GENESIS_AR as u64,
-                        SYNTHETIC_WITHDRAW_AR,
-                    )
-                    .pack(),
-                )
-                .lock(foreign_owner_lock)
-                .build(),
+            cell(
+                dao_maximum_withdraw_capacity(
+                    &create_tx.outputs().get(1).expect("protocol owned output"),
+                    withdrawal_request_data(protocol_deposit_number).len(),
+                    GENESIS_AR as u64,
+                    SYNTHETIC_WITHDRAW_AR,
+                ),
+                &foreign_owner_lock,
+                None,
+            ),
         )
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
@@ -164,20 +125,18 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
                 .since(0x2003e802340002f3u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(protocol_owner).build())
+        .input(input(protocol_owner))
         .output(
-            CellOutput::new_builder()
-                .capacity(
-                    dao_maximum_withdraw_capacity(
-                        &create_tx.outputs().get(1).expect("protocol owned output"),
-                        withdrawal_request_data(protocol_deposit_number).len(),
-                        GENESIS_AR as u64,
-                        SYNTHETIC_WITHDRAW_AR,
-                    )
-                    .pack(),
-                )
-                .lock(protocol_owner_lock)
-                .build(),
+            cell(
+                dao_maximum_withdraw_capacity(
+                    &create_tx.outputs().get(1).expect("protocol owned output"),
+                    withdrawal_request_data(protocol_deposit_number).len(),
+                    GENESIS_AR as u64,
+                    SYNTHETIC_WITHDRAW_AR,
+                ),
+                &protocol_owner_lock,
+                None,
+            ),
         )
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
@@ -186,8 +145,5 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
         .witness(header_dep_index_witness(2).pack())
         .build();
     let claim_with_intended_protocol_owner = context.complete_tx(claim_with_intended_protocol_owner);
-    let err = context
-        .verify(&claim_with_intended_protocol_owner, MAX_CYCLES)
-        .unwrap_err();
-    assert_script_error(err, ERROR_OWNED_OWNER_MISMATCH);
+    fail(&context, &claim_with_intended_protocol_owner, ERROR_OWNED_OWNER_MISMATCH);
 }

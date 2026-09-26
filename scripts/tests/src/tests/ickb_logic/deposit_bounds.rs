@@ -7,34 +7,22 @@ fn deposit_below_minimum_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let amount = 999 * CKB;
-    let deposit_output = CellOutput::new_builder()
-        .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
-        .lock(ickb_logic.clone())
-        .type_(Some(dao).pack())
-        .build();
-    let receipt_output = CellOutput::new_builder()
-        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-        .lock(funding_lock)
-        .type_(Some(ickb_logic).pack())
-        .build();
+    let deposit_output = cell(deposit_capacity(&ickb_logic, &dao, 8, amount), &ickb_logic, Some(&dao));
+    let receipt_output = cell(occupied_capacity(&funding_lock, &ickb_logic, 12), &funding_lock, Some(&ickb_logic));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .outputs(vec![deposit_output, receipt_output])
         .outputs_data(vec![dao_deposit_data(), receipt_data(1, amount)].pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_DEPOSIT_TOO_SMALL);
+    fail(&context, &tx, ERROR_DEPOSIT_TOO_SMALL);
 }
 
 // Build one DAO deposit plus one matching receipt with amount exactly 1000 CKB: this is the minimum accepted bucket, so the creation tx should pass at the lower boundary.
@@ -44,27 +32,16 @@ fn deposit_at_minimum_is_accepted() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let amount = 1_000 * CKB;
-    let deposit_output = CellOutput::new_builder()
-        .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
-        .lock(ickb_logic.clone())
-        .type_(Some(dao).pack())
-        .build();
-    let receipt_output = CellOutput::new_builder()
-        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-        .lock(funding_lock)
-        .type_(Some(ickb_logic).pack())
-        .build();
+    let deposit_output = cell(deposit_capacity(&ickb_logic, &dao, 8, amount), &ickb_logic, Some(&dao));
+    let receipt_output = cell(occupied_capacity(&funding_lock, &ickb_logic, 12), &funding_lock, Some(&ickb_logic));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .outputs(vec![deposit_output, receipt_output])
         .outputs_data(vec![dao_deposit_data(), receipt_data(1, amount)].pack())
         .build();
@@ -82,34 +59,22 @@ fn deposit_above_maximum_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_100_000 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(1_100_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let amount = 1_000_001 * CKB;
-    let deposit_output = CellOutput::new_builder()
-        .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
-        .lock(ickb_logic.clone())
-        .type_(Some(dao).pack())
-        .build();
-    let receipt_output = CellOutput::new_builder()
-        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-        .lock(funding_lock)
-        .type_(Some(ickb_logic).pack())
-        .build();
+    let deposit_output = cell(deposit_capacity(&ickb_logic, &dao, 8, amount), &ickb_logic, Some(&dao));
+    let receipt_output = cell(occupied_capacity(&funding_lock, &ickb_logic, 12), &funding_lock, Some(&ickb_logic));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .outputs(vec![deposit_output, receipt_output])
         .outputs_data(vec![dao_deposit_data(), receipt_data(1, amount)].pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_DEPOSIT_TOO_BIG);
+    fail(&context, &tx, ERROR_DEPOSIT_TOO_BIG);
 }
 
 // Build one DAO deposit plus one matching receipt with amount exactly 1,000,000 CKB: this is the maximum accepted bucket, so the creation tx should still verify at the upper boundary.
@@ -119,27 +84,16 @@ fn deposit_at_maximum_is_accepted() {
     let funding_lock = always_success_lock(&mut context);
     let (ickb_logic, dao) = ickb_logic_and_dao_scripts(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_100_000 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(1_100_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let amount = 1_000_000 * CKB;
-    let deposit_output = CellOutput::new_builder()
-        .capacity(deposit_capacity(&ickb_logic, &dao, 8, amount).pack())
-        .lock(ickb_logic.clone())
-        .type_(Some(dao).pack())
-        .build();
-    let receipt_output = CellOutput::new_builder()
-        .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-        .lock(funding_lock)
-        .type_(Some(ickb_logic).pack())
-        .build();
+    let deposit_output = cell(deposit_capacity(&ickb_logic, &dao, 8, amount), &ickb_logic, Some(&dao));
+    let receipt_output = cell(occupied_capacity(&funding_lock, &ickb_logic, 12), &funding_lock, Some(&ickb_logic));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .outputs(vec![deposit_output, receipt_output])
         .outputs_data(vec![dao_deposit_data(), receipt_data(1, amount)].pack())
         .build();

@@ -8,31 +8,17 @@ fn phase2_conversion_without_receipt_header_dep_is_rejected() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_ITEM_MISSING);
+    fail(&context, &tx, ERROR_ITEM_MISSING);
 }
 
 // Build one phase2 mint from two receipts that point at two different headers and supply both headers: multi-header conversion is allowed when every receipt has its own dependency, so verification passes.
@@ -44,22 +30,8 @@ fn phase2_conversion_with_two_receipts_from_distinct_headers_passes() {
 
     let first_amount = 1_000 * CKB;
     let second_amount = 1_200 * CKB;
-    let first_receipt = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, first_amount),
-    );
-    let second_receipt = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, second_amount),
-    );
+    let first_receipt = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, first_amount);
+    let second_receipt = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, second_amount);
     let first_header = gen_header(0, GENESIS_AR as u64, 0, 0, 1);
     let second_header = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
     link_cell_to_header(&mut context, &first_receipt, &first_header);
@@ -68,15 +40,9 @@ fn phase2_conversion_with_two_receipts_from_distinct_headers_passes() {
     let expected = u128::from(first_amount)
         + (u128::from(second_amount) * u128::from(GENESIS_AR) / u128::from(SYNTHETIC_WITHDRAW_AR));
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(first_receipt).build())
-        .input(CellInput::new_builder().previous_output(second_receipt).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(first_receipt))
+        .input(input(second_receipt))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(expected).pack())
         .header_dep(first_header.hash())
         .header_dep(second_header.hash())
@@ -97,44 +63,23 @@ fn phase2_conversion_with_one_missing_receipt_header_dep_is_rejected() {
 
     let first_amount = 1_000 * CKB;
     let second_amount = 1_200 * CKB;
-    let first_receipt = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, first_amount),
-    );
-    let second_receipt = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, second_amount),
-    );
+    let first_receipt = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, first_amount);
+    let second_receipt = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, second_amount);
     let first_header = gen_header(0, GENESIS_AR as u64, 0, 0, 1);
     let second_header = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
     link_cell_to_header(&mut context, &first_receipt, &first_header);
     link_cell_to_header(&mut context, &second_receipt, &second_header);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(first_receipt).build())
-        .input(CellInput::new_builder().previous_output(second_receipt).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(first_receipt))
+        .input(input(second_receipt))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(first_amount + second_amount)).pack())
         .header_dep(first_header.hash())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_ITEM_MISSING);
+    fail(&context, &tx, ERROR_ITEM_MISSING);
 }
 
 // Build a phase2 conversion whose receipt header has accumulated rate zero: this is a malformed pricing header, so the conversion path panics instead of minting from an invalid rate.
@@ -145,31 +90,17 @@ fn phase2_conversion_with_zero_accumulated_rate_header_is_rejected() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let malformed_header = gen_header(0, 0, 0, 0, 1);
     link_cell_to_header(&mut context, &receipt_out_point, &malformed_header);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .header_dep(malformed_header.hash())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SCRIPT_PANIC);
+    fail(&context, &tx, ERROR_SCRIPT_PANIC);
 }

@@ -9,44 +9,26 @@ fn unrelated_non_empty_args_output_lock_poisons_phase2() {
     let poisoned_lock = data1_script(&mut context, "ickb_logic", Bytes::from(vec![1]));
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((500 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(500 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .input(CellInput::new_builder().previous_output(extra_input).build())
+        .input(input(receipt_out_point))
+        .input(input(extra_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(xudt).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((200 * CKB).pack())
-                .lock(poisoned_lock)
-                .build(),
+            cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
+            cell(200 * CKB, &poisoned_lock, None),
         ])
         .outputs_data(vec![udt_data(u128::from(deposit_amount)), Bytes::new()].pack())
         .header_dep(receipt_header.clone())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &tx, ERROR_NOT_EMPTY_ARGS);
 }
 
 // Build a valid phase2 mint but add another output whose lock is the iCKB xUDT script itself: this sibling looks like script misuse rather than a normal foreign output, so verification fails.
@@ -57,44 +39,26 @@ fn ickb_xudt_shaped_output_lock_poisons_phase2() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((500 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(500 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .input(CellInput::new_builder().previous_output(extra_input).build())
+        .input(input(receipt_out_point))
+        .input(input(extra_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
-                .lock(xudt)
-                .build(),
+            cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
+            cell(capacity_for_data(16), &xudt, None),
         ])
         .outputs_data(vec![udt_data(u128::from(deposit_amount)), udt_data(0)].pack())
         .header_dep(receipt_header.clone())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SCRIPT_MISUSE);
+    fail(&context, &tx, ERROR_SCRIPT_MISUSE);
 }
 
 // Build a valid phase2 mint but add another output whose lock is the DAO script with deposit-shaped data: that sibling is an impossible lock shape the classifier rejects, so the transaction fails as misuse.
@@ -105,44 +69,26 @@ fn dao_deposit_shaped_output_lock_poisons_phase2() {
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((500 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(500 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .input(CellInput::new_builder().previous_output(extra_input).build())
+        .input(input(receipt_out_point))
+        .input(input(extra_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(xudt).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(8).pack())
-                .lock(dao)
-                .build(),
+            cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
+            cell(capacity_for_data(8), &dao, None),
         ])
         .outputs_data(vec![udt_data(u128::from(deposit_amount)), dao_deposit_data()].pack())
         .header_dep(receipt_header.clone())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SCRIPT_MISUSE);
+    fail(&context, &tx, ERROR_SCRIPT_MISUSE);
 }
 
 // Build a valid phase2 mint plus a second output whose lock uses the same xUDT code under different args: the sibling is foreign to iCKB accounting, so the real mint should still pass.
@@ -155,36 +101,19 @@ fn foreign_xudt_output_lock_is_ignored() {
     let foreign_xudt = xudt_script(&mut context, &foreign_owner);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(capacity_for_data(16), &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .input(CellInput::new_builder().previous_output(extra_input).build())
+        .input(input(receipt_out_point))
+        .input(input(extra_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(xudt).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(16).pack())
-                .lock(foreign_xudt)
-                .build(),
+            cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
+            cell(capacity_for_data(16), &foreign_xudt, None),
         ])
         .outputs_data(vec![udt_data(u128::from(deposit_amount)), udt_data(0)].pack())
         .header_dep(receipt_header.clone())
@@ -206,37 +135,19 @@ fn foreign_xudt_type_output_is_ignored() {
     let foreign_xudt = xudt_script(&mut context, &foreign_owner);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(capacity_for_data(16).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(capacity_for_data(16), &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .input(CellInput::new_builder().previous_output(extra_input).build())
+        .input(input(receipt_out_point))
+        .input(input(extra_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(xudt).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &foreign_xudt, 16).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(foreign_xudt).pack())
-                .build(),
+            cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
+            cell(occupied_capacity(&funding_lock, &foreign_xudt, 16), &funding_lock, Some(&foreign_xudt)),
         ])
         .outputs_data(vec![udt_data(u128::from(deposit_amount)), udt_data(0)].pack())
         .header_dep(receipt_header.clone())
@@ -256,36 +167,19 @@ fn withdrawal_request_shaped_dao_output_lock_is_ignored() {
     let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(capacity_for_data(8).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(capacity_for_data(8), &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .input(CellInput::new_builder().previous_output(extra_input).build())
+        .input(input(receipt_out_point))
+        .input(input(extra_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(xudt).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(capacity_for_data(8).pack())
-                .lock(dao)
-                .build(),
+            cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
+            cell(capacity_for_data(8), &dao, None),
         ])
         .outputs_data(vec![udt_data(u128::from(deposit_amount)), withdrawal_request_data(1554)].pack())
         .header_dep(receipt_header.clone())
@@ -308,45 +202,26 @@ fn deposit_shaped_non_empty_args_output_poisons_phase2() {
     let dao = dao_script(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
     let extra_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .input(CellInput::new_builder().previous_output(extra_input).build())
+        .input(input(receipt_out_point))
+        .input(input(extra_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(xudt).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&poisoned_lock, &dao, 8, deposit_amount).pack())
-                .lock(poisoned_lock)
-                .type_(Some(dao).pack())
-                .build(),
+            cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)),
+            cell(deposit_capacity(&poisoned_lock, &dao, 8, deposit_amount), &poisoned_lock, Some(&dao)),
         ])
         .outputs_data(vec![udt_data(u128::from(deposit_amount)), dao_deposit_data()].pack())
         .header_dep(receipt_header.clone())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &tx, ERROR_NOT_EMPTY_ARGS);
 }
 
 // Build a valid phase2 mint but include a second receipt input whose type script reuses ickb_logic code with non-empty args: sibling input classification sees an invalid receipt-shaped peer, so the whole mint fails on the args check.
@@ -359,40 +234,19 @@ fn non_empty_args_receipt_sibling_poisons_phase2() {
     let xudt = xudt_script(&mut context, &ickb_logic);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
-    let poisoned_receipt = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &poisoned_receipt_type, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(poisoned_receipt_type).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let poisoned_receipt = create_receipt(&mut context, &funding_lock, &poisoned_receipt_type, 1, deposit_amount);
     insert_header_for_cell(&mut context, &poisoned_receipt, 0, GENESIS_AR);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .input(CellInput::new_builder().previous_output(poisoned_receipt).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .input(input(poisoned_receipt))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .header_dep(receipt_header)
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &tx, ERROR_NOT_EMPTY_ARGS);
 }

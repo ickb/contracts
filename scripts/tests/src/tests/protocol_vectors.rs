@@ -21,26 +21,13 @@ fn every_deposit_vector_mints_exactly_its_expected_ickb() {
         let mut context = Context::default();
         let funding_lock = always_success_lock(&mut context);
         let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
-        let receipt = context.create_cell(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-                .lock(funding_lock.clone())
-                .type_(Some(ickb_logic).pack())
-                .build(),
-            receipt_data(1, row.amount),
-        );
+        let receipt = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, row.amount);
         let header = insert_header_for_cell(&mut context, &receipt, 0, row.ar);
 
         for minted in [row.expected_ickb, row.expected_ickb + 1, row.expected_ickb - 1] {
             let tx = TransactionBuilder::default()
-                .input(CellInput::new_builder().previous_output(receipt.clone()).build())
-                .output(
-                    CellOutput::new_builder()
-                        .capacity(occupied_capacity(&funding_lock, &xudt, 16).pack())
-                        .lock(funding_lock.clone())
-                        .type_(Some(xudt.clone()).pack())
-                        .build(),
-                )
+                .input(input(receipt.clone()))
+                .output(cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt)))
                 .output_data(udt_data(minted).pack())
                 .header_dep(header.clone())
                 .build();
@@ -76,11 +63,7 @@ fn every_limit_order_vector_gets_the_verdict_of_the_copied_validate() {
         }
         let order = |unoccupied: u64, udt: u128| {
             (
-                CellOutput::new_builder()
-                    .capacity((occupied + unoccupied).pack())
-                    .lock(limit_order.clone())
-                    .type_(Some(helper_type.clone()).pack())
-                    .build(),
+                cell(occupied + unoccupied, &limit_order, Some(&helper_type)),
                 order_data_custom(
                     udt,
                     1,
@@ -94,11 +77,11 @@ fn every_limit_order_vector_gets_the_verdict_of_the_copied_validate() {
         };
         let (input_cell, input_data) = order(in_unoccupied, in_udt);
         let (output_cell, output_data) = order(out_unoccupied, out_udt);
-        let input = context.create_cell(input_cell, input_data);
+        let order_input = context.create_cell(input_cell, input_data);
 
         // ckb-testtool runs scripts only, so the transaction needs no capacity balancing.
         let tx = TransactionBuilder::default()
-            .input(CellInput::new_builder().previous_output(input).build())
+            .input(input(order_input))
             .output(output_cell)
             .output_data(output_data.pack())
             .build();

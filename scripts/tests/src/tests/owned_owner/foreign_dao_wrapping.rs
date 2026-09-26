@@ -16,37 +16,19 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
     // For deposits since block 10,000,000 the node keeps a withdrawal request's lock the same size as
     // its deposit's, so only a deposit whose lock has Owned Owner's size (empty args) can be wrapped.
     let wrappable_lock = always_success_lock(&mut context);
-    let deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity_value.pack())
-            .lock(wrappable_lock)
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let deposit_input = create_deposit(&mut context, deposit_capacity_value, &wrappable_lock, &dao);
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((200 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(200 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(deposit_input))
+        .input(input(funding_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(deposit_capacity_value.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user_lock, &owned_owner, 4).pack())
-                .lock(user_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
+            cell(deposit_capacity_value, &owned_owner, Some(&dao)),
+            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
         ])
         .outputs_data(
             vec![
@@ -88,20 +70,18 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_out_point).build())
+        .input(input(owner_out_point))
         .output(
-            CellOutput::new_builder()
-                .capacity(
-                    dao_maximum_withdraw_capacity(
-                        &owned_output,
-                        withdrawal_request_data(1554).len(),
-                        GENESIS_AR as u64,
-                        SYNTHETIC_WITHDRAW_AR,
-                    )
-                    .pack(),
-                )
-                .lock(user_lock)
-                .build(),
+            cell(
+                dao_maximum_withdraw_capacity(
+                    &owned_output,
+                    withdrawal_request_data(1554).len(),
+                    GENESIS_AR as u64,
+                    SYNTHETIC_WITHDRAW_AR,
+                ),
+                &user_lock,
+                None,
+            ),
         )
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())

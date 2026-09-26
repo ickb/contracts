@@ -19,18 +19,8 @@ fn weak_lock_receipt_can_reassign_phase2_mint_recipient() {
     );
 
     let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(receipt_out_point)
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &xudt, 16).pack())
-                .lock(attacker_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .output(cell(occupied_capacity(&attacker_lock, &xudt, 16), &attacker_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .header_dep(receipt_header.clone())
         .build();
@@ -50,25 +40,12 @@ fn sighash_lock_binds_phase2_mint_outputs_to_the_signed_transaction() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &ickb_logic, 12).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &owner_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
         .output_data(udt_data(u128::from(deposit_amount)).pack())
         .witness(empty_witness().pack())
         .cell_dep(secp_data_dep)
@@ -83,15 +60,10 @@ fn sighash_lock_binds_phase2_mint_outputs_to_the_signed_transaction() {
     let tampered_tx = tx
         .as_advanced_builder()
         .set_outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &xudt, 16).pack())
-                .lock(attacker_lock)
-                .type_(Some(xudt).pack())
-                .build(),
+            cell(occupied_capacity(&attacker_lock, &xudt, 16), &attacker_lock, Some(&xudt)),
         ])
         .build();
-    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
 // Build one phase2 mint that mixes a signed receipt and a weak receipt into one xUDT output, then tamper the recipient after signing the strong input group: the signed tx passes, but the tampered version fails because one strong lock is enough to bind the shared outputs.
@@ -105,22 +77,8 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
 
     let amount1 = 1_000 * CKB;
     let amount2 = 1_200 * CKB;
-    let receipt1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &ickb_logic, 12).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, amount1),
-    );
-    let receipt2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&weak_lock, &ickb_logic, 12).pack())
-            .lock(weak_lock)
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, amount2),
-    );
+    let receipt1 = create_receipt(&mut context, &owner_lock, &ickb_logic, 1, amount1);
+    let receipt2 = create_receipt(&mut context, &weak_lock, &ickb_logic, 1, amount2);
     let header1 = insert_header_for_cell(&mut context, &receipt1, 0, GENESIS_AR);
     let header2 = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
     link_cell_to_header(&mut context, &receipt2, &header2);
@@ -128,15 +86,9 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
         + (u128::from(amount2) * u128::from(GENESIS_AR) / u128::from(SYNTHETIC_WITHDRAW_AR));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt1).build())
-        .input(CellInput::new_builder().previous_output(receipt2).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-        )
+        .input(input(receipt1))
+        .input(input(receipt2))
+        .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
         .output_data(udt_data(expected).pack())
         .witness(empty_witness().pack())
         .witness(Bytes::new().pack())
@@ -153,15 +105,10 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
     let tampered_tx = tx
         .as_advanced_builder()
         .set_outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &xudt, 16).pack())
-                .lock(attacker_lock)
-                .type_(Some(xudt).pack())
-                .build(),
+            cell(occupied_capacity(&attacker_lock, &xudt, 16), &attacker_lock, Some(&xudt)),
         ])
         .build();
-    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
 // Build one phase2 mint from two weakly locked receipts and pay the combined xUDT to an attacker lock: with no strong signer in the transaction, nothing binds the recipient, so reassignment is expected to pass.
@@ -175,22 +122,8 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
 
     let amount1 = 1_000 * CKB;
     let amount2 = 1_200 * CKB;
-    let receipt1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&weak_lock_1, &ickb_logic, 12).pack())
-            .lock(weak_lock_1)
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, amount1),
-    );
-    let receipt2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&weak_lock_2, &ickb_logic, 12).pack())
-            .lock(weak_lock_2)
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, amount2),
-    );
+    let receipt1 = create_receipt(&mut context, &weak_lock_1, &ickb_logic, 1, amount1);
+    let receipt2 = create_receipt(&mut context, &weak_lock_2, &ickb_logic, 1, amount2);
     let header1 = insert_header_for_cell(&mut context, &receipt1, 0, GENESIS_AR);
     let header2 = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
     link_cell_to_header(&mut context, &receipt2, &header2);
@@ -198,15 +131,9 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
         + (u128::from(amount2) * u128::from(GENESIS_AR) / u128::from(SYNTHETIC_WITHDRAW_AR));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt1).build())
-        .input(CellInput::new_builder().previous_output(receipt2).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &xudt, 16).pack())
-                .lock(attacker_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt1))
+        .input(input(receipt2))
+        .output(cell(occupied_capacity(&attacker_lock, &xudt, 16), &attacker_lock, Some(&xudt)))
         .output_data(udt_data(expected).pack())
         .header_dep(header1)
         .header_dep(header2.hash())

@@ -9,28 +9,15 @@ fn mint_accepts_master_with_unspendable_foreign_lock() {
     let limit_order = limit_order_script(&mut context);
     let poisoned_lock = data1_script(&mut context, "ickb_logic", Bytes::from(vec![1]));
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
+        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
         .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * CKB).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&poisoned_lock, &limit_order, 0).pack())
-                .lock(poisoned_lock)
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
+            cell(occupied_capacity(&poisoned_lock, &limit_order, 0), &poisoned_lock, Some(&limit_order)),
         )
         .outputs_data(vec![order_data_mint(0, 1, (1, 1)), Bytes::new()].pack())
         .build();
@@ -55,20 +42,14 @@ fn mint_accepts_master_with_unspendable_foreign_lock() {
     );
 
     let melt_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order_out_point).build())
-        .input(CellInput::new_builder().previous_output(master_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_700 * CKB).pack())
-                .lock(always_success_lock(&mut context))
-                .build(),
-        )
+        .input(input(order_out_point))
+        .input(input(master_out_point))
+        .output(cell(1_700 * CKB, &always_success_lock(&mut context), None))
         .output_data(Bytes::new().pack())
         .build();
 
     let melt_tx = context.complete_tx(melt_tx);
-    let err = context.verify(&melt_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &melt_tx, ERROR_NOT_EMPTY_ARGS);
 }
 
 // Mint a real pair whose master uses `ickb_logic` with empty args; creation still skips the master lock, and melt later fails when that foreign script executes.
@@ -80,28 +61,15 @@ fn mint_accepts_master_with_empty_args_ickb_logic_lock_and_strands_on_spend() {
     let limit_order = limit_order_script(&mut context);
     let benign_foreign_lock = ickb_logic_script(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
+        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
         .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * CKB).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&benign_foreign_lock, &limit_order, 0).pack())
-                .lock(benign_foreign_lock)
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
+            cell(occupied_capacity(&benign_foreign_lock, &limit_order, 0), &benign_foreign_lock, Some(&limit_order)),
         )
         .outputs_data(vec![order_data_mint(0, 1, (1, 1)), Bytes::new()].pack())
         .build();
@@ -126,18 +94,12 @@ fn mint_accepts_master_with_empty_args_ickb_logic_lock_and_strands_on_spend() {
     );
 
     let melt_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order_out_point).build())
-        .input(CellInput::new_builder().previous_output(master_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_700 * CKB).pack())
-                .lock(always_success_lock(&mut context))
-                .build(),
-        )
+        .input(input(order_out_point))
+        .input(input(master_out_point))
+        .output(cell(1_700 * CKB, &always_success_lock(&mut context), None))
         .output_data(Bytes::new().pack())
         .build();
 
     let melt_tx = context.complete_tx(melt_tx);
-    let err = context.verify(&melt_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SCRIPT_MISUSE);
+    fail(&context, &melt_tx, ERROR_SCRIPT_MISUSE);
 }

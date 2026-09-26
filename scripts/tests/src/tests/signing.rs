@@ -104,14 +104,12 @@ fn sign_tx_by_input_group_covers_group_witnesses_and_trailing_extras_only() {
     let build_tx = |target_lock: &[u8], grouped_lock: &[u8], other_group_lock: &[u8], trailing_extra: &[u8]| {
         let inputs = (0..4)
             .map(|index| {
-                CellInput::new_builder()
-                    .previous_output(
-                        OutPoint::new_builder()
-                            .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
-                            .index((index as u32).pack())
-                            .build(),
-                    )
-                    .build()
+                input(
+                    OutPoint::new_builder()
+                        .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
+                        .index((index as u32).pack())
+                        .build(),
+                )
             })
             .collect::<Vec<_>>();
         let witnesses = vec![
@@ -182,14 +180,12 @@ fn sign_tx_binds_the_full_witness_set() {
     let build_tx = |trailing_lock: &[u8]| {
         let inputs = (0..2)
             .map(|index| {
-                CellInput::new_builder()
-                    .previous_output(
-                        OutPoint::new_builder()
-                            .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
-                            .index((index as u32).pack())
-                            .build(),
-                    )
-                    .build()
+                input(
+                    OutPoint::new_builder()
+                        .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
+                        .index((index as u32).pack())
+                        .build(),
+                )
             })
             .collect::<Vec<_>>();
         let witnesses = vec![
@@ -234,30 +230,19 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
     let (privkey, protected_lock, secp_data_dep) = secp_lock(&mut context);
 
     let passthrough_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_000 * CKB).pack())
-            .lock(passthrough_lock.clone())
-            .build(),
+        cell(1_000 * CKB, &passthrough_lock, None),
         Bytes::new(),
     );
     let protected_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_000 * CKB).pack())
-            .lock(protected_lock)
-            .build(),
+        cell(1_000 * CKB, &protected_lock, None),
         Bytes::new(),
     );
 
     let trailing_extra = Bytes::from_static(b"trailing-extra");
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(passthrough_input).build())
-        .input(CellInput::new_builder().previous_output(protected_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_800 * CKB).pack())
-                .lock(passthrough_lock)
-                .build(),
-        )
+        .input(input(passthrough_input))
+        .input(input(protected_input))
+        .output(cell(1_800 * CKB, &passthrough_lock, None))
         .output_data(Bytes::new().pack())
         .witness(Bytes::new().pack())
         .witness(empty_witness().pack())
@@ -278,8 +263,7 @@ fn sign_tx_by_input_group_covers_trailing_extra_witnesses_for_later_groups() {
             Bytes::from_static(b"trailing-extra-updated").pack(),
         ])
         .build();
-    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
 #[test]
@@ -289,37 +273,23 @@ fn sign_tx_by_input_indices_signs_a_noncontiguous_secp_group() {
     let (privkey, protected_lock, secp_data_dep) = secp_lock(&mut context);
 
     let protected_input_0 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_000 * CKB).pack())
-            .lock(protected_lock.clone())
-            .build(),
+        cell(1_000 * CKB, &protected_lock, None),
         Bytes::new(),
     );
     let passthrough_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_000 * CKB).pack())
-            .lock(passthrough_lock.clone())
-            .build(),
+        cell(1_000 * CKB, &passthrough_lock, None),
         Bytes::new(),
     );
     let protected_input_2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_000 * CKB).pack())
-            .lock(protected_lock)
-            .build(),
+        cell(1_000 * CKB, &protected_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(protected_input_0).build())
-        .input(CellInput::new_builder().previous_output(passthrough_input).build())
-        .input(CellInput::new_builder().previous_output(protected_input_2).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((2_800 * CKB).pack())
-                .lock(passthrough_lock)
-                .build(),
-        )
+        .input(input(protected_input_0))
+        .input(input(passthrough_input))
+        .input(input(protected_input_2))
+        .output(cell(2_800 * CKB, &passthrough_lock, None))
         .output_data(Bytes::new().pack())
         .witness(empty_witness().pack())
         .witness(Bytes::new().pack())
@@ -340,6 +310,5 @@ fn sign_tx_by_input_indices_signs_a_noncontiguous_secp_group() {
             Bytes::from_static(b"tampered-group-witness").pack(),
         ])
         .build();
-    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }

@@ -16,19 +16,11 @@ fn cloned_live_orders_can_permute_without_stranding_either_master() {
     let matched_order1_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
     let matched_order2_data = order_data_match(100 * CKB as u128, &master1_input, (1, 1));
     let crosswire_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order1_input).build())
-        .input(CellInput::new_builder().previous_output(order2_input).build())
+        .input(input(order1_input))
+        .input(input(order2_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((1_400 * CKB).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((1_400 * CKB).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
+            cell(1_400 * CKB, &limit_order, Some(&helper_type)),
+            cell(1_400 * CKB, &limit_order, Some(&helper_type)),
         ])
         .outputs_data(vec![matched_order1_data.clone(), matched_order2_data.clone()].pack())
         .build();
@@ -43,14 +35,9 @@ fn cloned_live_orders_can_permute_without_stranding_either_master() {
     let crosswired_order2 = seed_verified_output(&mut context, &crosswire_tx, 1, matched_order2_data);
 
     let rebound_melt = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(crosswired_order1.clone()).build())
-        .input(CellInput::new_builder().previous_output(master2_input.clone()).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_600 * CKB).pack())
-                .lock(owner2_lock.clone())
-                .build(),
-        )
+        .input(input(crosswired_order1.clone()))
+        .input(input(master2_input.clone()))
+        .output(cell(1_600 * CKB, &owner2_lock, None))
         .output_data(Bytes::new().pack())
         .witness(Bytes::new().pack())
         .witness(empty_witness().pack())
@@ -62,14 +49,9 @@ fn cloned_live_orders_can_permute_without_stranding_either_master() {
         .expect("the alternate master can melt the permuted cloned continuation after the metapoint swap");
 
     let other_melt = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(crosswired_order2).build())
-        .input(CellInput::new_builder().previous_output(master1_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_600 * CKB).pack())
-                .lock(owner1_lock)
-                .build(),
-        )
+        .input(input(crosswired_order2))
+        .input(input(master1_input))
+        .output(cell(1_600 * CKB, &owner1_lock, None))
         .output_data(Bytes::new().pack())
         .witness(Bytes::new().pack())
         .witness(empty_witness().pack())
@@ -93,30 +75,18 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
     let limit_order = limit_order_script(&mut context);
     let fake_master = OutPoint::new(Byte32::from_slice(&[7u8; 32]).expect("byte32"), 9);
     let fake_order_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1_500 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(1_500 * CKB, &limit_order, Some(&helper_type)),
         order_data_match(0, &fake_master, (1, 1)),
     );
 
     let real_lineage_data = order_data_match(100 * CKB as u128, &real_master_input, (1, 1));
     let fake_lineage_data = order_data_match(100 * CKB as u128, &fake_master, (1, 1));
     let hybrid_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(fake_order_input).build())
-        .input(CellInput::new_builder().previous_output(real_order_input).build())
+        .input(input(fake_order_input))
+        .input(input(real_order_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((1_400 * CKB).pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((1_400 * CKB).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
+            cell(1_400 * CKB, &limit_order, Some(&helper_type)),
+            cell(1_400 * CKB, &limit_order, Some(&helper_type)),
         ])
         .outputs_data(vec![real_lineage_data.clone(), fake_lineage_data.clone()].pack())
         .build();
@@ -141,14 +111,9 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
     );
 
     let real_lineage_melt = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(real_lineage_output).build())
-        .input(CellInput::new_builder().previous_output(real_master_input.clone()).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_600 * CKB).pack())
-                .lock(owner_lock.clone())
-                .build(),
-        )
+        .input(input(real_lineage_output))
+        .input(input(real_master_input.clone()))
+        .output(cell(1_600 * CKB, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .witness(Bytes::new().pack())
         .witness(empty_witness().pack())
@@ -160,14 +125,9 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
         .expect("the real master should still authorize the melt on the real metapoint in the hybrid match");
 
     let fake_lineage_melt_with_real_master = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(fake_lineage_output).build())
-        .input(CellInput::new_builder().previous_output(real_master_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_600 * CKB).pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(fake_lineage_output))
+        .input(input(real_master_input))
+        .output(cell(1_600 * CKB, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .witness(Bytes::new().pack())
         .witness(empty_witness().pack())
@@ -179,8 +139,5 @@ fn hybrid_fake_and_real_limit_order_match_keeps_real_master_on_real_metapoint() 
         1,
         1,
     );
-    let err = context
-        .verify(&fake_lineage_melt_with_real_master, MAX_CYCLES)
-        .unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+    fail(&context, &fake_lineage_melt_with_real_master, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }

@@ -10,67 +10,30 @@ fn mainnet_tx_30f8ed8a_phase1_and_limit_order_shape() {
     let xudt = xudt_script(&mut context, &ickb_logic);
 
     let ckb_input_1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x4dac4518c238").pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x4dac4518c238"), &user_lock, None),
         Bytes::new(),
     );
     let ckb_input_2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x2e90edcf91").pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x2e90edcf91"), &user_lock, None),
         Bytes::new(),
     );
     let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x372261400").pack())
-            .lock(user_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x372261400"), &user_lock, Some(&xudt)),
         bytes_from_hex("0x3dc895f28c4300000000000000000000"),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(ckb_input_1).build())
-        .input(CellInput::new_builder().previous_output(ckb_input_2).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(input(ckb_input_1))
+        .input(input(ckb_input_2))
+        .input(input(udt_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xadd2b97d89e").pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xadd2b97d89e").pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x283baec00").pack())
-                .lock(user_lock.clone())
-                .type_(Some(ickb_logic.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x23c346000").pack())
-                .lock(user_lock.clone())
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x641d5c5e1c4").pack())
-                .lock(limit_order.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x372261400").pack())
-                .lock(user_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x31d9e921a329").pack())
-                .lock(user_lock)
-                .build(),
+            cell(u64_from_hex("0xadd2b97d89e"), &ickb_logic, Some(&dao)),
+            cell(u64_from_hex("0xadd2b97d89e"), &ickb_logic, Some(&dao)),
+            cell(u64_from_hex("0x283baec00"), &user_lock, Some(&ickb_logic)),
+            cell(u64_from_hex("0x23c346000"), &user_lock, Some(&limit_order)),
+            cell(u64_from_hex("0x641d5c5e1c4"), &limit_order, Some(&xudt)),
+            cell(u64_from_hex("0x372261400"), &user_lock, Some(&xudt)),
+            cell(u64_from_hex("0x31d9e921a329"), &user_lock, None),
         ])
         .outputs_data(
             vec![
@@ -113,11 +76,7 @@ fn mainnet_tx_f9404724_mixed_phase2_and_limit_order_shape() {
     );
     context.create_cell_with_out_point(
         order_out_point.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x4a221e700").pack())
-            .lock(limit_order.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&xudt)),
         bytes_from_hex(
             "0x12f549ca3705000000000000000000000100000030f8ed8a415adae46b94626ddd986179ab9c3d88513c7c96edc2a62e46f250b9030000000000c16ff28623005b03be74cf7a2a000000000000000000000000000000000021",
         ),
@@ -128,26 +87,15 @@ fn mainnet_tx_f9404724_mixed_phase2_and_limit_order_shape() {
     );
     context.create_cell_with_out_point(
         master_input.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x23c346000").pack())
-            .lock(user_lock.clone())
-            .type_(Some(limit_order.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x23c346000"), &user_lock, Some(&limit_order)),
         Bytes::new(),
     );
     let change_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x31d9e921a329").pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x31d9e921a329"), &user_lock, None),
         Bytes::new(),
     );
     let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x372261400").pack())
-            .lock(user_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x372261400"), &user_lock, Some(&xudt)),
         bytes_from_hex("0x3dc895f28c4300000000000000000000"),
     );
     let receipt_out_point = out_point_from_hex(
@@ -156,11 +104,7 @@ fn mainnet_tx_f9404724_mixed_phase2_and_limit_order_shape() {
     );
     context.create_cell_with_out_point(
         receipt_out_point.clone(),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x283baec00").pack())
-            .lock(user_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x283baec00"), &user_lock, Some(&ickb_logic)),
         bytes_from_hex("0x020000009ec6d542db0a0000"),
     );
     let receipt_header = rpc_header(
@@ -171,21 +115,14 @@ fn mainnet_tx_f9404724_mixed_phase2_and_limit_order_shape() {
     link_cell_to_header(&mut context, &receipt_out_point, &receipt_header);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order_out_point).build())
-        .input(CellInput::new_builder().previous_output(master_input).build())
-        .input(CellInput::new_builder().previous_output(change_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
+        .input(input(order_out_point))
+        .input(input(master_input))
+        .input(input(change_input))
+        .input(input(udt_input))
+        .input(input(receipt_out_point))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x372261400").pack())
-                .lock(user_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x31e34b32ce59").pack())
-                .lock(user_lock)
-                .build(),
+            cell(u64_from_hex("0x372261400"), &user_lock, Some(&xudt)),
+            cell(u64_from_hex("0x31e34b32ce59"), &user_lock, None),
         ])
         .outputs_data(
             vec![

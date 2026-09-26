@@ -20,20 +20,12 @@ fn weak_lock_can_reassign_withdrawal_owner_output() {
         1554,
     );
 
-    let owned_output = CellOutput::new_builder()
-        .capacity(deposit_total_capacity.pack())
-        .lock(owned_owner.clone())
-        .type_(Some(dao).pack())
-        .build();
-    let owner_output = CellOutput::new_builder()
-        .capacity(occupied_capacity(&attacker_lock, &owned_owner, 4).pack())
-        .lock(attacker_lock)
-        .type_(Some(owned_owner).pack())
-        .build();
+    let owned_output = cell(deposit_total_capacity, &owned_owner, Some(&dao));
+    let owner_output = cell(occupied_capacity(&attacker_lock, &owned_owner, 4), &attacker_lock, Some(&owned_owner));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(input(deposit_input))
+        .input(input(udt_input))
         .outputs(vec![owned_output, owner_output])
         .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
         .header_dep(deposit_header.hash())
@@ -66,19 +58,11 @@ fn sighash_lock_binds_withdrawal_owner_output_to_the_signed_transaction() {
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(input(deposit_input))
+        .input(input(udt_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
+            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
+            cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
         ])
         .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
         .witness(Bytes::new().pack())
@@ -95,20 +79,11 @@ fn sighash_lock_binds_withdrawal_owner_output_to_the_signed_transaction() {
     let tampered_tx = tx
         .as_advanced_builder()
         .set_outputs(vec![
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(owned_owner)
-                .type_(Some(dao_script(&mut context)).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4).pack())
-                .lock(attacker_lock)
-                .type_(Some(owned_owner_script(&mut context)).pack())
-                .build(),
+            cell(deposit_total_capacity, &owned_owner, Some(&dao_script(&mut context))),
+            cell(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4), &attacker_lock, Some(&owned_owner_script(&mut context))),
         ])
         .build();
-    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
 // Scenario: a batch mixes one signed owner and one weak owner.
@@ -127,67 +102,23 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
     let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
     let header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(total1.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
-    let deposit2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(total2.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
+    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
     link_cell_to_header(&mut context, &deposit1, &header1);
     link_cell_to_header(&mut context, &deposit2, &header2);
-    let strong_udt = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
-        udt_data(u128::from(amount1)),
-    );
-    let weak_udt = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&weak_lock, &xudt, 16).pack())
-            .lock(weak_lock)
-            .type_(Some(xudt).pack())
-            .build(),
-        udt_data(u128::from(amount2)),
-    );
+    let strong_udt = create_udt(&mut context, &owner_lock, &xudt, u128::from(amount1));
+    let weak_udt = create_udt(&mut context, &weak_lock, &xudt, u128::from(amount2));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit1).build())
-        .input(CellInput::new_builder().previous_output(deposit2).build())
-        .input(CellInput::new_builder().previous_output(strong_udt).build())
-        .input(CellInput::new_builder().previous_output(weak_udt).build())
+        .input(input(deposit1))
+        .input(input(deposit2))
+        .input(input(strong_udt))
+        .input(input(weak_udt))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(total1.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(total2.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(owned_owner).pack())
-                .build(),
+            cell(total1, &owned_owner, Some(&dao)),
+            cell(total2, &owned_owner, Some(&dao)),
+            cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
+            cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
         ])
         .outputs_data(
             vec![
@@ -215,30 +146,13 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
     let tampered_tx = tx
         .as_advanced_builder()
         .set_outputs(vec![
-            CellOutput::new_builder()
-                .capacity(total1.pack())
-                .lock(owned_owner_script(&mut context))
-                .type_(Some(dao_script(&mut context)).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(total2.pack())
-                .lock(owned_owner_script(&mut context))
-                .type_(Some(dao_script(&mut context)).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4).pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(owned_owner_script(&mut context)).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4).pack())
-                .lock(attacker_lock)
-                .type_(Some(owned_owner_script(&mut context)).pack())
-                .build(),
+            cell(total1, &owned_owner_script(&mut context), Some(&dao_script(&mut context))),
+            cell(total2, &owned_owner_script(&mut context), Some(&dao_script(&mut context))),
+            cell(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4), &attacker_lock, Some(&owned_owner_script(&mut context))),
+            cell(occupied_capacity(&attacker_lock, &owned_owner_script(&mut context), 4), &attacker_lock, Some(&owned_owner_script(&mut context))),
         ])
         .build();
-    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
+    fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
 // Scenario: both withdrawal owners are weak locks.
@@ -257,67 +171,23 @@ fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {
     let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
     let header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     let header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(total1.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
-    let deposit2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(total2.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
+    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
     link_cell_to_header(&mut context, &deposit1, &header1);
     link_cell_to_header(&mut context, &deposit2, &header2);
-    let weak_udt_1 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&weak_lock_1, &xudt, 16).pack())
-            .lock(weak_lock_1)
-            .type_(Some(xudt.clone()).pack())
-            .build(),
-        udt_data(u128::from(amount1)),
-    );
-    let weak_udt_2 = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&weak_lock_2, &xudt, 16).pack())
-            .lock(weak_lock_2)
-            .type_(Some(xudt).pack())
-            .build(),
-        udt_data(u128::from(amount2)),
-    );
+    let weak_udt_1 = create_udt(&mut context, &weak_lock_1, &xudt, u128::from(amount1));
+    let weak_udt_2 = create_udt(&mut context, &weak_lock_2, &xudt, u128::from(amount2));
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit1).build())
-        .input(CellInput::new_builder().previous_output(deposit2).build())
-        .input(CellInput::new_builder().previous_output(weak_udt_1).build())
-        .input(CellInput::new_builder().previous_output(weak_udt_2).build())
+        .input(input(deposit1))
+        .input(input(deposit2))
+        .input(input(weak_udt_1))
+        .input(input(weak_udt_2))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(total1.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(total2.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &owned_owner, 4).pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&attacker_lock, &owned_owner, 4).pack())
-                .lock(attacker_lock)
-                .type_(Some(owned_owner).pack())
-                .build(),
+            cell(total1, &owned_owner, Some(&dao)),
+            cell(total2, &owned_owner, Some(&dao)),
+            cell(occupied_capacity(&attacker_lock, &owned_owner, 4), &attacker_lock, Some(&owned_owner)),
+            cell(occupied_capacity(&attacker_lock, &owned_owner, 4), &attacker_lock, Some(&owned_owner)),
         ])
         .outputs_data(
             vec![

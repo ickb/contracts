@@ -14,49 +14,21 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((200 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(200 * CKB, &funding_lock, None),
         Bytes::new(),
     );
-    let deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_total_capacity.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-    let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(xudt).pack())
-            .build(),
-        udt_data(u128::from(deposit_amount)),
-    );
+    let udt_input = create_udt(&mut context, &owner_lock, &xudt, u128::from(deposit_amount));
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
+        .input(input(funding_input))
+        .input(input(udt_input))
+        .input(input(deposit_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((100 * CKB).pack())
-                .lock(filler_lock)
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
+            cell(100 * CKB, &filler_lock, None),
+            cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
+            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
         ])
         .outputs_data(
             vec![
@@ -105,13 +77,8 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(exact_capacity.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_out_point))
+        .output(cell(exact_capacity, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -138,49 +105,21 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((200 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(200 * CKB, &funding_lock, None),
         Bytes::new(),
     );
-    let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(xudt).pack())
-            .build(),
-        udt_data(u128::from(deposit_amount)),
-    );
-    let deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_total_capacity.pack())
-            .lock(ickb_logic)
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let udt_input = create_udt(&mut context, &owner_lock, &xudt, u128::from(deposit_amount));
+    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
+        .input(input(funding_input))
+        .input(input(udt_input))
+        .input(input(deposit_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((100 * CKB).pack())
-                .lock(filler_lock)
-                .build(),
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
+            cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
+            cell(100 * CKB, &filler_lock, None),
+            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
         ])
         .outputs_data(
             vec![
@@ -229,13 +168,8 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(exact_capacity.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_out_point))
+        .output(cell(exact_capacity, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -260,57 +194,26 @@ fn secp_protected_sparse_pair_can_complete_signed_phase2_claim() {
     let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((100 * CKB).pack())
-            .lock(owner_lock.clone())
-            .build(),
+        cell(100 * CKB, &owner_lock, None),
         Bytes::new(),
     );
     let filler_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((100 * CKB).pack())
-            .lock(filler_lock.clone())
-            .build(),
+        cell(100 * CKB, &filler_lock, None),
         Bytes::new(),
     );
-    let deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_total_capacity.pack())
-            .lock(ickb_logic)
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
     link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-    let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
-            .lock(owner_lock.clone())
-            .type_(Some(xudt).pack())
-            .build(),
-        udt_data(u128::from(deposit_amount)),
-    );
+    let udt_input = create_udt(&mut context, &owner_lock, &xudt, u128::from(deposit_amount));
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .input(CellInput::new_builder().previous_output(filler_input).build())
-        .input(CellInput::new_builder().previous_output(deposit_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
+        .input(input(funding_input))
+        .input(input(filler_input))
+        .input(input(deposit_input))
+        .input(input(udt_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &owned_owner, 4).pack())
-                .lock(owner_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((100 * CKB).pack())
-                .lock(filler_lock)
-                .build(),
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
+            cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
+            cell(100 * CKB, &filler_lock, None),
+            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
         ])
         .outputs_data(
             vec![
@@ -350,13 +253,8 @@ fn secp_protected_sparse_pair_can_complete_signed_phase2_claim() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(owner_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(exact_capacity.pack())
-                .lock(owner_lock)
-                .build(),
-        )
+        .input(input(owner_out_point))
+        .output(cell(exact_capacity, &owner_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())

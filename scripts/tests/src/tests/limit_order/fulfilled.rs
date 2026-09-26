@@ -8,29 +8,20 @@ fn fulfilled_ckb_to_udt_shape_fails_as_invalid_match() {
     let master = OutPoint::new(Byte32::zero(), 5);
 
     let input_order = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 0).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order, &helper_type, 89, 0), &limit_order, Some(&helper_type)),
         order_data_match(0, &master, (1, 1)),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input_order).build())
+        .input(input(input_order))
         .output(
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 0).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
+            cell(deposit_capacity(&limit_order, &helper_type, 89, 0), &limit_order, Some(&helper_type)),
         )
         .output_data(order_data_match(1, &master, (1, 1)).pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_MATCH);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_INVALID_MATCH);
 }
 
 // Forge a fulfilled UDT->CKB-shaped cell and try to continue it; this shape never reaches the inner fulfilled guard and instead fails the outer match validation.
@@ -40,34 +31,20 @@ fn fulfilled_udt_to_ckb_shape_cannot_reach_guard_and_fails_as_invalid_match() {
     let (funding_lock, limit_order, helper_type) = funding_limit_order_and_helper_type_scripts(&mut context);
 
     let input_order = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB), &limit_order, Some(&helper_type)),
         order_data_custom(0, 1, [0u8; 32], 5u32.to_le_bytes(), (0, 0), (1, 1), 4),
     );
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((100 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(100 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input_order).build())
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(input_order))
+        .input(input(funding_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((80 * CKB).pack())
-                .lock(funding_lock)
-                .build(),
+            cell(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB), &limit_order, Some(&helper_type)),
+            cell(80 * CKB, &funding_lock, None),
         ])
         .outputs_data(
             vec![
@@ -81,6 +58,5 @@ fn fulfilled_udt_to_ckb_shape_cannot_reach_guard_and_fails_as_invalid_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_INVALID_MATCH);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_INVALID_MATCH);
 }

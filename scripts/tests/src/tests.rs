@@ -84,13 +84,13 @@ impl VerifyRealistic for Context {
 fn verify_rejects_a_cell_below_its_occupied_capacity() {
     let mut context = Context::default();
     let lock = always_success_lock(&mut context);
-    let input = context.create_cell(
-        CellOutput::new_builder().capacity((1_000 * CKB).pack()).lock(lock.clone()).build(),
+    let funding = context.create_cell(
+        cell(1_000 * CKB, &lock, None),
         Bytes::new(),
     );
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input).build())
-        .output(CellOutput::new_builder().capacity((40 * CKB).pack()).lock(lock).build())
+        .input(input(funding))
+        .output(cell(40 * CKB, &lock, None))
         .output_data(Bytes::new().pack())
         .build();
     let tx = context.complete_tx(tx);
@@ -105,15 +105,12 @@ fn verify_rejects_a_withdrawal_request_whose_lock_size_differs() {
     let request_lock = always_success_lock(&mut context);
     let dao = dao_script(&mut context);
     let capacity = 1_000 * CKB;
-    let deposit = context.create_cell(
-        CellOutput::new_builder().capacity(capacity.pack()).lock(deposit_lock).type_(Some(dao.clone()).pack()).build(),
-        dao_deposit_data(),
-    );
+    let deposit = create_deposit(&mut context, capacity, &deposit_lock, &dao);
     let header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
     link_cell_to_header(&mut context, &deposit, &header);
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(deposit).build())
-        .output(CellOutput::new_builder().capacity(capacity.pack()).lock(request_lock).type_(Some(dao).pack()).build())
+        .input(input(deposit))
+        .output(cell(capacity, &request_lock, Some(&dao)))
         .output_data(withdrawal_request_data(1554).pack())
         .header_dep(header.hash())
         .build();
@@ -175,6 +172,10 @@ fn assert_script_error(err: Error, err_code: i8) {
     );
 }
 
+fn fail(context: &Context, tx: &TransactionView, err_code: i8) {
+    assert_script_error(context.verify(tx, MAX_CYCLES).unwrap_err(), err_code);
+}
+
 fn assert_script_error_in(err: Error, err_codes: &[i8]) {
     let error_string = err.to_string();
     assert!(
@@ -198,42 +199,23 @@ fn type_role_scan_with_512_unrelated_outputs_stays_within_test_cycle_budget() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
     let deposit_amount = 1_000 * CKB;
     let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
-    let receipt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
-            .lock(user_lock.clone())
-            .type_(Some(ickb_logic).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_input = create_receipt(&mut context, &user_lock, &ickb_logic, 1, deposit_amount);
     link_cell_to_header(&mut context, &receipt_input, &deposit_header);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(((PADDING_OUTPUTS as u64 + 1) * 100 * CKB).pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell((PADDING_OUTPUTS as u64 + 1) * 100 * CKB, &user_lock, None),
         Bytes::new(),
     );
 
-    let mut outputs = vec![CellOutput::new_builder()
-            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
-            .lock(user_lock.clone())
-            .type_(Some(xudt).pack())
-            .build()];
+    let mut outputs = vec![cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt))];
     let mut outputs_data = vec![udt_data(u128::from(deposit_amount))];
     for _ in 0..PADDING_OUTPUTS {
-        outputs.push(
-            CellOutput::new_builder()
-                .capacity((100 * CKB).pack())
-                .lock(user_lock.clone())
-                .build(),
-        );
+        outputs.push(cell(100 * CKB, &user_lock, None));
         outputs_data.push(Bytes::new());
     }
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_input).build())
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(receipt_input))
+        .input(input(funding_input))
         .outputs(outputs)
         .outputs_data(outputs_data.pack())
         .header_dep(deposit_header.hash())
@@ -283,54 +265,34 @@ fn scaffolding_tests_fail_for_the_reasons_reported() {
     let mut context = Context::default();
     let ickb_logic = data1_script(&mut context, "ickb_logic", Bytes::from(vec![42]));
     let input_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1000 * CKB).pack())
-            .lock(ickb_logic.clone())
-            .build(),
+        cell(1000 * CKB, &ickb_logic, None),
         Bytes::new(),
     );
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input_out_point).build())
+        .input(input(input_out_point))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((500 * CKB).pack())
-                .lock(ickb_logic.clone())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((500 * CKB).pack())
-                .lock(ickb_logic)
-                .build(),
+            cell(500 * CKB, &ickb_logic, None),
+            cell(500 * CKB, &ickb_logic, None),
         ])
         .outputs_data(vec![Bytes::new(), Bytes::new()].pack())
         .build();
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &tx, ERROR_NOT_EMPTY_ARGS);
 
     let mut context = Context::default();
     let ickb_logic = ickb_logic_script(&mut context);
     let input_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((1000 * CKB).pack())
-            .lock(ickb_logic.clone())
-            .build(),
+        cell(1000 * CKB, &ickb_logic, None),
         Bytes::new(),
     );
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input_out_point).build())
+        .input(input(input_out_point))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity((500 * CKB).pack())
-                .lock(ickb_logic.clone())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((500 * CKB).pack())
-                .lock(ickb_logic)
-                .build(),
+            cell(500 * CKB, &ickb_logic, None),
+            cell(500 * CKB, &ickb_logic, None),
         ])
         .outputs_data(vec![Bytes::new(), Bytes::new()].pack())
         .build();
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_SCRIPT_MISUSE);
+    fail(&context, &tx, ERROR_SCRIPT_MISUSE);
 }

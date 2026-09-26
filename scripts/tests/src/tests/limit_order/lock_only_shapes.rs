@@ -8,21 +8,14 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
     let limit_order_non_empty = data1_script(&mut context, "limit_order", Bytes::from(vec![1]));
     let helper_type = helper_type_script(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .output(
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 89, 1_500 * CKB).pack())
-                .lock(limit_order_non_empty.clone())
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
+            cell(deposit_capacity(&limit_order_non_empty, &helper_type, 89, 1_500 * CKB), &limit_order_non_empty, Some(&helper_type)),
         )
         .output_data(order_data_mint(0, 1, (1, 1)).pack())
         .build();
@@ -32,26 +25,16 @@ fn non_empty_args_output_lock_can_be_created_but_not_spent() {
         .expect("non-empty-args limit_order output lock can be created because output locks do not execute");
 
     let out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order_non_empty, &helper_type, 89, 1_500 * CKB).pack())
-            .lock(limit_order_non_empty.clone())
-            .type_(Some(helper_type).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order_non_empty, &helper_type, 89, 1_500 * CKB), &limit_order_non_empty, Some(&helper_type)),
         order_data_mint(0, 1, (1, 1)),
     );
     let spend_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((1_500 * CKB).pack())
-                .lock(always_success_lock(&mut context))
-                .build(),
-        )
+        .input(input(out_point))
+        .output(cell(1_500 * CKB, &always_success_lock(&mut context), None))
         .output_data(Bytes::new().pack())
         .build();
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &spend_tx, ERROR_NOT_EMPTY_ARGS);
 }
 
 // Forge a cell that uses `limit_order` as both lock and type so the type script executes immediately and rejects the misuse at creation.
@@ -61,28 +44,20 @@ fn cell_using_limit_order_as_both_lock_and_type_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     let limit_order = limit_order_script(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2_000 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(2_000 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&limit_order, &limit_order, 0).pack())
-                .lock(limit_order.clone())
-                .type_(Some(limit_order).pack())
-                .build(),
+            cell(occupied_capacity(&limit_order, &limit_order, 0), &limit_order, Some(&limit_order)),
         )
         .output_data(Bytes::new().pack())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_SCRIPT_MISUSE);
+    fail(&context, &tx, ERROR_LIMIT_ORDER_SCRIPT_MISUSE);
 }
 
 // Create a lock-only output with undecodable order bytes, then spend it and fail once the input lock parses the malformed payload.
@@ -160,15 +135,12 @@ fn lock_only_limit_order_missing_udt_type_returns_typed_error_at_valid_capacity(
         .expect("occupied capacity")
         .as_u64();
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((200 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(200 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .output(
             forged_output
                 .clone()
@@ -188,19 +160,13 @@ fn lock_only_limit_order_missing_udt_type_returns_typed_error_at_valid_capacity(
         order_data_custom(0, 0, [0u8; 32], 5i32.to_le_bytes(), (1, 1), (0, 0), 0),
     );
     let spend_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(forged_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity((200 * CKB).pack())
-                .lock(always_success_lock(&mut context))
-                .build(),
-        )
+        .input(input(forged_out_point))
+        .output(cell(200 * CKB, &always_success_lock(&mut context), None))
         .output_data(Bytes::new().pack())
         .build();
 
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_LIMIT_ORDER_MISSING_UDT_TYPE);
+    fail(&context, &spend_tx, ERROR_LIMIT_ORDER_MISSING_UDT_TYPE);
 }
 
 // Create a lock-only output with valid mint data plus trailing bytes, then spend it and fail on the input-side length check.

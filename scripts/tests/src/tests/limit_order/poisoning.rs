@@ -8,38 +8,21 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
     let poisoned_lock = data1_script(&mut context, "limit_order", Bytes::from(vec![1]));
 
     let input_order = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB), &limit_order, Some(&helper_type)),
         order_data_custom(100, 1, [0u8; 32], 5u32.to_le_bytes(), (0, 0), (1, 1), 4),
     );
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((100 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(100 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input_order).build())
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(input_order))
+        .input(input(funding_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((80 * CKB).pack())
-                .lock(funding_lock)
-                .build(),
-            CellOutput::new_builder()
-                .capacity((200 * CKB).pack())
-                .lock(poisoned_lock)
-                .build(),
+            cell(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB), &limit_order, Some(&helper_type)),
+            cell(80 * CKB, &funding_lock, None),
+            cell(200 * CKB, &poisoned_lock, None),
         ])
         .outputs_data(
             vec![
@@ -52,8 +35,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &tx, ERROR_NOT_EMPTY_ARGS);
 }
 
 // Run the same valid match while also creating a plausible order-shaped output under non-empty-args `limit_order`; the extra output lock still executes and aborts the tx.
@@ -66,39 +48,21 @@ fn order_shaped_non_empty_args_output_poisons_match() {
     let helper_type = helper_type_script(&mut context);
 
     let input_order = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB), &limit_order, Some(&helper_type)),
         order_data_custom(100, 1, [0u8; 32], 5u32.to_le_bytes(), (0, 0), (1, 1), 4),
     );
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((400 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(400 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input_order).build())
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(input_order))
+        .input(input(funding_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((80 * CKB).pack())
-                .lock(funding_lock)
-                .build(),
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&poisoned_lock, &helper_type, 89, 300 * CKB).pack())
-                .lock(poisoned_lock)
-                .type_(Some(helper_type).pack())
-                .build(),
+            cell(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB), &limit_order, Some(&helper_type)),
+            cell(80 * CKB, &funding_lock, None),
+            cell(deposit_capacity(&poisoned_lock, &helper_type, 89, 300 * CKB), &poisoned_lock, Some(&helper_type)),
         ])
         .outputs_data(
             vec![
@@ -111,8 +75,7 @@ fn order_shaped_non_empty_args_output_poisons_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &tx, ERROR_NOT_EMPTY_ARGS);
 }
 
 // Run a valid match but include an unrelated master sibling whose type is non-empty-args `limit_order`; that extra input-side script executes and poisons verification.
@@ -126,43 +89,25 @@ fn non_empty_args_master_sibling_poisons_match() {
     let helper_type = helper_type_script(&mut context);
 
     let input_order = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB).pack())
-            .lock(limit_order.clone())
-            .type_(Some(helper_type.clone()).pack())
-            .build(),
+        cell(deposit_capacity(&limit_order, &helper_type, 89, 1_500 * CKB), &limit_order, Some(&helper_type)),
         order_data_custom(100, 1, [0u8; 32], 5u32.to_le_bytes(), (0, 0), (1, 1), 4),
     );
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((100 * CKB).pack())
-            .lock(funding_lock.clone())
-            .build(),
+        cell(100 * CKB, &funding_lock, None),
         Bytes::new(),
     );
     let poisoned_master_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((200 * CKB).pack())
-            .lock(owner_lock)
-            .type_(Some(poisoned_master_type).pack())
-            .build(),
+        cell(200 * CKB, &owner_lock, Some(&poisoned_master_type)),
         Bytes::new(),
     );
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(input_order).build())
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .input(CellInput::new_builder().previous_output(poisoned_master_input).build())
+        .input(input(input_order))
+        .input(input(funding_input))
+        .input(input(poisoned_master_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB).pack())
-                .lock(limit_order)
-                .type_(Some(helper_type).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity((80 * CKB).pack())
-                .lock(funding_lock)
-                .build(),
+            cell(deposit_capacity(&limit_order, &helper_type, 89, 1_520 * CKB), &limit_order, Some(&helper_type)),
+            cell(80 * CKB, &funding_lock, None),
         ])
         .outputs_data(
             vec![
@@ -174,6 +119,5 @@ fn non_empty_args_master_sibling_poisons_match() {
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_NOT_EMPTY_ARGS);
+    fail(&context, &tx, ERROR_NOT_EMPTY_ARGS);
 }

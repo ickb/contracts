@@ -10,22 +10,13 @@ fn receiptless_dao_shaped_output_is_accepted_as_deposit() {
     let deposit_amount = 1_500 * CKB;
     let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, deposit_amount);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_total_capacity.pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(deposit_total_capacity, &user_lock, None),
         Bytes::new(),
     );
 
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-        )
+        .input(input(funding_input))
+        .output(cell(deposit_total_capacity, &ickb_logic, Some(&dao)))
         .output_data(dao_deposit_data().pack())
         .build();
 
@@ -34,36 +25,16 @@ fn receiptless_dao_shaped_output_is_accepted_as_deposit() {
         .verify(&create_tx, MAX_CYCLES)
         .expect("receiptless DAO-shaped ickb_logic output can be created at output-lock creation time");
 
-    let receiptless_deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_total_capacity.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let receiptless_deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     link_cell_to_header(&mut context, &receiptless_deposit_input, &deposit_header);
 
-    let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
-            .lock(user_lock.clone())
-            .type_(Some(xudt).pack())
-            .build(),
-        udt_data(u128::from(deposit_amount)),
-    );
+    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(deposit_amount));
 
     let withdraw_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receiptless_deposit_input).build())
-        .input(CellInput::new_builder().previous_output(udt_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(user_lock)
-                .type_(Some(dao).pack())
-                .build(),
-        )
+        .input(input(receiptless_deposit_input))
+        .input(input(udt_input))
+        .output(cell(deposit_total_capacity, &user_lock, Some(&dao)))
         .output_data(withdrawal_request_data(1554).pack())
         .header_dep(deposit_header.hash())
         .build();
@@ -86,21 +57,12 @@ fn receiptless_deposits_below_the_minimum_are_created_and_withdrawn_at_value() {
         let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, deposit_amount);
 
         let funding_input = context.create_cell(
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(user_lock.clone())
-                .build(),
+            cell(deposit_total_capacity, &user_lock, None),
             Bytes::new(),
         );
         let create_tx = TransactionBuilder::default()
-            .input(CellInput::new_builder().previous_output(funding_input).build())
-            .output(
-                CellOutput::new_builder()
-                    .capacity(deposit_total_capacity.pack())
-                    .lock(ickb_logic.clone())
-                    .type_(Some(dao.clone()).pack())
-                    .build(),
-            )
+            .input(input(funding_input))
+            .output(cell(deposit_total_capacity, &ickb_logic, Some(&dao)))
             .output_data(dao_deposit_data().pack())
             .build();
         let create_tx = context.complete_tx(create_tx);
@@ -108,14 +70,7 @@ fn receiptless_deposits_below_the_minimum_are_created_and_withdrawn_at_value() {
             .verify(&create_tx, MAX_CYCLES)
             .expect("a receiptless deposit below the minimum is created without running the bounds check");
 
-        let deposit_input = context.create_cell(
-            CellOutput::new_builder()
-                .capacity(deposit_total_capacity.pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            dao_deposit_data(),
-        );
+        let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
         let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
         link_cell_to_header(&mut context, &deposit_input, &deposit_header);
 
@@ -126,26 +81,13 @@ fn receiptless_deposits_below_the_minimum_are_created_and_withdrawn_at_value() {
         }
         for burned in burns {
             let mut builder = TransactionBuilder::default()
-                .input(CellInput::new_builder().previous_output(deposit_input.clone()).build());
+                .input(input(deposit_input.clone()));
             if burned > 0 {
-                let udt_input = context.create_cell(
-                    CellOutput::new_builder()
-                        .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
-                        .lock(user_lock.clone())
-                        .type_(Some(xudt.clone()).pack())
-                        .build(),
-                    udt_data(burned),
-                );
-                builder = builder.input(CellInput::new_builder().previous_output(udt_input).build());
+                let udt_input = create_udt(&mut context, &user_lock, &xudt, burned);
+                builder = builder.input(input(udt_input));
             }
             let withdraw_tx = builder
-                .output(
-                    CellOutput::new_builder()
-                        .capacity(deposit_total_capacity.pack())
-                        .lock(user_lock.clone())
-                        .type_(Some(dao.clone()).pack())
-                        .build(),
-                )
+                .output(cell(deposit_total_capacity, &user_lock, Some(&dao)))
                 .output_data(withdrawal_request_data(1554).pack())
                 .header_dep(deposit_header.hash())
                 .build();
@@ -179,21 +121,12 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
     assert_eq!(delta, u128::from(10_000 * CKB));
 
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(aggregate_total_capacity.pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(aggregate_total_capacity, &user_lock, None),
         Bytes::new(),
     );
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(aggregate_total_capacity.pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-        )
+        .input(input(funding_input))
+        .output(cell(aggregate_total_capacity, &ickb_logic, Some(&dao)))
         .output_data(dao_deposit_data().pack())
         .build();
     let create_tx = context.complete_tx(create_tx);
@@ -201,44 +134,22 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
         .verify(&create_tx, MAX_CYCLES)
         .expect("aggregate receiptless deposit creation is allowed at output-lock creation time");
 
-    let receiptless_aggregate_deposit = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(aggregate_total_capacity.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let receiptless_aggregate_deposit = create_deposit(&mut context, aggregate_total_capacity, &ickb_logic, &dao);
     let shared_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     link_cell_to_header(&mut context, &receiptless_aggregate_deposit, &shared_header);
 
-    let receipt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
-            .lock(user_lock.clone())
-            .type_(Some(ickb_logic).pack())
-            .build(),
-        receipt_data(2, split_amount),
-    );
+    let receipt_input = create_receipt(&mut context, &user_lock, &ickb_logic, 2, split_amount);
     link_cell_to_header(&mut context, &receipt_input, &shared_header);
 
     // The receipt contributes only the valuation delta between per-deposit and aggregate soft-cap treatment.
     // The separately funded aggregate principal stays in the DAO withdrawal output below.
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receiptless_aggregate_deposit).build())
-        .input(CellInput::new_builder().previous_output(receipt_input).build())
-        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
+        .input(input(receiptless_aggregate_deposit))
+        .input(input(receipt_input))
+        .input(input(funding_cell(&mut context)))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(aggregate_total_capacity.pack())
-                .lock(user_lock.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
-                .lock(user_lock)
-                .type_(Some(xudt).pack())
-                .build(),
+            cell(aggregate_total_capacity, &user_lock, Some(&dao)),
+            cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt)),
         ])
         .outputs_data(vec![withdrawal_request_data(1554), udt_data(delta)].pack())
         .header_dep(shared_header.hash())
@@ -253,8 +164,7 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
         .as_advanced_builder()
         .set_outputs_data(vec![withdrawal_request_data(1554).pack(), udt_data(delta + 1).pack()])
         .build();
-    let err = context.verify(&tampered_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_AMOUNT_MISMATCH);
+    fail(&context, &tampered_tx, ERROR_AMOUNT_MISMATCH);
 }
 
 // Verify one continuous split-deposit receipt, receiptless creation, delta-only spread, and DAO phase2 claim trajectory: each later input keeps the preceding verified output's tx hash and index.
@@ -273,34 +183,15 @@ fn verified_receiptless_creation_spread_and_claim_trajectory() {
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
     let split_funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((2 * split_total_capacity + capacity_for_data(16)).pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(2 * split_total_capacity + capacity_for_data(16), &user_lock, None),
         Bytes::new(),
     );
     let split_tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(split_funding_input)
-                .build(),
-        )
+        .input(input(split_funding_input))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(split_total_capacity.pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(split_total_capacity.pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
-                .lock(user_lock.clone())
-                .type_(Some(ickb_logic.clone()).pack())
-                .build(),
+            cell(split_total_capacity, &ickb_logic, Some(&dao)),
+            cell(split_total_capacity, &ickb_logic, Some(&dao)),
+            cell(occupied_capacity(&user_lock, &ickb_logic, 12), &user_lock, Some(&ickb_logic)),
         ])
         .outputs_data(
             vec![
@@ -328,21 +219,12 @@ fn verified_receiptless_creation_spread_and_claim_trajectory() {
     link_cell_to_header(&mut context, &receipt_input, &deposit_header);
 
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(aggregate_total_capacity.pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(aggregate_total_capacity, &user_lock, None),
         Bytes::new(),
     );
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(aggregate_total_capacity.pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-        )
+        .input(input(funding_input))
+        .output(cell(aggregate_total_capacity, &ickb_logic, Some(&dao)))
         .output_data(dao_deposit_data().pack())
         .build();
     let create_tx = context.complete_tx(create_tx);
@@ -361,20 +243,12 @@ fn verified_receiptless_creation_spread_and_claim_trajectory() {
     // This is the same delta-only mint path as above, then a DAO phase2 claim.
     // The claim demonstrates that the self-funded aggregate principal stays spendable after minting only the spread.
     let mint_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receiptless_aggregate_deposit).build())
-        .input(CellInput::new_builder().previous_output(receipt_input).build())
-        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
+        .input(input(receiptless_aggregate_deposit))
+        .input(input(receipt_input))
+        .input(input(funding_cell(&mut context)))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(aggregate_total_capacity.pack())
-                .lock(user_lock.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
-                .lock(user_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
+            cell(aggregate_total_capacity, &user_lock, Some(&dao)),
+            cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt)),
         ])
         .outputs_data(vec![withdrawal_request_data(1554), udt_data(delta)].pack())
         .header_dep(deposit_header.hash())
@@ -407,12 +281,7 @@ fn verified_receiptless_creation_spread_and_claim_trajectory() {
                 .since(0x2003e800000002f4u64.pack())
                 .build(),
         )
-        .output(
-            CellOutput::new_builder()
-                .capacity(claim_capacity.pack())
-                .lock(user_lock)
-                .build(),
-        )
+        .output(cell(claim_capacity, &user_lock, None))
         .output_data(Bytes::new().pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
@@ -436,37 +305,21 @@ fn receiptless_aggregate_alone_cannot_mint_spread() {
     let delta = u128::from(10_000 * CKB);
     let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
 
-    let receiptless_aggregate_deposit = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(aggregate_total_capacity.pack())
-            .lock(ickb_logic)
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let receiptless_aggregate_deposit = create_deposit(&mut context, aggregate_total_capacity, &ickb_logic, &dao);
     link_cell_to_header(&mut context, &receiptless_aggregate_deposit, &deposit_header);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receiptless_aggregate_deposit).build())
+        .input(input(receiptless_aggregate_deposit))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(aggregate_total_capacity.pack())
-                .lock(user_lock.clone())
-                .type_(Some(dao).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
-                .lock(user_lock)
-                .type_(Some(xudt).pack())
-                .build(),
+            cell(aggregate_total_capacity, &user_lock, Some(&dao)),
+            cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt)),
         ])
         .outputs_data(vec![withdrawal_request_data(1554), udt_data(delta)].pack())
         .header_dep(deposit_header.hash())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_AMOUNT_MISMATCH);
+    fail(&context, &tx, ERROR_AMOUNT_MISMATCH);
 }
 
 // Build the same receiptless-aggregate-plus-split-receipt pattern at 20x size: the larger aggregate should still pass while realizing a proportionally larger soft-cap spread, showing the blind spot scales with aggregate size.
@@ -485,21 +338,12 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
     assert_eq!(delta, u128::from(190_000 * CKB));
 
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(aggregate_total_capacity.pack())
-            .lock(user_lock.clone())
-            .build(),
+        cell(aggregate_total_capacity, &user_lock, None),
         Bytes::new(),
     );
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(aggregate_total_capacity.pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-        )
+        .input(input(funding_input))
+        .output(cell(aggregate_total_capacity, &ickb_logic, Some(&dao)))
         .output_data(dao_deposit_data().pack())
         .build();
     let create_tx = context.complete_tx(create_tx);
@@ -507,42 +351,20 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
         .verify(&create_tx, MAX_CYCLES)
         .expect("oversized aggregate receiptless deposit can still be created at output-lock creation time");
 
-    let receiptless_aggregate_deposit = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(aggregate_total_capacity.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let receiptless_aggregate_deposit = create_deposit(&mut context, aggregate_total_capacity, &ickb_logic, &dao);
     let shared_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
     link_cell_to_header(&mut context, &receiptless_aggregate_deposit, &shared_header);
 
-    let receipt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&user_lock, &ickb_logic, 12).pack())
-            .lock(user_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(quantity, split_amount),
-    );
+    let receipt_input = create_receipt(&mut context, &user_lock, &ickb_logic, quantity, split_amount);
     link_cell_to_header(&mut context, &receipt_input, &shared_header);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receiptless_aggregate_deposit).build())
-        .input(CellInput::new_builder().previous_output(receipt_input).build())
-        .input(CellInput::new_builder().previous_output(funding_cell(&mut context)).build())
+        .input(input(receiptless_aggregate_deposit))
+        .input(input(receipt_input))
+        .input(input(funding_cell(&mut context)))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(aggregate_total_capacity.pack())
-                .lock(user_lock.clone())
-                .type_(Some(dao).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&user_lock, &xudt, 16).pack())
-                .lock(user_lock)
-                .type_(Some(xudt).pack())
-                .build(),
+            cell(aggregate_total_capacity, &user_lock, Some(&dao)),
+            cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt)),
         ])
         .outputs_data(vec![withdrawal_request_data(1554), udt_data(delta)].pack())
         .header_dep(shared_header.hash())

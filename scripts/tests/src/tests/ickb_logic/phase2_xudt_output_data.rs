@@ -8,26 +8,15 @@ fn phase2_mint_accepts_xudt_data_with_trailing_bytes() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
 
     let mut output_data = udt_data(u128::from(deposit_amount)).to_vec();
     output_data.push(0xaa);
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
+        .input(input(receipt_out_point))
         .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, output_data.len()).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
+            cell(occupied_capacity(&funding_lock, &xudt, output_data.len()), &funding_lock, Some(&xudt)),
         )
         .output_data(Bytes::from(output_data).pack())
         .header_dep(receipt_header.clone())
@@ -47,32 +36,18 @@ fn phase2_mint_rejects_short_xudt_output_data() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 8).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 8), &funding_lock, Some(&xudt)))
         .output_data(truncated_bytes(udt_data(u128::from(deposit_amount)), 8).pack())
         .header_dep(receipt_header.clone())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_ENCODING);
+    fail(&context, &tx, ERROR_ENCODING);
 }
 
 // Build a phase2 mint whose xUDT output data is empty: there is no encoded amount at all, so the output data shape is invalid and verification fails.
@@ -83,30 +58,16 @@ fn phase2_mint_rejects_zero_length_xudt_output_data() {
     let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&funding_lock, &ickb_logic, 12).pack())
-            .lock(funding_lock.clone())
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
-        receipt_data(1, deposit_amount),
-    );
+    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
     let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
 
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(receipt_out_point).build())
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&funding_lock, &xudt, 0).pack())
-                .lock(funding_lock)
-                .type_(Some(xudt).pack())
-                .build(),
-        )
+        .input(input(receipt_out_point))
+        .output(cell(occupied_capacity(&funding_lock, &xudt, 0), &funding_lock, Some(&xudt)))
         .output_data(Bytes::new().pack())
         .header_dep(receipt_header.clone())
         .build();
 
     let tx = context.complete_tx(tx);
-    let err = context.verify(&tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, ERROR_ENCODING);
+    fail(&context, &tx, ERROR_ENCODING);
 }

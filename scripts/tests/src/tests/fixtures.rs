@@ -129,12 +129,7 @@ pub(super) fn dao_dep_out_point(context: &mut Context) -> OutPoint {
     let data = Bytes::from(BUNDLED_CELL.get("specs/cells/dao").expect("bundled dao cell").into_owned());
     let lock = always_success_lock(context);
     let type_script = build_genesis_type_id_script(OUTPUT_INDEX_DAO);
-    let cell = CellOutput::new_builder()
-        .lock(lock)
-        .type_(Some(type_script).pack())
-        .capacity(capacity_for_data(data.len() as u64).pack())
-        .build();
-    context.create_cell(cell, data)
+    context.create_cell(cell(capacity_for_data(data.len() as u64), &lock, Some(&type_script)), data)
 }
 
 pub(super) fn dao_script(context: &mut Context) -> Script {
@@ -153,11 +148,40 @@ pub(super) fn capacity_for_data(data_len: u64) -> u64 {
     100 * CKB + data_len
 }
 
+/// A cell output with this capacity, lock and optional type.
+pub(super) fn cell(capacity: u64, lock: &Script, type_: Option<&Script>) -> CellOutput {
+    CellOutput::new_builder()
+        .capacity(capacity.pack())
+        .lock(lock.clone())
+        .type_(type_.cloned().pack())
+        .build()
+}
+
+/// A transaction input spending this out point.
+pub(super) fn input(out_point: OutPoint) -> CellInput {
+    CellInput::new_builder().previous_output(out_point).build()
+}
+
+/// A live xUDT cell holding this amount, sized at its occupied capacity.
+pub(super) fn create_udt(context: &mut Context, lock: &Script, xudt: &Script, amount: u128) -> OutPoint {
+    context.create_cell(cell(occupied_capacity(lock, xudt, 16), lock, Some(xudt)), udt_data(amount))
+}
+
+/// A live receipt cell for `quantity` deposits of `amount`, sized at its occupied capacity.
+pub(super) fn create_receipt(context: &mut Context, lock: &Script, ickb_logic: &Script, quantity: u32, amount: u64) -> OutPoint {
+    context.create_cell(cell(occupied_capacity(lock, ickb_logic, 12), lock, Some(ickb_logic)), receipt_data(quantity, amount))
+}
+
+/// A live NervosDAO deposit cell with this total capacity.
+pub(super) fn create_deposit(context: &mut Context, capacity: u64, lock: &Script, dao: &Script) -> OutPoint {
+    context.create_cell(cell(capacity, lock, Some(dao)), dao_deposit_data())
+}
+
 /// A plain CKB cell that funds a transaction's outputs, as a wallet adds one on chain.
 pub(super) fn funding_cell(context: &mut Context) -> OutPoint {
     let lock = named_always_success_lock(context, b"funding");
     context.create_cell(
-        CellOutput::new_builder().capacity((1_000 * CKB).pack()).lock(lock).build(),
+        cell(1_000 * CKB, &lock, None),
         Bytes::new(),
     )
 }
@@ -289,11 +313,7 @@ pub(super) fn create_receipt_input(
     accumulated_rate: u64,
 ) -> (OutPoint, Byte32) {
     let receipt_out_point = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(capacity_for_data(data.len() as u64).pack())
-            .lock(lock)
-            .type_(Some(ickb_logic.clone()).pack())
-            .build(),
+        cell(capacity_for_data(data.len() as u64), &lock, Some(ickb_logic)),
         data,
     );
     let receipt_header = insert_header_for_cell(context, &receipt_out_point, block_number, accumulated_rate);
@@ -312,23 +332,9 @@ pub(super) fn create_withdrawal_inputs(
 ) -> (u64, ckb_testtool::ckb_types::core::HeaderView, OutPoint, OutPoint) {
     let (deposit_total_capacity, deposit_header) =
         deposit_total_capacity_and_header(ickb_logic, dao, deposit_amount, deposit_number);
-    let deposit_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(deposit_total_capacity.pack())
-            .lock(ickb_logic.clone())
-            .type_(Some(dao.clone()).pack())
-            .build(),
-        dao_deposit_data(),
-    );
+    let deposit_input = create_deposit(context, deposit_total_capacity, ickb_logic, dao);
     link_cell_to_header(context, &deposit_input, &deposit_header);
-    let udt_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity(occupied_capacity(&owner_lock, &xudt, 16).pack())
-            .lock(owner_lock)
-            .type_(Some(xudt.clone()).pack())
-            .build(),
-        udt_data(u128::from(deposit_amount)),
-    );
+    let udt_input = create_udt(context, &owner_lock, xudt, u128::from(deposit_amount));
     // Returns `(deposit_total_capacity, deposit_header, deposit_input, udt_input)`; callers still supply the matching withdraw header deps.
     (deposit_total_capacity, deposit_header, deposit_input, udt_input)
 }
@@ -350,27 +356,14 @@ pub(super) fn build_real_limit_order_and_master_with_capacity(
     let funding_lock = always_success_lock(context);
     let limit_order = limit_order_script(context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((capacity + 500u64).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(capacity + 500u64, &funding_lock, None),
         Bytes::new(),
     );
     let tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
+        .output(cell(capacity, &limit_order, Some(&helper_type)))
         .output(
-            CellOutput::new_builder()
-                .capacity(capacity.pack())
-                .lock(limit_order.clone())
-                .type_(Some(helper_type).pack())
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity(occupied_capacity(&owner_lock, &limit_order, 0).pack())
-                .lock(owner_lock)
-                .type_(Some(limit_order).pack())
-                .build(),
+            cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
         )
         .outputs_data(vec![order_data_mint(0, 1, (1, 1)), Bytes::new()].pack())
         .build();
@@ -389,20 +382,13 @@ pub(super) fn assert_lock_only_limit_order_spend_error(data: Bytes, expected_err
     let funding_lock = always_success_lock(&mut context);
     let (limit_order, output_type) = limit_order_and_helper_type_scripts(&mut context);
     let funding_input = context.create_cell(
-        CellOutput::new_builder()
-            .capacity((500 * CKB).pack())
-            .lock(funding_lock)
-            .build(),
+        cell(500 * CKB, &funding_lock, None),
         Bytes::new(),
     );
 
-    let forged_output = CellOutput::new_builder()
-        .capacity((200 * CKB).pack())
-        .lock(limit_order.clone())
-        .type_(Some(output_type).pack())
-        .build();
+    let forged_output = cell(200 * CKB, &limit_order, Some(&output_type));
     let create_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(funding_input).build())
+        .input(input(funding_input))
         .output(forged_output.clone())
         .output_data(data.clone().pack())
         .build();
@@ -413,20 +399,10 @@ pub(super) fn assert_lock_only_limit_order_spend_error(data: Bytes, expected_err
 
     let forged_out_point = context.create_cell(forged_output, data);
     let spend_tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(forged_out_point)
-                .build(),
-        )
-        .output(
-            CellOutput::new_builder()
-                .capacity((200 * CKB).pack())
-                .lock(always_success_lock(&mut context))
-                .build(),
-        )
+        .input(input(forged_out_point))
+        .output(cell(200 * CKB, &always_success_lock(&mut context), None))
         .output_data(Bytes::new().pack())
         .build();
     let spend_tx = context.complete_tx(spend_tx);
-    let err = context.verify(&spend_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error(err, expected_error);
+    fail(&context, &spend_tx, expected_error);
 }

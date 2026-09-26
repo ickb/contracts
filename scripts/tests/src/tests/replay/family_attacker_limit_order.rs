@@ -63,11 +63,7 @@ fn weak_lock_derived_five_claim_live_batch_can_flow_into_later_attacker_owned_li
         let out_point = OutPoint::new(batch_tx_hash.clone(), index as u32);
         context.create_cell_with_out_point(
             out_point.clone(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex(owned_capacities[index]).pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
+            cell(u64_from_hex(owned_capacities[index]), &owned_owner, Some(&dao)),
             bytes_from_hex(owned_data[index]),
         );
         link_cell_to_header(&mut context, &out_point, &withdraw_header);
@@ -80,11 +76,7 @@ fn weak_lock_derived_five_claim_live_batch_can_flow_into_later_attacker_owned_li
         let out_point = OutPoint::new(batch_tx_hash.clone(), (index as u32) + 5);
         context.create_cell_with_out_point(
             out_point,
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x2540be400").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
+            cell(u64_from_hex("0x2540be400"), &attacker_lock, Some(&owned_owner)),
             bytes_from_hex("0xfbffffff"),
         );
     }
@@ -120,26 +112,15 @@ fn weak_lock_derived_five_claim_live_batch_can_flow_into_later_attacker_owned_li
                 .since(u64_from_hex("0x2007080261002c79").pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 9)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 8)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 7)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 6)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash, 5)).build())
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 9)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 8)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 7)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 6)))
+        .input(input(OutPoint::new(batch_tx_hash, 5)))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x23c346000").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x1bea98cf00").pack())
-                .lock(limit_order.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x34d6567f32d3").pack())
-                .lock(attacker_lock.clone())
-                .build(),
+            cell(u64_from_hex("0x23c346000"), &attacker_lock, Some(&limit_order)),
+            cell(u64_from_hex("0x1bea98cf00"), &limit_order, Some(&xudt)),
+            cell(u64_from_hex("0x34d6567f32d3"), &attacker_lock, None),
         ])
         .outputs_data(
             vec![
@@ -192,13 +173,10 @@ fn weak_lock_derived_five_claim_live_batch_can_flow_into_later_attacker_owned_li
     );
 
     let melt_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order_out_point).build())
-        .input(CellInput::new_builder().previous_output(master_out_point).build())
+        .input(input(order_out_point))
+        .input(input(master_out_point))
         .output(
-            CellOutput::new_builder()
-                .capacity((u64_from_hex("0x1bea98cf00") + u64_from_hex("0x23c346000")).pack())
-                .lock(attacker_lock)
-                .build(),
+            cell(u64_from_hex("0x1bea98cf00") + u64_from_hex("0x23c346000"), &attacker_lock, None),
         )
         .output_data(Bytes::new().pack())
         .build();
@@ -273,11 +251,7 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
         let out_point = OutPoint::new(batch_tx_hash.clone(), index as u32);
         context.create_cell_with_out_point(
             out_point.clone(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex(owned_capacities[index]).pack())
-                .lock(owned_owner.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
+            cell(u64_from_hex(owned_capacities[index]), &owned_owner, Some(&dao)),
             bytes_from_hex(owned_data[index]),
         );
         link_cell_to_header(&mut context, &out_point, &withdraw_header);
@@ -286,40 +260,25 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
         let out_point = OutPoint::new(batch_tx_hash.clone(), (index as u32) + 8);
         context.create_cell_with_out_point(
             out_point,
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x2540be400").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(owned_owner.clone()).pack())
-                .build(),
+            cell(u64_from_hex("0x2540be400"), &attacker_lock, Some(&owned_owner)),
             bytes_from_hex("0xf8ffffff"),
         );
     }
     context.create_cell_with_out_point(
         OutPoint::new(batch_tx_hash.clone(), 16),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x23c346000").pack())
-            .lock(attacker_lock.clone())
-            .type_(Some(limit_order.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x23c346000"), &attacker_lock, Some(&limit_order)),
         Bytes::new(),
     );
     context.create_cell_with_out_point(
         OutPoint::new(batch_tx_hash.clone(), 17),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x4a221e700").pack())
-            .lock(limit_order.clone())
-            .type_(Some(xudt.clone()).pack())
-            .build(),
+        cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&xudt)),
         bytes_from_hex(
             "0xd45e0323c20200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000000000000000000000000000000000c16ff2862300fe12a4eaa0ca290021",
         ),
     );
     context.create_cell_with_out_point(
         OutPoint::new(batch_tx_hash.clone(), 18),
-        CellOutput::new_builder()
-            .capacity(u64_from_hex("0x142514df48").pack())
-            .lock(attacker_lock.clone())
-            .build(),
+        cell(u64_from_hex("0x142514df48"), &attacker_lock, None),
         Bytes::new(),
     );
 
@@ -329,9 +288,9 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
     let witness_4 = header_dep_index_witness(4);
 
     let later_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 17)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 16)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 18)).build())
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 17)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 16)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 18)))
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 6))
@@ -374,68 +333,25 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
                 .since(u64_from_hex("0x2004ad01f0003124").pack())
                 .build(),
         )
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 14)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 13)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 12)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 11)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 10)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash.clone(), 9)).build())
-        .input(CellInput::new_builder().previous_output(OutPoint::new(batch_tx_hash, 8)).build())
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 14)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 13)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 12)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 11)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 10)))
+        .input(input(OutPoint::new(batch_tx_hash.clone(), 9)))
+        .input(input(OutPoint::new(batch_tx_hash, 8)))
         .outputs(vec![
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xab5f2c8d6b0").pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xab5f2c8d6b0").pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xab5f2c8d6b0").pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xab5f2c8d6b0").pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xab5f2c8d6b0").pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xab5f2c8d6b0").pack())
-                .lock(ickb_logic.clone())
-                .type_(Some(dao.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x283baec00").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(ickb_logic.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x23c346000").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(limit_order.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0xa4a505d73a0").pack())
-                .lock(limit_order.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x372261400").pack())
-                .lock(attacker_lock.clone())
-                .type_(Some(xudt.clone()).pack())
-                .build(),
-            CellOutput::new_builder()
-                .capacity(u64_from_hex("0x8c3ee380ed").pack())
-                .lock(attacker_lock.clone())
-                .build(),
+            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
+            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
+            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
+            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
+            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
+            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
+            cell(u64_from_hex("0x283baec00"), &attacker_lock, Some(&ickb_logic)),
+            cell(u64_from_hex("0x23c346000"), &attacker_lock, Some(&limit_order)),
+            cell(u64_from_hex("0xa4a505d73a0"), &limit_order, Some(&xudt)),
+            cell(u64_from_hex("0x372261400"), &attacker_lock, Some(&xudt)),
+            cell(u64_from_hex("0x8c3ee380ed"), &attacker_lock, None),
         ])
         .outputs_data(
             vec![
@@ -501,13 +417,10 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
     );
 
     let melt_tx = TransactionBuilder::default()
-        .input(CellInput::new_builder().previous_output(order_out_point).build())
-        .input(CellInput::new_builder().previous_output(master_out_point).build())
+        .input(input(order_out_point))
+        .input(input(master_out_point))
         .output(
-            CellOutput::new_builder()
-                .capacity((u64_from_hex("0xa4a505d73a0") + u64_from_hex("0x23c346000")).pack())
-                .lock(attacker_lock)
-                .build(),
+            cell(u64_from_hex("0xa4a505d73a0") + u64_from_hex("0x23c346000"), &attacker_lock, None),
         )
         .output_data(Bytes::new().pack())
         .build();
