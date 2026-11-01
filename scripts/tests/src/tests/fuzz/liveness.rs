@@ -1,7 +1,7 @@
 //! Liveness: every state a user can reach stays spendable by that user's normal next transaction,
 //! inside one mainnet block. Each test builds the largest or most extreme state the scripts and the
-//! node allow, then verifies the next step. It reuses the fuzzer's realistic transaction builder
-//! and invariant oracle.
+//! node allow, then verifies the next step, which also runs the node's verifiers and the
+//! invariant oracle.
 use super::*;
 
 /// The most pairs one withdrawal can create: each request needs its owner, and a transaction with
