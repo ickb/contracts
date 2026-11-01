@@ -176,6 +176,18 @@ impl Env {
     }
 }
 
+impl Cell {
+    /// The same cell holding exactly its occupied capacity.
+    pub(super) fn sized(self) -> Cell {
+        Cell { capacity: self.occupied(), ..self }
+    }
+
+    /// The same cell under `lock`, re-sized to its occupied capacity, since that depends on the lock.
+    pub(super) fn under(self, lock: &Script) -> Cell {
+        Cell { lock: lock.clone(), ..self }.sized()
+    }
+}
+
 impl From<Cell> for Out {
     fn from(cell: Cell) -> Self {
         Out { cell, change: false }

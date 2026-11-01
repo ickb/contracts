@@ -1,183 +1,94 @@
 use super::*;
 
+/// Two real mint-state orders and their masters, under owners `owner1` and `owner2`, holding
+/// 1_600 and 1_500 CKB.
+fn two_real_pairs(context: &mut Context, env: &Env) -> ((In, OutPoint), (In, OutPoint)) {
+    let mut pair = |owner: &[u8], capacity: u64| {
+        let owner_lock = named_always_success_lock(context, owner);
+        let (order, master) =
+            build_real_limit_order_and_master_with_capacity(context, owner_lock, env.helper.clone(), capacity);
+        (live(context, order), master)
+    };
+    (pair(b"owner1", 1_600 * CKB), pair(b"owner2", 1_500 * CKB))
+}
+
+/// Continues `orders` into match outputs of these capacities and data in one transaction.
+fn continue_orders(env: &Env, orders: Vec<In>, outputs: Vec<(u64, Bytes)>) -> TxSpec {
+    TxSpec {
+        inputs: orders,
+        outputs: outputs.into_iter().map(|(capacity, data)| env.order(capacity, data).into()).collect(),
+        ..Default::default()
+    }
+}
+
+/// Asserts the crosswire fails the match path, whichever of its value checks catches it first.
+fn assert_crosswire_blocked(context: &mut Context, crosswire: &TxSpec) {
+    let err = crosswire.verify(context).unwrap_err();
+    assert_script_error_in(err, &[ERROR_LIMIT_ORDER_DECREASING_VALUE, ERROR_LIMIT_ORDER_INVALID_MATCH]);
+}
+
 // Forge two mint-state real orders with different capacities, then swap their master distances; the later lock path rejects the crosswired match continuation.
 #[test]
 fn distinct_mint_capacities_block_master_crosswire() {
     let mut context = Context::default();
-    let owner1_lock = named_always_success_lock(&mut context, b"owner1");
-    let (owner2_lock, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner2");
-    let (order1_input, master1_input) = build_real_limit_order_and_master_with_capacity(
-        &mut context,
-        owner1_lock.clone(),
-        helper_type.clone(),
-        1_600 * CKB,
-    );
-    let (order2_input, master2_input) = build_real_limit_order_and_master_with_capacity(
-        &mut context,
-        owner2_lock.clone(),
-        helper_type.clone(),
-        1_500 * CKB,
-    );
-
-    let limit_order = limit_order_script(&mut context);
-    let crosswired_order1_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
-    let crosswired_order2_data = order_data_match(100 * CKB as u128, &master1_input, (1, 1));
-    let crosswire_tx = TransactionBuilder::default()
-        .input(input(order1_input))
-        .input(input(order2_input))
-        .outputs(vec![
-            cell(1_500 * CKB, &limit_order, Some(&helper_type)),
-            cell(1_400 * CKB, &limit_order, Some(&helper_type)),
-        ])
-        .outputs_data(vec![crosswired_order1_data.clone(), crosswired_order2_data].pack())
-        .build();
-
-    let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error_in(
-        err,
-        &[
-            ERROR_LIMIT_ORDER_DECREASING_VALUE,
-            ERROR_LIMIT_ORDER_INVALID_MATCH,
+    let env = Env::new(&mut context);
+    let ((order1, master1), (order2, master2)) = two_real_pairs(&mut context, &env);
+    let crosswire = continue_orders(
+        &env,
+        vec![order1, order2],
+        vec![
+            (1_500 * CKB, order_data_match(100 * CKB as u128, &master2, (1, 1))),
+            (1_400 * CKB, order_data_match(100 * CKB as u128, &master1, (1, 1))),
         ],
     );
+    assert_crosswire_blocked(&mut context, &crosswire);
 }
 
 // Continue two real lineages to different match progress, then crosswire the continued outputs; the match path rejects because neither output can extend both histories.
 #[test]
 fn distinct_match_progress_blocks_master_crosswire() {
     let mut context = Context::default();
-    let owner1_lock = named_always_success_lock(&mut context, b"owner1");
-    let (owner2_lock, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner2");
-    let (order1_input, master1_input) = build_real_limit_order_and_master_with_capacity(
-        &mut context,
-        owner1_lock.clone(),
-        helper_type.clone(),
-        1_600 * CKB,
-    );
-    let (order2_input, master2_input) = build_real_limit_order_and_master_with_capacity(
-        &mut context,
-        owner2_lock.clone(),
-        helper_type.clone(),
-        1_500 * CKB,
-    );
-    let limit_order = limit_order_script(&mut context);
+    let env = Env::new(&mut context);
+    let ((order1, master1), (order2, master2)) = two_real_pairs(&mut context, &env);
+    let order1_match = order_data_match(100 * CKB as u128, &master1, (1, 1));
+    let order1_match = continue_orders(&env, vec![order1], vec![(1_500 * CKB, order1_match)]);
+    let order1_matched = commit(&mut context, &order1_match, "order1 should enter its first match state").remove(0);
+    let order2_match = order_data_match(200 * CKB as u128, &master2, (1, 1));
+    let order2_match = continue_orders(&env, vec![order2], vec![(1_300 * CKB, order2_match)]);
+    let order2_matched =
+        commit(&mut context, &order2_match, "order2 should enter a later match state with different progress").remove(0);
 
-    let order1_matched_data = order_data_match(100 * CKB as u128, &master1_input, (1, 1));
-    let order1_match_tx = TransactionBuilder::default()
-        .input(input(order1_input))
-        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
-        .output_data(order1_matched_data.clone().pack())
-        .build();
-    let order1_match_tx = context.complete_tx(order1_match_tx);
-    context
-        .verify(&order1_match_tx, MAX_CYCLES)
-        .expect("order1 should enter its first match state");
-    let order1_matched = OutPoint::new(order1_match_tx.hash(), 0);
-    context.create_cell_with_out_point(
-        order1_matched.clone(),
-        order1_match_tx.outputs().get(0).expect("order1 matched output"),
-        order1_matched_data,
-    );
-
-    let order2_matched_data = order_data_match(200 * CKB as u128, &master2_input, (1, 1));
-    let order2_match_tx = TransactionBuilder::default()
-        .input(input(order2_input))
-        .output(cell(1_300 * CKB, &limit_order, Some(&helper_type)))
-        .output_data(order2_matched_data.clone().pack())
-        .build();
-    let order2_match_tx = context.complete_tx(order2_match_tx);
-    context
-        .verify(&order2_match_tx, MAX_CYCLES)
-        .expect("order2 should enter a later match state with different progress");
-    let order2_matched = OutPoint::new(order2_match_tx.hash(), 0);
-    context.create_cell_with_out_point(
-        order2_matched.clone(),
-        order2_match_tx.outputs().get(0).expect("order2 matched output"),
-        order2_matched_data,
-    );
-
-    let crosswired_order1_data = order_data_match(200 * CKB as u128, &master2_input, (1, 1));
-    let crosswired_order2_data = order_data_match(300 * CKB as u128, &master1_input, (1, 1));
-    let crosswire_tx = TransactionBuilder::default()
-        .input(input(order1_matched))
-        .input(input(order2_matched))
-        .outputs(vec![
-            cell(1_400 * CKB, &limit_order, Some(&helper_type)),
-            cell(1_200 * CKB, &limit_order, Some(&helper_type)),
-        ])
-        .outputs_data(vec![crosswired_order1_data.clone(), crosswired_order2_data].pack())
-        .build();
-
-    let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error_in(
-        err,
-        &[
-            ERROR_LIMIT_ORDER_DECREASING_VALUE,
-            ERROR_LIMIT_ORDER_INVALID_MATCH,
+    let crosswire = continue_orders(
+        &env,
+        vec![order1_matched, order2_matched],
+        vec![
+            (1_400 * CKB, order_data_match(200 * CKB as u128, &master2, (1, 1))),
+            (1_200 * CKB, order_data_match(300 * CKB as u128, &master1, (1, 1))),
         ],
     );
+    assert_crosswire_blocked(&mut context, &crosswire);
 }
 
 // Spend one real order from mint shape and one from match shape, then swap their master references; the continued match path still rejects the mixed crosswire.
 #[test]
 fn real_mint_and_match_orders_cannot_crosswire_masters() {
     let mut context = Context::default();
-    let owner1_lock = named_always_success_lock(&mut context, b"owner1");
-    let (owner2_lock, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner2");
-    let (mint_order_input, master1_input) = build_real_limit_order_and_master_with_capacity(
-        &mut context,
-        owner1_lock.clone(),
-        helper_type.clone(),
-        1_600 * CKB,
-    );
-    let (match_order_seed, master2_input) = build_real_limit_order_and_master_with_capacity(
-        &mut context,
-        owner2_lock.clone(),
-        helper_type.clone(),
-        1_500 * CKB,
-    );
-    let limit_order = limit_order_script(&mut context);
+    let env = Env::new(&mut context);
+    let ((mint_order, master1), (match_order_seed, master2)) = two_real_pairs(&mut context, &env);
+    let seed_match = order_data_match(100 * CKB as u128, &master2, (1, 1));
+    let seed_match = continue_orders(&env, vec![match_order_seed], vec![(1_400 * CKB, seed_match)]);
+    let match_order = commit(&mut context, &seed_match, "the second real order should enter match state before the mixed crosswire")
+        .remove(0);
 
-    let match_order_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
-    let seed_match_tx = TransactionBuilder::default()
-        .input(input(match_order_seed))
-        .output(cell(1_400 * CKB, &limit_order, Some(&helper_type)))
-        .output_data(match_order_data.clone().pack())
-        .build();
-    let seed_match_tx = context.complete_tx(seed_match_tx);
-    context
-        .verify(&seed_match_tx, MAX_CYCLES)
-        .expect("the second real order should enter match state before the mixed crosswire");
-    let match_order_input = OutPoint::new(seed_match_tx.hash(), 0);
-    context.create_cell_with_out_point(
-        match_order_input.clone(),
-        seed_match_tx.outputs().get(0).expect("match-state order"),
-        match_order_data,
-    );
-
-    let crosswired_mint_data = order_data_match(100 * CKB as u128, &master2_input, (1, 1));
-    let crosswired_match_data = order_data_match(200 * CKB as u128, &master1_input, (1, 1));
-    let crosswire_tx = TransactionBuilder::default()
-        .input(input(mint_order_input))
-        .input(input(match_order_input))
-        .outputs(vec![
-            cell(1_500 * CKB, &limit_order, Some(&helper_type)),
-            cell(1_300 * CKB, &limit_order, Some(&helper_type)),
-        ])
-        .outputs_data(vec![crosswired_mint_data.clone(), crosswired_match_data].pack())
-        .build();
-
-    let crosswire_tx = context.complete_tx(crosswire_tx);
-    let err = context.verify(&crosswire_tx, MAX_CYCLES).unwrap_err();
-    assert_script_error_in(
-        err,
-        &[
-            ERROR_LIMIT_ORDER_DECREASING_VALUE,
-            ERROR_LIMIT_ORDER_INVALID_MATCH,
+    let crosswire = continue_orders(
+        &env,
+        vec![mint_order, match_order],
+        vec![
+            (1_500 * CKB, order_data_match(100 * CKB as u128, &master2, (1, 1))),
+            (1_300 * CKB, order_data_match(200 * CKB as u128, &master1, (1, 1))),
         ],
     );
+    assert_crosswire_blocked(&mut context, &crosswire);
 }
 
 // Replay two live mainnet-shaped match cells with different checked info, then swap their masters; verification reaches the match path and fails on different info.

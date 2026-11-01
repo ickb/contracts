@@ -4,57 +4,36 @@ use super::*;
 #[test]
 fn can_atomically_melt_and_remint_with_negative_distance_and_filler() {
     let mut context = Context::default();
-    let (owner_lock, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner");
+    let env = Env::new(&mut context);
+    let owner_lock = named_always_success_lock(&mut context, b"owner");
     let filler_lock = named_always_success_lock(&mut context, b"filler");
-    let funding_lock = always_success_lock(&mut context);
     let (old_order_out_point, old_master_out_point) =
-        build_real_limit_order_and_master(&mut context, owner_lock.clone(), helper_type.clone());
-    let funding_input = context.create_cell(
-        cell(100 * CKB, &funding_lock, None),
-        Bytes::new(),
+        build_real_limit_order_and_master(&mut context, owner_lock.clone(), env.helper.clone());
+
+    let remint = TxSpec {
+        inputs: vec![
+            live(&context, old_order_out_point),
+            live(&context, old_master_out_point),
+            In::new(env.plain(100 * CKB)),
+        ],
+        outputs: vec![
+            env.master().under(&owner_lock).into(),
+            plain_under(&filler_lock, 100 * CKB).into(),
+            env.order(1_500 * CKB, order_data_mint(0, -2, (1, 1))).into(),
+        ],
+        ..Default::default()
+    };
+    let reminted = commit(
+        &mut context,
+        &remint,
+        "limit_order should allow canceling one pair while minting a new sparse negative-distance pair in the same tx",
     );
 
-    let limit_order = limit_order_script(&mut context);
-    let create_tx = TransactionBuilder::default()
-        .input(input(old_order_out_point))
-        .input(input(old_master_out_point))
-        .input(input(funding_input))
-        .outputs(vec![
-            cell(occupied_capacity(&owner_lock, &limit_order, 0), &owner_lock, Some(&limit_order)),
-            cell(100 * CKB, &filler_lock, None),
-            cell(1_500 * CKB, &limit_order, Some(&helper_type)),
-        ])
-        .outputs_data(vec![Bytes::new(), Bytes::new(), order_data_mint(0, -2, (1, 1))].pack())
-        .build();
-
-    let create_tx = context.complete_tx(create_tx);
-    context
-        .verify(&create_tx, MAX_CYCLES)
-        .expect("limit_order should allow canceling one pair while minting a new sparse negative-distance pair in the same tx");
-
-    let tx_hash = create_tx.hash();
-    let new_master = OutPoint::new(tx_hash.clone(), 0);
-    let new_order = OutPoint::new(tx_hash, 2);
-    context.create_cell_with_out_point(
-        new_master.clone(),
-        create_tx.outputs().get(0).expect("new master"),
-        Bytes::new(),
-    );
-    context.create_cell_with_out_point(
-        new_order.clone(),
-        create_tx.outputs().get(2).expect("new order"),
-        order_data_mint(0, -2, (1, 1)),
-    );
-
-    let melt_tx = TransactionBuilder::default()
-        .input(input(new_order))
-        .input(input(new_master))
-        .input(input(funding_cell(&mut context)))
-        .output(cell(1_700 * CKB, &owner_lock, None))
-        .output_data(Bytes::new().pack())
-        .build();
-    let melt_tx = context.complete_tx(melt_tx);
-    context
-        .verify(&melt_tx, MAX_CYCLES)
-        .expect("the reminted sparse pair should remain a valid melt target");
+    TxSpec {
+        inputs: vec![reminted[2].clone(), reminted[0].clone(), In::new(env.plain(1_000 * CKB))],
+        outputs: vec![plain_under(&owner_lock, 1_700 * CKB).into()],
+        ..Default::default()
+    }
+    .verify(&mut context)
+    .expect("the reminted sparse pair should remain a valid melt target");
 }
