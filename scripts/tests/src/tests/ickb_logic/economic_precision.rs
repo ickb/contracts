@@ -79,8 +79,8 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
     let withdraw = |amount: u64, burned: u128| {
         let deposit = env.deposit(&env.ickb, amount);
         TxSpec {
-            inputs: vec![at(deposit.clone(), &header), In::new(env.udt(burned))],
-            outputs: vec![request(&deposit, &env.owned_owner, 1554).into(), owner(&env).into()],
+            inputs: vec![In::new(deposit.clone()).in_block(&header), In::new(env.udt(burned))],
+            outputs: vec![request(&deposit, &env.owned_owner, 1554).into(), env.owner(-1).into()],
             header_deps: vec![header.clone()],
         }
     };
@@ -150,7 +150,7 @@ fn burn_and_claim(
     let request = request(&deposit, user_lock, deposit_number);
 
     let phase1_tx = TxSpec {
-        inputs: vec![at(deposit, &deposit_header), In::new(sized(Cell { lock: user_lock.clone(), ..env.udt(burned_ickb) }))],
+        inputs: vec![In::new(deposit).in_block(&deposit_header), In::new((Cell { lock: user_lock.clone(), ..env.udt(burned_ickb) }).sized())],
         outputs: vec![request.clone().into()],
         header_deps: vec![deposit_header.clone()],
     }

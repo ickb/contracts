@@ -4,8 +4,8 @@ use super::*;
 /// then the phase 2 claim of that pair paying 123,468,106,670 shannons to `owner_lock`.
 fn claim_through_foreign_owner(context: &mut Context, env: &Env, owner_lock: &Script, foreign_lock: &Script, expect: &str) -> TxSpec {
     let mut create = withdrawal(env, owner_lock);
-    create.outputs[1] = owner(env, foreign_lock, -1).into();
-    let live = accept(context, &create, expect);
+    create.outputs[1] = (env).owner(-1).under(foreign_lock).into();
+    let live = create.accept(context, expect);
     let withdraw_header = withdraw_header(2_000_610);
     TxSpec {
         inputs: vec![claim(live[0].clone(), &withdraw_header, 0x2003e800000002f4, 1), live[1].clone()],

@@ -2,7 +2,7 @@ use super::*;
 
 /// A receipt cell holding `data`, at its occupied capacity.
 fn receipt_holding(env: &Env, data: Bytes) -> Cell {
-    sized(Cell { data: data.to_vec(), ..env.receipt(1, 0) })
+    (Cell { data: data.to_vec(), ..env.receipt(1, 0) }).sized()
 }
 
 /// One 1,000 CKB deposit plus a receipt holding `receipt`, funded by a plain input.

@@ -10,7 +10,7 @@ fn zero_distance_owner_output_is_rejected() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     TxSpec {
         inputs: vec![In::new(plain(&funding_lock, 2_000 * CKB))],
-        outputs: vec![owned(&env, 1_000 * CKB, 1554).into(), owner(&env, &owner_lock, 0).into()],
+        outputs: vec![owned(&env, 1_000 * CKB, 1554).into(), env.owner(0).under(&owner_lock).into()],
         ..Default::default()
     }
     .fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
@@ -23,7 +23,7 @@ fn zero_distance_owner_input_is_rejected() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let mut spec = melt(&env, 8, owner(&env, &owner_lock, 0));
+    let mut spec = melt(&env, 8, env.owner(0).under(&owner_lock));
     spec.outputs.push(plain(&owner_lock, 123_468_106_670).into());
     spec.fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }
@@ -39,7 +39,7 @@ fn non_withdrawal_owned_cell_is_rejected() {
     let deposit_shaped = Cell { data: dao_deposit_data().to_vec(), ..owned(&env, 1_000 * CKB, 1554) };
     TxSpec {
         inputs: vec![In::new(plain(&funding_lock, 2_000 * CKB))],
-        outputs: vec![deposit_shaped.into(), owner(&env, &owner_lock, -1).into()],
+        outputs: vec![deposit_shaped.into(), env.owner(-1).under(&owner_lock).into()],
         ..Default::default()
     }
     .fail(&mut context, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
@@ -100,7 +100,7 @@ fn cell_using_owned_owner_as_both_lock_and_type_is_rejected() {
     let funding_lock = always_success_lock(&mut context);
     TxSpec {
         inputs: vec![In::new(plain(&funding_lock, 500 * CKB))],
-        outputs: vec![owner(&env, &env.owned_owner, 0).into()],
+        outputs: vec![env.owner(0).under(&env.owned_owner).into()],
         ..Default::default()
     }
     .fail(&mut context, ERROR_OWNED_OWNER_SCRIPT_MISUSE);
@@ -119,7 +119,7 @@ fn request_shaped_owned_cell_without_dao_type_is_rejected() {
     let request_shaped = Cell { type_: Some(env.helper.clone()), ..owned(&env, 1_000 * CKB, 1554) };
     TxSpec {
         inputs: vec![In::new(plain(&funding_lock, 2_000 * CKB))],
-        outputs: vec![request_shaped.into(), owner(&env, &owner_lock, -1).into()],
+        outputs: vec![request_shaped.into(), env.owner(-1).under(&owner_lock).into()],
         ..Default::default()
     }
     .fail(&mut context, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);

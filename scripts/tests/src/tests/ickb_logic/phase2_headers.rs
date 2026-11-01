@@ -6,7 +6,7 @@ fn two_receipts(env: &Env) -> (Vec<In>, u128, [HeaderView; 2]) {
     let first_amount = 1_000 * CKB;
     let second_amount = 1_200 * CKB;
     let headers = [gen_header(0, GENESIS_AR, 0, 0, 1), gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1)];
-    let inputs = vec![at(env.receipt(1, first_amount), &headers[0]), at(env.receipt(1, second_amount), &headers[1])];
+    let inputs = vec![In::new(env.receipt(1, first_amount)).in_block(&headers[0]), In::new(env.receipt(1, second_amount)).in_block(&headers[1])];
     let worth = u128::from(first_amount)
         + (u128::from(second_amount) * u128::from(GENESIS_AR) / u128::from(SYNTHETIC_WITHDRAW_AR));
     (inputs, worth, headers)
@@ -50,7 +50,7 @@ fn phase2_conversion_with_zero_accumulated_rate_header_is_rejected() {
     let amount = 1_000 * CKB;
     let malformed_header = gen_header(0, 0, 0, 0, 1);
     let spec = TxSpec {
-        inputs: vec![at(env.receipt(1, amount), &malformed_header)],
+        inputs: vec![In::new(env.receipt(1, amount)).in_block(&malformed_header)],
         outputs: vec![env.udt(u128::from(amount)).into()],
         header_deps: vec![malformed_header],
     };

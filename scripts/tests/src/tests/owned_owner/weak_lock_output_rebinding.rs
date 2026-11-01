@@ -9,7 +9,7 @@ fn weak_lock_can_reassign_withdrawal_owner_output() {
     let weak_lock = always_success_lock(&mut context);
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let mut spec = withdrawal(&env, &weak_lock);
-    spec.outputs[1] = owner(&env, &attacker_lock, -1).into();
+    spec.outputs[1] = env.owner(-1).under(&attacker_lock).into();
     spec.verify(&mut context).expect("weak lock should allow reassigning the withdrawal owner output");
 }
 
@@ -142,9 +142,9 @@ fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
     let (amount1, amount2) = (1_000 * CKB, 1_200 * CKB);
     let mut spec = withdrawals(&env, &[amount1, amount2]);
-    spec.inputs.push(In::new(udt(&env, &weak_lock_1, u128::from(amount1))));
-    spec.inputs.push(In::new(udt(&env, &weak_lock_2, u128::from(amount2))));
-    spec.outputs.push(owner(&env, &attacker_lock, -2).into());
-    spec.outputs.push(owner(&env, &attacker_lock, -2).into());
+    spec.inputs.push(In::new(env.udt(u128::from(amount1)).under(&weak_lock_1)));
+    spec.inputs.push(In::new(env.udt(u128::from(amount2)).under(&weak_lock_2)));
+    spec.outputs.push(env.owner(-2).under(&attacker_lock).into());
+    spec.outputs.push(env.owner(-2).under(&attacker_lock).into());
     spec.verify(&mut context).expect("all-weak withdrawal inputs can reassign both withdrawal owner outputs");
 }

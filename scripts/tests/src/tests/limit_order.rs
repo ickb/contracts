@@ -49,10 +49,6 @@ fn udt_to_ckb_step(env: &Env, paid: u64, (udt_in, udt_out): (u128, u128), ckb_mi
     }
 }
 
-/// A plain cell under `lock`.
-fn plain_under(lock: &Script, capacity: u64) -> Cell {
-    Cell { capacity, lock: lock.clone(), type_: None, data: vec![] }
-}
 
 /// The live cell at `out_point` as an input, so a lineage a fixture seeded continues on this layer.
 fn live(context: &Context, out_point: OutPoint) -> In {
@@ -62,13 +58,3 @@ fn live(context: &Context, out_point: OutPoint) -> In {
     In { out_point, ..In::new(cell) }
 }
 
-/// Verifies `spec` and returns its outputs as live inputs at their real out points, so the next
-/// step of a lineage can spend them.
-fn commit(context: &mut Context, spec: &TxSpec, accepted: &str) -> Vec<In> {
-    let tx = spec.build(context);
-    context.verify(&tx, MAX_CYCLES).expect(accepted);
-    (0u32..)
-        .zip(&spec.outputs)
-        .map(|(index, output)| In { out_point: OutPoint::new(tx.hash(), index), ..In::new(output.cell.clone()) })
-        .collect()
-}

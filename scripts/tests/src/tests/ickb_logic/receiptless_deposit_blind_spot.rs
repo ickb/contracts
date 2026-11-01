@@ -7,7 +7,7 @@ fn create_receiptless(env: &Env, deposit: &Cell) -> TxSpec {
 
 /// `cell` as the live output `index` of the verified `tx`, created in `header`'s block.
 fn output_of(tx: &TransactionView, index: u32, cell: Cell, header: &HeaderView) -> In {
-    In { out_point: OutPoint::new(tx.hash(), index), ..at(cell, header) }
+    In { out_point: OutPoint::new(tx.hash(), index), ..In::new(cell).in_block(header) }
 }
 
 // Build a plain funding tx that creates a DAO-typed ickb_logic output with deposit data but no receipt, then spend it in phase1 withdrawal mode: creation passes because output locks do not enforce receipt pairing, and the later withdrawal also passes because classification trusts the live deposit shape alone.
@@ -26,7 +26,7 @@ fn receiptless_dao_shaped_output_is_accepted_as_deposit() {
 
     let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
     let withdraw = TxSpec {
-        inputs: vec![at(deposit.clone(), &deposit_header), In::new(env.udt(u128::from(deposit_amount)))],
+        inputs: vec![In::new(deposit.clone()).in_block(&deposit_header), In::new(env.udt(u128::from(deposit_amount)))],
         outputs: vec![request(&deposit, &user_lock, 1554).into()],
         header_deps: vec![deposit_header],
     };
@@ -52,7 +52,7 @@ fn receiptless_deposits_below_the_minimum_are_created_and_withdrawn_at_value() {
             .expect("a receiptless deposit below the minimum is created without running the bounds check");
 
         let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
-        let deposit_input = at(deposit.clone(), &deposit_header);
+        let deposit_input = In::new(deposit.clone()).in_block(&deposit_header);
 
         // At the genesis AR a deposit below the soft cap is worth exactly its unoccupied capacity.
         let mut burns = vec![u128::from(deposit_amount)];
@@ -106,7 +106,7 @@ fn split_receipt_against_receiptless_aggregate_mints_only_spread() {
     // The receipt contributes only the valuation delta between per-deposit and aggregate soft-cap treatment.
     // The separately funded aggregate principal stays in the DAO withdrawal output below.
     let mut spec = TxSpec {
-        inputs: vec![at(aggregate.clone(), &shared_header), at(env.receipt(2, split_amount), &shared_header), funding(&env)],
+        inputs: vec![In::new(aggregate.clone()).in_block(&shared_header), In::new(env.receipt(2, split_amount)).in_block(&shared_header), env.funding_input()],
         outputs: vec![request(&aggregate, &user_lock, 1554).into(), env.udt(delta).into()],
         header_deps: vec![shared_header],
     };
@@ -134,7 +134,7 @@ fn verified_receiptless_creation_spread_and_claim_trajectory() {
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
 
     // Under the empty-args lock the receipt fits in the 100 CKB the funding input leaves for it.
-    let receipt = sized(Cell { lock: user_lock.clone(), ..env.receipt(2, split_amount) });
+    let receipt = (Cell { lock: user_lock.clone(), ..env.receipt(2, split_amount) }).sized();
     let split_tx = TxSpec {
         inputs: vec![In::new(env.plain(2 * split.capacity + capacity_for_data(16)))],
         outputs: vec![split.clone().into(), split.into(), receipt.clone().into()],
@@ -157,7 +157,7 @@ fn verified_receiptless_creation_spread_and_claim_trajectory() {
         inputs: vec![
             output_of(&create_tx, 0, aggregate, &deposit_header),
             output_of(&split_tx, 2, receipt, &deposit_header),
-            funding(&env),
+            env.funding_input(),
         ],
         outputs: vec![request.clone().into(), env.udt(delta).into()],
         header_deps: vec![deposit_header.clone()],
@@ -195,7 +195,7 @@ fn receiptless_aggregate_alone_cannot_mint_spread() {
     let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
 
     let spec = TxSpec {
-        inputs: vec![at(aggregate.clone(), &deposit_header)],
+        inputs: vec![In::new(aggregate.clone()).in_block(&deposit_header)],
         outputs: vec![request(&aggregate, &user_lock, 1554).into(), env.udt(delta).into()],
         header_deps: vec![deposit_header],
     };
@@ -224,7 +224,7 @@ fn oversized_receiptless_aggregate_realizes_larger_spread() {
 
     let shared_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
     let spec = TxSpec {
-        inputs: vec![at(aggregate.clone(), &shared_header), at(env.receipt(quantity, split_amount), &shared_header), funding(&env)],
+        inputs: vec![In::new(aggregate.clone()).in_block(&shared_header), In::new(env.receipt(quantity, split_amount)).in_block(&shared_header), env.funding_input()],
         outputs: vec![request(&aggregate, &user_lock, 1554).into(), env.udt(delta).into()],
         header_deps: vec![shared_header],
     };

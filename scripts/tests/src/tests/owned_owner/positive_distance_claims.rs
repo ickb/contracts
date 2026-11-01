@@ -7,8 +7,8 @@ fn create(env: &Env, funding_input: In, owner_lock: &Script, outputs: Vec<Out>) 
     TxSpec {
         inputs: vec![
             funding_input,
-            In::new(udt(env, owner_lock, u128::from(1_000 * CKB))),
-            mined(env.deposit(&env.ickb, 1_000 * CKB), &header),
+            In::new((env).udt(u128::from(1_000 * CKB)).under(owner_lock)),
+            In::new(env.deposit(&env.ickb, 1_000 * CKB)).in_block(&header),
         ],
         outputs,
         header_deps: vec![header],
@@ -37,11 +37,11 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
     let deposit = env.deposit(&env.ickb, 1_000 * CKB);
     let outputs = vec![
         plain(&filler_lock, 100 * CKB).into(),
-        owner(&env, &owner_lock, 1).into(),
+        env.owner(1).under(&owner_lock).into(),
         owned(&env, deposit.capacity, 1554).into(),
     ];
     let create = create(&env, In::new(plain(&env.funding, 200 * CKB)), &owner_lock, outputs);
-    let live = accept(&mut context, &create, "owned_owner should accept an adjacent positive-distance phase1 pair");
+    let live = create.accept(&mut context, "owned_owner should accept an adjacent positive-distance phase1 pair");
 
     exact_claim(&owner_lock, live[1].clone(), live[2].clone())
         .verify(&mut context)
@@ -59,12 +59,12 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
     let funding_lock = always_success_lock(&mut context);
     let deposit = env.deposit(&env.ickb, 1_000 * CKB);
     let outputs = vec![
-        owner(&env, &owner_lock, 2).into(),
+        env.owner(2).under(&owner_lock).into(),
         plain(&filler_lock, 100 * CKB).into(),
         owned(&env, deposit.capacity, 1554).into(),
     ];
     let create = create(&env, In::new(plain(&funding_lock, 200 * CKB)), &owner_lock, outputs);
-    let live = accept(&mut context, &create, "owned_owner should accept a sparse positive-distance pair when DAO index rules are still satisfied");
+    let live = create.accept(&mut context, "owned_owner should accept a sparse positive-distance pair when DAO index rules are still satisfied");
 
     exact_claim(&owner_lock, live[0].clone(), live[2].clone())
         .verify(&mut context)

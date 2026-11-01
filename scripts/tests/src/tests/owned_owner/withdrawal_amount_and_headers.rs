@@ -14,9 +14,9 @@ fn withdrawal_with_udt_data(env: &Env, user_lock: &Script, udt_data: Vec<u8>) ->
 /// Phase 1 withdrawing deposits of 1,000 and 1,200 CKB with one xUDT under `user_lock`.
 fn two_deposit_withdrawal(env: &Env, user_lock: &Script) -> TxSpec {
     let mut spec = withdrawals(env, &[1_000 * CKB, 1_200 * CKB]);
-    spec.inputs.push(In::new(udt(env, user_lock, u128::from(2_200 * CKB))));
-    spec.outputs.push(owner(env, user_lock, -2).into());
-    spec.outputs.push(owner(env, user_lock, -2).into());
+    spec.inputs.push(In::new((env).udt(u128::from(2_200 * CKB)).under(user_lock)));
+    spec.outputs.push((env).owner(-2).under(user_lock).into());
+    spec.outputs.push((env).owner(-2).under(user_lock).into());
     spec
 }
 
@@ -75,7 +75,7 @@ fn withdrawal_with_two_deposits_from_distinct_headers_passes() {
     let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
     let mut spec = two_deposit_withdrawal(&env, &user_lock);
-    spec.inputs.push(funding(&env));
+    spec.inputs.push(env.funding_input());
     spec.verify(&mut context).expect("withdrawal should support multiple deposits from distinct headers");
 }
 
@@ -114,12 +114,12 @@ fn withdrawal_applies_soft_cap_discount_above_boundary() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let amount = 100_001 * CKB;
     let mut spec = withdrawals(&env, &[amount]);
-    spec.inputs.push(In::new(udt(&env, &owner_lock, u128::from(amount))));
-    spec.outputs.push(owner(&env, &owner_lock, -1).into());
+    spec.inputs.push(In::new(env.udt(u128::from(amount)).under(&owner_lock)));
+    spec.outputs.push(env.owner(-1).under(&owner_lock).into());
     spec.fail(&mut context, ERROR_AMOUNT_MISMATCH);
 
     // The same deposit cell, now with the soft-capped burn.
-    spec.inputs[1] = In::new(udt(&env, &owner_lock, soft_capped_ickb(amount, GENESIS_AR)));
+    spec.inputs[1] = In::new(env.udt(soft_capped_ickb(amount, GENESIS_AR)).under(&owner_lock));
     spec.verify(&mut context)
         .expect("withdrawal should require the soft-capped iCKB amount above the 100k boundary");
 }

@@ -58,7 +58,7 @@ fn mixed_phase1_phase2_still_apply_soft_cap_per_receipt() {
     let amount = 100_001 * CKB;
     let quantity = 2u32;
     let header = gen_header(0, GENESIS_AR, 0, 0, 1);
-    let receipt = at(env.receipt(quantity, amount), &header);
+    let receipt = In::new(env.receipt(quantity, amount)).in_block(&header);
 
     let exact = u128::from(quantity) * soft_capped_ickb(amount, GENESIS_AR);
     let total_raw = u128::from(quantity) * u128::from(amount);

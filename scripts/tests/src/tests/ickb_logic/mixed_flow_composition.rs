@@ -9,7 +9,7 @@ fn mixed_flow_cannot_overmint_by_combining_new_deposit_with_phase2_receipt() {
     let deposit_amount = 1_000 * CKB;
     let receipt_header = gen_header(0, GENESIS_AR, 0, 0, 1);
     let spec = TxSpec {
-        inputs: vec![at(env.receipt(1, deposit_amount), &receipt_header), In::new(env.plain(2_000 * CKB))],
+        inputs: vec![In::new(env.receipt(1, deposit_amount)).in_block(&receipt_header), In::new(env.plain(2_000 * CKB))],
         outputs: vec![
             env.deposit(&env.ickb, deposit_amount).into(),
             env.receipt(1, deposit_amount).into(),
@@ -33,15 +33,15 @@ fn mixed_flow_cannot_overmint_when_deposit_phase1_phase2_and_withdrawal_share_on
 
     let spec = TxSpec {
         inputs: vec![
-            at(env.receipt(1, deposit_amount), &receipt_header),
-            at(deposit.clone(), &deposit_header),
+            In::new(env.receipt(1, deposit_amount)).in_block(&receipt_header),
+            In::new(deposit.clone()).in_block(&deposit_header),
             In::new(env.udt(u128::from(deposit_amount))),
             In::new(env.plain(2_000 * CKB)),
         ],
         outputs: vec![
             deposit.clone().into(),
             request(&deposit, &env.owned_owner, 1554).into(),
-            owner(&env).into(),
+            env.owner(-1).into(),
             env.receipt(1, deposit_amount).into(),
             env.udt(u128::from(deposit_amount) + 1).into(),
         ],
@@ -112,7 +112,7 @@ fn fresh_deposit_cannot_replace_a_withdrawn_deposit_at_its_index() {
     let deposit = env.deposit(&env.ickb, amount);
     let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
     let inputs = vec![
-        at(deposit.clone(), &deposit_header),
+        In::new(deposit.clone()).in_block(&deposit_header),
         In::new(env.udt(u128::from(amount))),
         In::new(env.plain(2 * deposit.capacity)),
     ];
@@ -145,7 +145,7 @@ fn same_block_receipt_and_deposit_mint_nothing_when_spent_together() {
     let amount = 1_500 * CKB;
     let deposit = env.deposit(&env.ickb, amount);
     let creation_header = gen_header(1554, SYNTHETIC_WITHDRAW_AR, 35, 1000, 1000);
-    let inputs = vec![at(deposit.clone(), &creation_header), at(env.receipt(1, amount), &creation_header)];
+    let inputs = vec![In::new(deposit.clone()).in_block(&creation_header), In::new(env.receipt(1, amount)).in_block(&creation_header)];
 
     for minted in [0u128, 1] {
         let mut spec = TxSpec {

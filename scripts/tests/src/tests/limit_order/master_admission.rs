@@ -9,7 +9,7 @@ fn mint_then_melt(context: &mut Context, master_lock: &Script) -> TxSpec {
         ..Default::default()
     };
     TxSpec {
-        inputs: commit(context, &mint, "the mint should verify because a master lock does not execute on creation"),
+        inputs: mint.accept(context, "the mint should verify because a master lock does not execute on creation"),
         outputs: vec![env.plain(1_700 * CKB).into()],
         ..Default::default()
     }

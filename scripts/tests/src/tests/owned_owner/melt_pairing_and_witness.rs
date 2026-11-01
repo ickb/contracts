@@ -7,7 +7,7 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let mut owner_cell = Cell { data: owner_distance_data_with_trailing_bytes(-1, &[0xaa, 0xbb]).to_vec(), ..owner(&env, &owner_lock, -1) };
+    let mut owner_cell = Cell { data: owner_distance_data_with_trailing_bytes(-1, &[0xaa, 0xbb]).to_vec(), ..env.owner(-1).under(&owner_lock) };
     owner_cell.capacity = owner_cell.occupied();
     let mut spec = melt(&env, 7, owner_cell);
     spec.outputs.push(plain(&owner_lock, claim_capacity(&spec.inputs[0].cell)).into());
@@ -21,7 +21,7 @@ fn valid_melt_pair_passes() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let mut spec = melt(&env, 6, owner(&env, &owner_lock, -1));
+    let mut spec = melt(&env, 6, env.owner(-1).under(&owner_lock));
     spec.outputs.push(plain(&owner_lock, claim_capacity(&spec.inputs[0].cell)).into());
     spec.verify(&mut context).expect("owned_owner should accept a valid melt pair");
 }
@@ -33,7 +33,7 @@ fn melt_rejects_misbound_deposit_header_index() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let mut spec = melt(&env, 7, owner(&env, &owner_lock, -1));
+    let mut spec = melt(&env, 7, env.owner(-1).under(&owner_lock));
     spec.inputs[0].witness = header_dep_index_witness(0);
     spec.outputs.push(plain(&owner_lock, 123_468_106_670).into());
     spec.fail(&mut context, ERROR_DAO_INVALID_WITHDRAW_BLOCK);
@@ -46,7 +46,7 @@ fn melt_rejects_short_header_dep_index_witness() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let mut spec = melt(&env, 8, owner(&env, &owner_lock, -1));
+    let mut spec = melt(&env, 8, env.owner(-1).under(&owner_lock));
     spec.inputs[0].witness = witness_with_input_type(truncated_bytes(Bytes::from(1u64.to_le_bytes().to_vec()), 4));
     spec.outputs.push(plain(&owner_lock, 123_468_106_670).into());
     spec.fail(&mut context, -11);
@@ -59,7 +59,7 @@ fn melt_rejects_header_dep_index_witness_in_output_type() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let mut spec = melt(&env, 81, owner(&env, &owner_lock, -1));
+    let mut spec = melt(&env, 81, env.owner(-1).under(&owner_lock));
     spec.inputs[0].witness = witness_with_output_type(Bytes::from(1u64.to_le_bytes().to_vec()));
     spec.outputs.push(plain(&owner_lock, 123_468_106_670).into());
     spec.fail(&mut context, -11);
@@ -72,7 +72,7 @@ fn melt_rejects_truncated_owner_distance_on_input() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let owner_cell = Cell { data: truncated_bytes(owner_distance_data(-1), 1).to_vec(), ..owner(&env, &owner_lock, -1) };
+    let owner_cell = Cell { data: truncated_bytes(owner_distance_data(-1), 1).to_vec(), ..env.owner(-1).under(&owner_lock) };
     let mut spec = melt(&env, 9, owner_cell);
     spec.outputs.push(plain(&owner_lock, 123_468_106_670).into());
     spec.fail(&mut context, ERROR_ENCODING);
@@ -89,9 +89,9 @@ fn pairs_cannot_be_swapped_during_melt() {
     TxSpec {
         inputs: vec![
             In::new(owned(&env, 1000 * CKB, 1554)),
-            In::new(owner(&env, &user2_lock, -1)),
+            In::new(env.owner(-1).under(&user2_lock)),
             In::new(owned(&env, 1000 * CKB, 1555)),
-            In::new(owner(&env, &user1_lock, 1)),
+            In::new(env.owner(1).under(&user1_lock)),
         ],
         outputs: vec![plain(&user1_lock, 600 * CKB).into(), plain(&user2_lock, 600 * CKB).into()],
         ..Default::default()

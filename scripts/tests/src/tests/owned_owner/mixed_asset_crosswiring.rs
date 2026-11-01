@@ -22,20 +22,20 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
 
     let create = TxSpec {
         inputs: vec![
-            mined(foreign_deposit, &foreign_deposit_header),
-            mined(protocol_deposit.clone(), &protocol_deposit_header),
-            In::new(udt(&env, &protocol_owner_lock, u128::from(protocol_deposit_amount))),
-            funding(&env),
+            In::new(foreign_deposit).in_block(&foreign_deposit_header),
+            In::new(protocol_deposit.clone()).in_block(&protocol_deposit_header),
+            In::new(env.udt(u128::from(protocol_deposit_amount)).under(&protocol_owner_lock)),
+            env.funding_input(),
         ],
         outputs: vec![
             owned(&env, foreign_deposit_capacity, foreign_deposit_number).into(),
             owned(&env, protocol_deposit.capacity, protocol_deposit_number).into(),
-            owner(&env, &foreign_owner_lock, -1).into(),
-            owner(&env, &protocol_owner_lock, -3).into(),
+            env.owner(-1).under(&foreign_owner_lock).into(),
+            env.owner(-3).under(&protocol_owner_lock).into(),
         ],
         header_deps: vec![foreign_deposit_header.clone(), protocol_deposit_header.clone()],
     };
-    let live = accept(&mut context, &create, "owned_owner should accept a weak-lock mixed foreign-plus-iCKB withdrawal batch with crosswired later claim assignments");
+    let live = create.accept(&mut context, "owned_owner should accept a weak-lock mixed foreign-plus-iCKB withdrawal batch with crosswired later claim assignments");
 
     let withdraw_header = withdraw_header(2_000_610);
     let claim_by = |owner: &In, lock: &Script| TxSpec {

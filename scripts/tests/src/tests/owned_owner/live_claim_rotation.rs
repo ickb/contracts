@@ -8,8 +8,8 @@ fn live_claim_cannot_roll_into_fresh_pair() {
     let env = Env::new(&mut context);
     let old_owner_lock = named_always_success_lock(&mut context, b"old-owner");
     let new_owner_lock = named_always_success_lock(&mut context, b"new-owner");
-    let mut spec = melt(&env, 9, owner(&env, &old_owner_lock, -1));
-    spec.outputs = vec![owned(&env, 123_456_780_000, 1554).into(), owner(&env, &new_owner_lock, -1).into()];
+    let mut spec = melt(&env, 9, env.owner(-1).under(&old_owner_lock));
+    spec.outputs = vec![owned(&env, 123_456_780_000, 1554).into(), env.owner(-1).under(&new_owner_lock).into()];
     spec.fail(&mut context, ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
@@ -22,11 +22,11 @@ fn live_claims_cannot_rotate_into_new_pairs() {
     let user2_lock = named_always_success_lock(&mut context, b"user2");
 
     let mut create = withdrawals(&env, &[1_000 * CKB, 1_100 * CKB]);
-    create.inputs.push(In::new(udt(&env, &user1_lock, u128::from(2_100 * CKB))));
-    create.inputs.push(funding(&env));
-    create.outputs.push(owner(&env, &user1_lock, -2).into());
-    create.outputs.push(owner(&env, &user2_lock, -2).into());
-    let live = accept(&mut context, &create, "initial live owned_owner pairs should verify");
+    create.inputs.push(In::new(env.udt(u128::from(2_100 * CKB)).under(&user1_lock)));
+    create.inputs.push(env.funding_input());
+    create.outputs.push(env.owner(-2).under(&user1_lock).into());
+    create.outputs.push(env.owner(-2).under(&user2_lock).into());
+    let live = create.accept(&mut context, "initial live owned_owner pairs should verify");
 
     let (withdraw_header1, withdraw_header2) = (withdraw_header(2_000_610), withdraw_header(2_000_621));
     TxSpec {
@@ -39,8 +39,8 @@ fn live_claims_cannot_rotate_into_new_pairs() {
         outputs: vec![
             create.outputs[0].clone(),
             create.outputs[1].clone(),
-            owner(&env, &user1_lock, -1).into(),
-            owner(&env, &user2_lock, -3).into(),
+            env.owner(-1).under(&user1_lock).into(),
+            env.owner(-3).under(&user2_lock).into(),
         ],
         header_deps: vec![withdraw_header1, withdraw_header2, deposit_header(1554), deposit_header(1555)],
     }

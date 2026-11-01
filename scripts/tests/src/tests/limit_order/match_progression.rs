@@ -45,7 +45,7 @@ fn valid_match_ignores_foreign_typed_output() {
     let foreign_type = named_always_success_lock(&mut context, b"foreign-type");
     let mut spec = udt_to_ckb_step(&env, 20 * CKB, (100, 80), 4);
     spec.inputs[1].cell.capacity = 300 * CKB;
-    spec.outputs.push(Cell { type_: Some(foreign_type), ..plain_under(&foreign_lock, 200 * CKB) }.into());
+    spec.outputs.push(Cell { type_: Some(foreign_type), ..plain(&foreign_lock, 200 * CKB) }.into());
     spec.verify(&mut context)
         .expect("limit_order should ignore unrelated foreign typed outputs during a valid match");
 }

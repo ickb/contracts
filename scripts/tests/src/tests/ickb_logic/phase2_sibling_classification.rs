@@ -85,7 +85,7 @@ fn non_empty_args_receipt_sibling_poisons_phase2() {
     let env = Env::new(&mut context);
     let amount = 1_000 * CKB;
     let mut spec = mint(&env, env.receipt(1, amount), u128::from(amount), false);
-    let poisoned_receipt = sized(Cell { type_: Some(env.siblings[0].clone()), ..env.receipt(1, amount) });
-    spec.inputs.push(at(poisoned_receipt, &spec.header_deps[0]));
+    let poisoned_receipt = (Cell { type_: Some(env.siblings[0].clone()), ..env.receipt(1, amount) }).sized();
+    spec.inputs.push(In::new(poisoned_receipt).in_block(&spec.header_deps[0]));
     spec.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }

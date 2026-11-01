@@ -47,7 +47,7 @@ fn duplicate_master_input_shape_is_blocked_before_script_invariants() {
     // its internal DuplicatedMaster branch, so there is no stable limit_order error code to assert.
     TxSpec {
         inputs: vec![master.clone(), master],
-        outputs: vec![plain_under(&owner_lock, 400 * CKB).into()],
+        outputs: vec![plain(&owner_lock, 400 * CKB).into()],
         ..Default::default()
     }
     .verify(&mut context)

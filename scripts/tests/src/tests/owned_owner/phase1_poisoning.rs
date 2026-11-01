@@ -23,7 +23,7 @@ fn foreign_typed_output_is_ignored() {
     let foreign_lock = named_always_success_lock(&mut context, b"foreign-lock");
     let foreign_type = named_always_success_lock(&mut context, b"foreign-type");
     let mut spec = withdrawal(&env, &owner_lock);
-    spec.inputs.push(funding(&env));
+    spec.inputs.push(env.funding_input());
     spec.outputs.push(Cell { type_: Some(foreign_type), ..plain(&foreign_lock, 200 * CKB) }.into());
     spec.verify(&mut context)
         .expect("owned_owner should ignore unrelated foreign typed outputs during a valid withdrawal batch");
@@ -52,7 +52,7 @@ fn non_empty_args_owner_sibling_poisons_withdrawal() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let poisoned_owner_type = data1_script(&mut context, "owned_owner", Bytes::from(vec![1]));
     let mut spec = withdrawal(&env, &owner_lock);
-    let poisoned_owner = Cell { capacity: 200 * CKB, type_: Some(poisoned_owner_type), ..owner(&env, &owner_lock, -1) };
+    let poisoned_owner = Cell { capacity: 200 * CKB, type_: Some(poisoned_owner_type), ..env.owner(-1).under(&owner_lock) };
     spec.inputs.push(In::new(poisoned_owner));
     spec.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }

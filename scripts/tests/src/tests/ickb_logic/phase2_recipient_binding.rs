@@ -113,8 +113,8 @@ fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
 
     let spec = TxSpec {
         inputs: vec![
-            at(Cell { lock: weak_lock_1, ..env.receipt(1, amount1) }, &header1),
-            at(Cell { lock: weak_lock_2, ..env.receipt(1, amount2) }, &header2),
+            In::new(Cell { lock: weak_lock_1, ..env.receipt(1, amount1) }).in_block(&header1),
+            In::new(Cell { lock: weak_lock_2, ..env.receipt(1, amount2) }).in_block(&header2),
         ],
         outputs: vec![Cell { lock: attacker_lock, ..env.udt(expected) }.into()],
         header_deps: vec![header1, header2],

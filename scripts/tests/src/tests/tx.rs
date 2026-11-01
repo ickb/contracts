@@ -59,6 +59,11 @@ pub(super) struct Cell {
     pub(super) data: Vec<u8>,
 }
 
+/// A cell under `lock` with nothing else.
+pub(super) fn plain(lock: &Script, capacity: u64) -> Cell {
+    Cell { capacity, lock: lock.clone(), type_: None, data: vec![] }
+}
+
 impl Cell {
     pub(super) fn output(&self) -> CellOutput {
         cell(self.capacity, &self.lock, self.type_.as_ref())
@@ -147,7 +152,12 @@ impl TxSpec {
 impl Env {
     /// A cell under the test user's lock with nothing else.
     pub(super) fn plain(&self, capacity: u64) -> Cell {
-        Cell { capacity, lock: self.user.clone(), type_: None, data: vec![] }
+        plain(&self.user, capacity)
+    }
+
+    /// The plain 1,000 CKB input a wallet adds to fund a transaction.
+    pub(super) fn funding_input(&self) -> In {
+        In::new(plain(&self.funding, 1_000 * CKB))
     }
 
     /// An iCKB xUDT cell holding `amount`, at its occupied capacity.
@@ -197,10 +207,18 @@ impl From<Cell> for Out {
 impl In {
     /// The cell as a live input at an out point no other input uses, with no header and since 0.
     pub(super) fn new(cell: Cell) -> Self {
-        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        // Per thread, and libtest runs each test on its own thread, so a test's out points never
+        // depend on which other tests run beside it.
+        thread_local!(static NEXT: std::cell::Cell<u64> = const { std::cell::Cell::new(1) });
+        let next = NEXT.with(|n| n.replace(n.get() + 1));
         let mut tx_hash = [0xa5; 32];
-        tx_hash[..8].copy_from_slice(&NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed).to_le_bytes());
+        tx_hash[..8].copy_from_slice(&next.to_le_bytes());
         In { cell, out_point: OutPoint::new(tx_hash.pack(), 0), header: None, since: 0, witness: Bytes::new() }
+    }
+
+    /// The same input, created in `header`'s block.
+    pub(super) fn in_block(self, header: &HeaderView) -> In {
+        In { header: Some(header.clone()), ..self }
     }
 }
 
@@ -208,6 +226,14 @@ impl TxSpec {
     pub(super) fn verify(&self, context: &mut Context) -> Result<u64, Error> {
         let tx = self.build(context);
         context.verify(&tx, MAX_CYCLES)
+    }
+
+    /// Verifies the transaction and returns its outputs as live inputs at their out points, so the
+    /// next step of a lineage can spend them.
+    pub(super) fn accept(&self, context: &mut Context, expect: &str) -> Vec<In> {
+        let tx = self.build(context);
+        context.verify(&tx, MAX_CYCLES).expect(expect);
+        (0u32..).zip(&self.outputs).map(|(i, o)| In { out_point: OutPoint::new(tx.hash(), i), ..In::new(o.cell.clone()) }).collect()
     }
 
     /// Asserts the scripts reject the transaction with `err_code`.

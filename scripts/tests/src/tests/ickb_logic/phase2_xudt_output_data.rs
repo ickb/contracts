@@ -5,7 +5,7 @@ fn mint_holding(context: &mut Context, data: Vec<u8>, funded: bool) -> TxSpec {
     let env = Env::new(context);
     let amount = 1_000 * CKB;
     let mut spec = mint(&env, env.receipt(1, amount), u128::from(amount), funded);
-    spec.outputs[0] = sized(Cell { data, ..env.udt(0) }).into();
+    spec.outputs[0] = (Cell { data, ..env.udt(0) }).sized().into();
     spec
 }
 

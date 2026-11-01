@@ -18,20 +18,16 @@ fn can_atomically_melt_and_remint_with_negative_distance_and_filler() {
         ],
         outputs: vec![
             env.master().under(&owner_lock).into(),
-            plain_under(&filler_lock, 100 * CKB).into(),
+            plain(&filler_lock, 100 * CKB).into(),
             env.order(1_500 * CKB, order_data_mint(0, -2, (1, 1))).into(),
         ],
         ..Default::default()
     };
-    let reminted = commit(
-        &mut context,
-        &remint,
-        "limit_order should allow canceling one pair while minting a new sparse negative-distance pair in the same tx",
-    );
+    let reminted = remint.accept(&mut context, "limit_order should allow canceling one pair while minting a new sparse negative-distance pair in the same tx");
 
     TxSpec {
         inputs: vec![reminted[2].clone(), reminted[0].clone(), In::new(env.plain(1_000 * CKB))],
-        outputs: vec![plain_under(&owner_lock, 1_700 * CKB).into()],
+        outputs: vec![plain(&owner_lock, 1_700 * CKB).into()],
         ..Default::default()
     }
     .verify(&mut context)

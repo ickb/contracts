@@ -52,11 +52,11 @@ fn distinct_match_progress_blocks_master_crosswire() {
     let ((order1, master1), (order2, master2)) = two_real_pairs(&mut context, &env);
     let order1_match = order_data_match(100 * CKB as u128, &master1, (1, 1));
     let order1_match = continue_orders(&env, vec![order1], vec![(1_500 * CKB, order1_match)]);
-    let order1_matched = commit(&mut context, &order1_match, "order1 should enter its first match state").remove(0);
+    let order1_matched = order1_match.accept(&mut context, "order1 should enter its first match state").remove(0);
     let order2_match = order_data_match(200 * CKB as u128, &master2, (1, 1));
     let order2_match = continue_orders(&env, vec![order2], vec![(1_300 * CKB, order2_match)]);
     let order2_matched =
-        commit(&mut context, &order2_match, "order2 should enter a later match state with different progress").remove(0);
+        order2_match.accept(&mut context, "order2 should enter a later match state with different progress").remove(0);
 
     let crosswire = continue_orders(
         &env,
@@ -77,7 +77,7 @@ fn real_mint_and_match_orders_cannot_crosswire_masters() {
     let ((mint_order, master1), (match_order_seed, master2)) = two_real_pairs(&mut context, &env);
     let seed_match = order_data_match(100 * CKB as u128, &master2, (1, 1));
     let seed_match = continue_orders(&env, vec![match_order_seed], vec![(1_400 * CKB, seed_match)]);
-    let match_order = commit(&mut context, &seed_match, "the second real order should enter match state before the mixed crosswire")
+    let match_order = seed_match.accept(&mut context, "the second real order should enter match state before the mixed crosswire")
         .remove(0);
 
     let crosswire = continue_orders(

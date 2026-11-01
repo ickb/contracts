@@ -15,11 +15,11 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
     // ordinary user lock can be wrapped; since then, only a lock of Owned Owner's size can.
     let deposit = Cell { capacity: deposit_capacity_value, ..env.deposit(&user_lock, 0) };
     let create = TxSpec {
-        inputs: vec![mined(deposit, &deposit_header), In::new(plain(&funding_lock, 200 * CKB))],
-        outputs: vec![owned(&env, deposit_capacity_value, 1554).into(), owner(&env, &user_lock, -1).into()],
+        inputs: vec![In::new(deposit).in_block(&deposit_header), In::new(plain(&funding_lock, 200 * CKB))],
+        outputs: vec![owned(&env, deposit_capacity_value, 1554).into(), env.owner(-1).under(&user_lock).into()],
         header_deps: vec![deposit_header.clone()],
     };
-    let live = accept(&mut context, &create, "owned_owner should accept a foreign DAO withdrawal request pair without any iCKB burn");
+    let live = create.accept(&mut context, "owned_owner should accept a foreign DAO withdrawal request pair without any iCKB burn");
 
     let withdraw_header = withdraw_header(2_000_610);
     TxSpec {

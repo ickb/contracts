@@ -42,7 +42,7 @@ fn withdrawal_request_locked_by_ickb_logic_is_script_misuse() {
     let deposit_amount = 1_500 * CKB;
     let deposit = env.deposit(&env.ickb, deposit_amount);
     let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
-    let inputs = vec![at(deposit.clone(), &deposit_header), In::new(env.udt(u128::from(deposit_amount)))];
+    let inputs = vec![In::new(deposit.clone()).in_block(&deposit_header), In::new(env.udt(u128::from(deposit_amount)))];
 
     let withdraw = |request_lock: &Script| TxSpec {
         inputs: inputs.clone(),

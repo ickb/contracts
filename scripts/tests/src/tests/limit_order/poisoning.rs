@@ -7,7 +7,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
     let env = Env::new(&mut context);
     let poisoned_lock = data1_script(&mut context, "limit_order", Bytes::from(vec![1]));
     let mut spec = udt_to_ckb_step(&env, 20 * CKB, (100, 80), 4);
-    spec.outputs.push(plain_under(&poisoned_lock, 200 * CKB).into());
+    spec.outputs.push(plain(&poisoned_lock, 200 * CKB).into());
     spec.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -32,6 +32,6 @@ fn non_empty_args_master_sibling_poisons_match() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let poisoned_master_type = data1_script(&mut context, "limit_order", Bytes::from(vec![1]));
     let mut spec = udt_to_ckb_step(&env, 20 * CKB, (100, 80), 4);
-    spec.inputs.push(In::new(Cell { type_: Some(poisoned_master_type), ..plain_under(&owner_lock, 200 * CKB) }));
+    spec.inputs.push(In::new(Cell { type_: Some(poisoned_master_type), ..plain(&owner_lock, 200 * CKB) }));
     spec.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }

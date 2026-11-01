@@ -23,7 +23,7 @@ fn withdrawal_shape_cannot_be_created_without_any_dao_input() {
     let withdrawal_capacity = 123_456_780_000u64;
     TxSpec {
         inputs: vec![In::new(plain(&funding_lock, withdrawal_capacity + 200))],
-        outputs: vec![owned(&env, withdrawal_capacity, 1554).into(), owner(&env, &user_lock, -1).into()],
+        outputs: vec![owned(&env, withdrawal_capacity, 1554).into(), env.owner(-1).under(&user_lock).into()],
         ..Default::default()
     }
     .fail(&mut context, ERROR_DAO_NEWLY_CREATED_CELL);
@@ -38,7 +38,7 @@ fn two_owner_cells_for_one_owned_output_are_rejected() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let mut spec = withdrawal(&env, &owner_lock);
     spec.inputs.push(In::new(plain(&env.funding, 200 * CKB)));
-    spec.outputs.push(owner(&env, &owner_lock, -2).into());
+    spec.outputs.push(env.owner(-2).under(&owner_lock).into());
     spec.fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }
 
@@ -53,15 +53,15 @@ fn two_owned_outputs_for_one_owner_cell_are_rejected() {
     let deposit = env.deposit(&env.ickb, 1_000 * CKB);
     TxSpec {
         inputs: vec![
-            mined(deposit.clone(), &header),
-            mined(deposit.clone(), &header),
-            In::new(udt(&env, &owner_lock, 2 * u128::from(1_000 * CKB))),
+            In::new(deposit.clone()).in_block(&header),
+            In::new(deposit.clone()).in_block(&header),
+            In::new(env.udt(2 * u128::from(1_000 * CKB)).under(&owner_lock)),
             In::new(plain(&env.funding, 200 * CKB)),
         ],
         outputs: vec![
             owned(&env, deposit.capacity, 1554).into(),
             owned(&env, deposit.capacity, 1554).into(),
-            owner(&env, &owner_lock, -2).into(),
+            env.owner(-2).under(&owner_lock).into(),
         ],
         header_deps: vec![header],
     }
@@ -76,7 +76,7 @@ fn orphan_withdrawal_request_can_be_created_but_not_claimed() {
     let user_lock = named_always_success_lock(&mut context, b"user");
     let mut create = withdrawal(&env, &user_lock);
     create.outputs.truncate(1);
-    let live = accept(&mut context, &create, "phase1 accepts an orphan withdrawal request because the owned_owner output lock never executes");
+    let live = create.accept(&mut context, "phase1 accepts an orphan withdrawal request because the owned_owner output lock never executes");
 
     let withdraw_header = withdraw_header(2_000_610);
     TxSpec {
@@ -96,7 +96,7 @@ fn orphan_owner_output_is_rejected() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     TxSpec {
         inputs: vec![In::new(plain(&funding_lock, 500 * CKB))],
-        outputs: vec![owner(&env, &owner_lock, 1).into()],
+        outputs: vec![env.owner(1).under(&owner_lock).into()],
         ..Default::default()
     }
     .fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);

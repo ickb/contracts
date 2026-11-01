@@ -13,11 +13,7 @@ fn fake_match_lineage_can_keep_advancing_without_real_master() {
     };
 
     let initial_order = In::new(env.order(1_500 * CKB, order_data_match(0, &fake_master, (1, 1))));
-    let first_match = commit(
-        &mut context,
-        &step(initial_order, 1_400 * CKB, 100 * CKB),
-        "a forged match-shaped order should survive one valid-looking match transition without any real master",
-    );
+    let first_match = step(initial_order, 1_400 * CKB, 100 * CKB).accept(&mut context, "a forged match-shaped order should survive one valid-looking match transition without any real master");
     step(first_match[0].clone(), 1_300 * CKB, 200 * CKB)
         .verify(&mut context)
         .expect("the fake match-shaped lineage should stay reusable across multiple later match transitions without any real master");
@@ -34,7 +30,7 @@ fn foreign_token_fake_order_with_arbitrary_info_can_strand_real_order() {
         outputs: vec![env.order(1_500 * CKB, order_data_mint(0, 1, (1, 1))).into(), env.master().under(&owner_lock).into()],
         ..Default::default()
     };
-    let minted = commit(&mut context, &mint, "the real order and occupied-capacity-valid master should mint");
+    let minted = mint.accept(&mut context, "the real order and occupied-capacity-valid master should mint");
     let (real_order, real_master) = (minted[0].clone(), minted[1].clone());
 
     let foreign_token = named_always_success_lock(&mut context, b"foreign-token");
@@ -51,7 +47,7 @@ fn foreign_token_fake_order_with_arbitrary_info_can_strand_real_order() {
     let phantom_order = Cell { type_: Some(foreign_token), ..env.order(1_500 * CKB, fake_data) };
     TxSpec {
         inputs: vec![In::new(phantom_order), real_master, In::new(env.plain(1_000 * CKB))],
-        outputs: vec![plain_under(&owner_lock, 1_700 * CKB).into()],
+        outputs: vec![plain(&owner_lock, 1_700 * CKB).into()],
         ..Default::default()
     }
     .verify(&mut context)
