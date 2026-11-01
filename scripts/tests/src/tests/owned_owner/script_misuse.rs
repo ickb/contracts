@@ -178,3 +178,29 @@ fn cell_using_owned_owner_as_both_lock_and_type_is_rejected() {
     let tx = context.complete_tx(tx);
     fail(&context, &tx, ERROR_OWNED_OWNER_SCRIPT_MISUSE);
 }
+
+// Scenario: the owned cell carries withdrawal-request-shaped data (8 non-zero bytes) under a
+// non-DAO type.
+// Expectation: Owned Owner rejects it on the DAO type check alone; the other look-alike tests
+// fail the data check first, so only this case pins the type check.
+#[test]
+fn request_shaped_owned_cell_without_dao_type_is_rejected() {
+    let mut context = Context::default();
+    let funding_lock = always_success_lock(&mut context);
+    let owner_lock = named_always_success_lock(&mut context, b"owner");
+    let owned_owner = owned_owner_script(&mut context);
+    let helper_type = helper_type_script(&mut context);
+
+    let funding_input = context.create_cell(cell(2_000 * CKB, &funding_lock, None), Bytes::new());
+    let owned_output = cell(1_000 * CKB, &owned_owner, Some(&helper_type));
+    let owner_output = cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner));
+
+    let tx = TransactionBuilder::default()
+        .input(input(funding_input))
+        .outputs(vec![owned_output, owner_output])
+        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
+        .build();
+
+    let tx = context.complete_tx(tx);
+    fail(&context, &tx, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
+}

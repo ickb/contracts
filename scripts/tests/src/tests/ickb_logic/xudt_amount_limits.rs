@@ -46,3 +46,31 @@ fn xudt_amount_at_u64_max_boundary_is_allowed() {
         .verify(&tx, MAX_CYCLES)
         .expect("u64::MAX should remain a valid xUDT amount boundary");
 }
+
+// Keep an xUDT output at exactly `u64::MAX` while ickb_logic runs (a phase-1 deposit makes it run
+// as the receipt's type): its output ceiling admits the boundary, so the transfer verifies. The
+// plain transfer above never runs ickb_logic, so only this case pins `>` against `>=`.
+#[test]
+fn output_udt_amount_at_u64_max_is_allowed_while_ickb_logic_runs() {
+    let mut context = Context::default();
+    let user_lock = always_success_lock(&mut context);
+    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
+
+    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(u64::MAX));
+    let deposit_amount = 1_000 * CKB;
+    let deposit = cell(deposit_capacity(&ickb_logic, &dao, 8, deposit_amount), &ickb_logic, Some(&dao));
+    let receipt = cell(occupied_capacity(&user_lock, &ickb_logic, 12), &user_lock, Some(&ickb_logic));
+    let funding_input = funding_cell_of(&mut context, 2_000 * CKB);
+
+    let tx = TransactionBuilder::default()
+        .input(input(udt_input))
+        .input(input(funding_input))
+        .outputs(vec![cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt)), deposit, receipt])
+        .outputs_data(vec![udt_data(u128::from(u64::MAX)), dao_deposit_data(), receipt_data(1, deposit_amount)].pack())
+        .build();
+
+    let tx = context.complete_tx(tx);
+    context
+        .verify(&tx, MAX_CYCLES)
+        .expect("u64::MAX should remain a valid xUDT output while ickb_logic runs");
+}
