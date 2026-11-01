@@ -33,7 +33,7 @@ struct Gen<'a> {
 pub(super) fn generate_case(rng: &mut Rng, env: &Env) -> (TxSpec, Vec<&'static str>) {
     let next_block = 1_000 + rng.below(500);
     let mut gen = Gen { rng, env, next_block };
-    let count = gen.rng.range(1, 3);
+    let count = gen.rng.range(1, 8);
     let mut kinds = Vec::new();
     let mut segments = Vec::new();
     for _ in 0..count {
