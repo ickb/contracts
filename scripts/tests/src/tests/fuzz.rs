@@ -218,35 +218,6 @@ impl TxSpec {
         rest >= self.outputs[change].cell.occupied()
     }
 
-    /// The node checks ckb-testtool skips and that `VerifyRealistic` would otherwise assert:
-    /// occupied capacity, capacity balance without DAO inputs, unique inputs and header deps.
-    fn is_realistic(&self, env: &Env) -> bool {
-        let dao_hash = env.dao.calc_script_hash();
-        let all_cells = self.inputs.iter().map(|i| &i.cell).chain(self.outputs.iter().map(|o| &o.cell));
-        if all_cells.clone().any(|c| c.capacity < c.occupied()) {
-            return false;
-        }
-        let has_dao_input =
-            self.inputs.iter().any(|i| i.cell.type_.as_ref().map(|t| t.calc_script_hash()) == Some(dao_hash.clone()));
-        if !has_dao_input {
-            let inputs: u128 = self.inputs.iter().map(|i| u128::from(i.cell.capacity)).sum();
-            let outputs: u128 = self.outputs.iter().map(|o| u128::from(o.cell.capacity)).sum();
-            if outputs > inputs {
-                return false;
-            }
-        }
-        let mut points: Vec<_> = self.inputs.iter().map(|i| i.out_point.as_bytes()).collect();
-        points.sort();
-        points.dedup();
-        let mut headers: Vec<_> = self.header_deps.iter().map(|h| h.hash().as_bytes()).collect();
-        headers.sort();
-        headers.dedup();
-        !self.inputs.is_empty()
-            && !self.outputs.is_empty()
-            && points.len() == self.inputs.len()
-            && headers.len() == self.header_deps.len()
-    }
-
     fn build(&self, context: &mut Context) -> TransactionView {
         let mut builder = TransactionBuilder::default();
         // Every live cell sits in some block; cells whose header nobody needs get one outside the
@@ -296,11 +267,10 @@ fn run_case(case_seed: u64, stats: Option<&mut Stats>) -> Result<(), String> {
     for _ in 0..mutations {
         applied.push(mutate(&mut rng, &env, &mut spec));
     }
-    let outcome = if !spec.balance() || !spec.is_realistic(&env) {
-        Outcome::Unrealistic
-    } else {
-        let tx = spec.build(&mut context);
-        match context.verify(&tx, FUZZ_MAX_CYCLES) {
+    let tx = spec.balance().then(|| spec.build(&mut context));
+    let outcome = match tx.filter(|tx| context.node_rejection(tx).is_none()) {
+        None => Outcome::Unrealistic,
+        Some(tx) => match context.verify(&tx, FUZZ_MAX_CYCLES) {
             Err(err) => Outcome::Rejected(error_class(&env, &spec, &err.to_string())),
             Ok(_) => {
                 let violations = check_invariants(&env, &context, &tx);
@@ -313,7 +283,7 @@ fn run_case(case_seed: u64, stats: Option<&mut Stats>) -> Result<(), String> {
                 }
                 Outcome::Accepted
             }
-        }
+        },
     };
     if mutations == 0 {
         let err = match &outcome {

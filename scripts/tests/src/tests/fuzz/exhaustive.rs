@@ -316,12 +316,16 @@ impl Search {
     fn case(&mut self, ins: &[usize], outs: &[usize], list: bool, summary: &mut Summary) {
         summary.enumerated += 1;
         let mut spec = spec(&self.alphabet, ins, outs);
-        if !spec.balance() || !spec.is_realistic(&self.env) {
+        if !spec.balance() {
             summary.unrealistic += 1;
             return;
         }
         // One context serves every case: build re-creates each input at its out point.
         let tx = spec.build(&mut self.context);
+        if self.context.node_rejection(&tx).is_some() {
+            summary.unrealistic += 1;
+            return;
+        }
         match self.context.verify(&tx, FUZZ_MAX_CYCLES) {
             Err(err) => *summary.rejected.entry(error_class(&self.env, &spec, &err.to_string())).or_default() += 1,
             Ok(_) => {

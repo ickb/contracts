@@ -156,7 +156,7 @@ The `nervosnetwork/ckb` pin is release `v0.210.0`.
 The review prioritized executable behavior over static plausibility and classified issues by their concrete impact.
 
 - Reviewed the deployed release binaries and the transaction semantics they actually enforce, not just the latest source-level intent.
-- Reproduced deployed-script behavior locally with `ckb-testtool`. Its `Context::verify_tx` checks output/data cardinality and executes scripts, but does not run the full node non-contextual or contextual transaction verifiers. The suite therefore holds every input and output to its occupied capacity before verifying, and every transaction the scripts accept to the node's capacity balance and DAO lock-size rules, so no fixture builds a cell or transaction those node checks would reject; other consensus-level conclusions are separately source-backed.
+- Reproduced deployed-script behavior locally with `ckb-testtool`. Its `Context::verify_tx` checks output/data cardinality and executes scripts, but does not run the node's other transaction verifiers. The suite therefore holds every transaction the scripts accept to the node's own verifiers (`ckb-verification` 1.2.1, the code of node v0.210.0) under mainnet's consensus, leaving out only the checks that waiting satisfies (`since` and cellbase maturity), so no fixture builds a transaction the node would reject; other consensus-level conclusions are separately source-backed.
 - Reused and extended the existing test suite, including replayed transaction shapes from observed protocol flows.
 - Computed NervosDAO accounting with the exact DAO withdrawal math before classifying any claim-path discrepancy as a finding.
 - Separated findings that affect the current deployment from weak-lock assumptions, operator mistakes, or broader integration-only scenarios.
@@ -627,7 +627,7 @@ These bounds are part of the output check, which runs only when the creating tra
 
 **6D. `extract_unused_capacity` underflow**
 
-**Trace:** the node's transaction verifier enforces `capacity >= occupied_capacity` for all cells; `ckb-testtool` does not run that verifier, so this rests on the consensus rule rather than on the suite. The subtraction at [`utils.rs:48`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/utils/src/utils.rs#L48) is safe.
+**Trace:** the node's transaction verifier enforces `capacity >= occupied_capacity` for all cells, and the suite runs that verifier on every transaction the scripts accept. The subtraction at [`utils.rs:48`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/utils/src/utils.rs#L48) is safe.
 
 **Result:** **Impossible.**
 

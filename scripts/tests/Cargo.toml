@@ -5,7 +5,12 @@ edition = "2021"
 
 [dependencies]
 ckb-testtool = "1.1.1"
+ckb-chain-spec = "1"
+ckb-dao = "1"
 ckb-dao-utils = "1"
+ckb-resource = "1"
+ckb-traits = "1"
+ckb-verification = "1.2.1"
 ckb-system-scripts = "0.5.4"
 hex = "0.4"
 primitive-types = { version = "0.12.2", default-features = false }

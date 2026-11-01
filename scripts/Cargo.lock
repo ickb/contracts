@@ -1841,9 +1841,14 @@ dependencies = [
 name = "tests"
 version = "0.1.0"
 dependencies = [
+ "ckb-chain-spec",
+ "ckb-dao",
  "ckb-dao-utils",
+ "ckb-resource",
  "ckb-system-scripts",
  "ckb-testtool",
+ "ckb-traits",
+ "ckb-verification",
  "hex",
  "primitive-types",
 ]

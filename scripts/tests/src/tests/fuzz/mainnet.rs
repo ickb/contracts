@@ -55,7 +55,9 @@ fn mainnet_transactions_keep_protocol_invariants() {
             }
             "end" => {
                 let (view, roles) = tx.take().expect("end without tx");
-                let violations = check_invariants(&env, &context, &view);
+                let mut violations = check_invariants(&env, &context, &view);
+                // A committed transaction passed the node, so a rejection here is a harness bug.
+                violations.extend(context.node_rejection(&view).map(|r| format!("the node check rejects it: {r}")));
                 if !violations.is_empty() {
                     failures.push(format!("{:#x} ({roles}):\n    {}", view.hash(), violations.join("\n    ")));
                 }
@@ -66,5 +68,5 @@ fn mainnet_transactions_keep_protocol_invariants() {
     }
     println!("replayed {replayed} transactions, {} with violations", failures.len());
     assert!(replayed > 0, "no transactions in {path}");
-    assert!(failures.is_empty(), "{} transactions break oracle invariants:\n{}", failures.len(), failures.join("\n"));
+    assert!(failures.is_empty(), "{} transactions fail the oracle or the node check:\n{}", failures.len(), failures.join("\n"));
 }

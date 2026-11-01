@@ -3,7 +3,6 @@
 //! node allow, then verifies the next step. It reuses the fuzzer's realistic transaction builder
 //! and invariant oracle.
 use super::*;
-use ckb_testtool::ckb_chain_spec::consensus::ConsensusBuilder;
 
 /// The most pairs one withdrawal can create: each request needs its owner, and a transaction with
 /// a DAO output may have at most 64 outputs.
@@ -14,15 +13,12 @@ const MAX_RECEIPT_QUANTITY: u32 = 63;
 const MAX_DEPOSIT: u64 = 1_000_000 * CKB;
 const MIN_DEPOSIT: u64 = 1_000 * CKB;
 
-/// Verifies like the node, then requires the transaction to fit one mainnet block (the default
-/// consensus limits, which mainnet does not override) and to keep the invariants.
+/// Verifies like the node, whose checks include the mainnet block size limit, within mainnet's
+/// block cycle limit, then requires the invariants to hold.
 fn commit(context: &mut Context, env: &Env, mut spec: TxSpec) -> u64 {
-    let consensus = ConsensusBuilder::default().build();
-    assert!(spec.balance() && spec.is_realistic(env), "the test built an unrealistic transaction");
+    assert!(spec.balance(), "the test built an unbalanceable transaction");
     let tx = spec.build(context);
-    let cycles = context.verify(&tx, consensus.max_block_cycles()).unwrap_or_else(|e| panic!("rejected: {e}"));
-    let bytes = tx.data().serialized_size_in_block() as u64;
-    assert!(bytes <= consensus.max_block_bytes(), "{bytes} bytes exceed one block");
+    let cycles = context.verify(&tx, mainnet().max_block_cycles()).unwrap_or_else(|e| panic!("rejected: {e}"));
     let violations = check_invariants(env, context, &tx);
     assert!(violations.is_empty(), "{violations:?}");
     cycles

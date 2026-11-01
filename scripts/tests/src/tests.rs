@@ -9,7 +9,15 @@ use ckb_testtool::ckb_types::{
     packed::*,
     prelude::*,
 };
+use ckb_chain_spec::{consensus::Consensus, ChainSpec};
+use ckb_dao::DaoCalculator;
+use ckb_resource::Resource;
+use ckb_testtool::ckb_types::core::cell::{CellMetaBuilder, ResolvedTransaction};
+use ckb_testtool::ckb_types::core::Capacity;
 use ckb_testtool::context::Context;
+use ckb_traits::CellDataProvider;
+use ckb_verification::{CapacityVerifier, DaoScriptSizeVerifier, NonContextualTransactionVerifier, Since, SinceMetric};
+use std::sync::{Arc, OnceLock};
 
 mod encoders;
 mod fixtures;
@@ -28,74 +36,98 @@ use fixtures::*;
 use replay_helpers::*;
 use signing::*;
 
-// ckb-testtool runs scripts only, so a fixture could build a cell consensus rejects and still pass.
-// Tests verify through this check, which first holds every input and output to its occupied capacity.
+// ckb-testtool runs scripts only, so a fixture could build a transaction the node rejects and still
+// pass. Tests verify through this check, which also runs the node's own transaction verifiers.
 trait VerifyRealistic {
     fn verify(&self, tx: &TransactionView, max_cycles: u64) -> Result<u64, Error>;
+    fn node_rejection(&self, tx: &TransactionView) -> Option<String>;
+}
+
+/// Mainnet's consensus as the node builds it from its bundled chain spec: block limits, the DAO
+/// type hash, the DAO lock-size start block and the active hardforks all come from there.
+fn mainnet() -> Arc<Consensus> {
+    static MAINNET: OnceLock<Arc<Consensus>> = OnceLock::new();
+    Arc::clone(MAINNET.get_or_init(|| {
+        let spec = ChainSpec::load_from(&Resource::bundled("specs/mainnet.toml".to_string())).expect("mainnet spec");
+        Arc::new(spec.build_consensus().expect("mainnet consensus"))
+    }))
+}
+
+/// `DaoScriptSizeVerifier` takes its loader by value; this lends it the context.
+struct Loaded<'a>(&'a Context);
+
+impl CellDataProvider for Loaded<'_> {
+    fn get_cell_data(&self, out_point: &OutPoint) -> Option<Bytes> {
+        self.0.get_cell_data(out_point)
+    }
+
+    fn get_cell_data_hash(&self, out_point: &OutPoint) -> Option<Byte32> {
+        self.0.get_cell_data_hash(out_point)
+    }
 }
 
 impl VerifyRealistic for Context {
     fn verify(&self, tx: &TransactionView, max_cycles: u64) -> Result<u64, Error> {
-        let check = |side: &str, index: usize, cell: &CellOutput, data_len: usize| {
-            let occupied = cell
-                .occupied_capacity(ckb_testtool::ckb_types::core::Capacity::bytes(data_len).expect("data length"))
-                .expect("occupied capacity")
-                .as_u64();
-            let capacity: u64 = cell.capacity().unpack();
-            assert!(
-                capacity >= occupied,
-                "{side} {index} holds {capacity} shannons, below its occupied capacity {occupied}"
-            );
-        };
-        for (index, input) in tx.inputs().into_iter().enumerate() {
-            if let Some((cell, data)) = self.get_cell(&input.previous_output()) {
-                check("input", index, &cell, data.len());
-            }
-        }
-        for (index, (cell, data)) in tx.outputs().into_iter().zip(tx.outputs_data()).enumerate() {
-            check("output", index, &cell, data.raw_data().len());
-        }
         let cycles = self.verify_tx(tx, max_cycles)?;
-        // A transaction the scripts accept must also pass the node's transaction checks that
-        // ckb-testtool skips: CapacityVerifier and DaoScriptSizeVerifier.
-        let dao_code_hash = build_genesis_type_id_script(OUTPUT_INDEX_DAO).calc_script_hash();
-        let is_dao = |cell: &CellOutput| {
-            cell.type_().to_opt().map_or(false, |script| {
-                script.code_hash() == dao_code_hash && script.hash_type() == ScriptHashType::Type.into()
-            })
-        };
-        let inputs: Vec<_> = tx.inputs().into_iter().map(|input| (input.previous_output(), self.get_cell(&input.previous_output()))).collect();
-        // Outputs may not exceed inputs, except in a transaction with a DAO input, whose
-        // compensation the DAO script checks instead.
-        if !inputs.iter().any(|(_, cell)| cell.as_ref().map_or(false, |(cell, _)| is_dao(cell))) {
-            let inputs_sum: u64 = inputs.iter().filter_map(|(_, cell)| cell.as_ref()).map(|(cell, _)| Unpack::<u64>::unpack(&cell.capacity())).sum();
-            let outputs_sum: u64 = tx.outputs().into_iter().map(|cell| Unpack::<u64>::unpack(&cell.capacity())).sum();
-            assert!(outputs_sum <= inputs_sum, "outputs hold {outputs_sum} shannons, more than the inputs' {inputs_sum}");
-        }
-        // A deposit committed since the node's starting block and the withdrawal request at its
-        // index use locks of the same serialized size; older deposits are exempt.
-        for (index, ((out_point, deposit), output)) in inputs.iter().zip(tx.outputs()).enumerate() {
-            let Some((deposit, data)) = deposit else {
-                continue;
-            };
-            let exempt = self
-                .transaction_infos
-                .get(out_point)
-                .map_or(false, |info| info.block_number < DAO_LOCK_SIZE_RULE_START_BLOCK);
-            if !exempt && is_dao(deposit) && is_dao(&output) && data.iter().all(|byte| *byte == 0) {
-                assert_eq!(
-                    deposit.lock().total_size(),
-                    output.lock().total_size(),
-                    "DAO output {index} changes the lock size of the deposit it withdraws"
-                );
-            }
+        if let Some(rejection) = self.node_rejection(tx) {
+            panic!("the scripts accept a transaction the node rejects: {rejection}");
         }
         Ok(cycles)
+    }
+
+    /// Why the node would reject `tx` before or after its scripts, if it would. Time-dependent
+    /// checks (since maturity, cellbase maturity) are left out: waiting satisfies them.
+    fn node_rejection(&self, tx: &TransactionView) -> Option<String> {
+        let consensus = mainnet();
+        let mut inputs = Vec::new();
+        for (index, input) in tx.inputs().into_iter().enumerate() {
+            let out_point = input.previous_output();
+            let Some((cell, data)) = self.cells.get(&out_point) else {
+                return Some(format!("input {index} spends no live cell"));
+            };
+            // An input was an output once, so it holds its occupied capacity.
+            if cell.is_lack_of_capacity(Capacity::bytes(data.len()).expect("data length")).expect("occupied capacity") {
+                return Some(format!("input {index} holds less than its occupied capacity"));
+            }
+            let mut meta = CellMetaBuilder::from_cell_output(cell.clone(), data.clone()).out_point(out_point.clone());
+            if let Some(info) = self.transaction_infos.get(&out_point) {
+                meta = meta.transaction_info(info.clone());
+            }
+            inputs.push(meta.build());
+        }
+        // The node's resolver rejects a transaction that spends one cell twice.
+        let mut spent: Vec<_> = inputs.iter().map(|meta| meta.out_point.clone()).collect();
+        spent.sort_by_key(|out_point| out_point.as_bytes());
+        if spent.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Some("an input cell is spent twice".to_string());
+        }
+        // SinceVerifier's checks that no amount of waiting satisfies.
+        for (index, input) in tx.inputs().into_iter().enumerate() {
+            let since = Since(input.since().into());
+            let well_formed = since.0 == 0
+                || since.flags_is_valid()
+                    && match since.extract_metric() {
+                        Some(SinceMetric::EpochNumberWithFraction(epoch)) => epoch.is_well_formed_increment(),
+                        Some(_) => true,
+                        None => false,
+                    };
+            if !well_formed {
+                return Some(format!("input {index} has an invalid since"));
+            }
+        }
+        let rtx = Arc::new(ResolvedTransaction { transaction: tx.clone(), resolved_cell_deps: Vec::new(), resolved_inputs: inputs, resolved_dep_groups: Vec::new() });
+        let checks = [
+            NonContextualTransactionVerifier::new(tx, &consensus).verify().err(),
+            CapacityVerifier::new(Arc::clone(&rtx), consensus.dao_type_hash()).verify().err(),
+            DaoCalculator::new(&consensus, self).transaction_fee(&rtx).err().map(Into::into),
+            DaoScriptSizeVerifier::new(Arc::clone(&rtx), Arc::clone(&consensus), Loaded(self)).verify().err(),
+        ];
+        checks.into_iter().flatten().next().map(|error| format!("{error:?}"))
     }
 }
 
 #[test]
-#[should_panic(expected = "below its occupied capacity")]
+#[should_panic(expected = "InsufficientCellCapacity(Outputs[0])")]
 fn verify_rejects_a_cell_below_its_occupied_capacity() {
     let mut context = Context::default();
     let lock = always_success_lock(&mut context);
@@ -110,6 +142,84 @@ fn verify_rejects_a_cell_below_its_occupied_capacity() {
         .build();
     let tx = context.complete_tx(tx);
     let _ = context.verify(&tx, MAX_CYCLES);
+}
+
+/// A stand-in for the NervosDAO type that accepts every transaction, so a test reaches the node
+/// checks with shapes the real DAO script would reject first.
+fn permissive_dao_script(context: &mut Context) -> Script {
+    let lock = always_success_lock(context);
+    let type_script = build_genesis_type_id_script(OUTPUT_INDEX_DAO);
+    let code = context.create_cell(
+        cell(capacity_for_data(ALWAYS_SUCCESS.len() as u64), &lock, Some(&type_script)),
+        ALWAYS_SUCCESS.clone(),
+    );
+    context.build_script(&code, Bytes::new()).expect("dao script")
+}
+
+#[test]
+#[should_panic(expected = "The DAO output data at index 0 is inconsistent")]
+fn verify_rejects_dao_output_data_without_a_deposit_at_its_index() {
+    let mut context = Context::default();
+    let lock = always_success_lock(&mut context);
+    let dao = permissive_dao_script(&mut context);
+    let funding = context.create_cell(cell(1_000 * CKB, &lock, None), Bytes::new());
+    let tx = TransactionBuilder::default()
+        .input(input(funding))
+        .output(cell(1_000 * CKB, &lock, Some(&dao)))
+        .output_data(withdrawal_request_data(1_000).pack())
+        .build();
+    let tx = context.complete_tx(tx);
+    let _ = context.verify(&tx, MAX_CYCLES);
+}
+
+/// A phase 2 claim of one withdrawing cell under the stand-in DAO type, taking its maximum
+/// withdraw plus `extra` shannons, with or without the withdrawing block in the header deps and
+/// the witness header index.
+fn verify_claim_with_stand_in_dao(extra: u64, withdrawing_block_listed: bool, witness_index: bool) -> Result<u64, Error> {
+    let mut context = Context::default();
+    let lock = always_success_lock(&mut context);
+    let dao = permissive_dao_script(&mut context);
+    let deposit_header = gen_header(1_554, GENESIS_AR, 35, 1000, 1000);
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+    let request = cell(1_000 * CKB, &lock, Some(&dao));
+    let claimed = dao_maximum_withdraw_capacity(&request, 8, GENESIS_AR, SYNTHETIC_WITHDRAW_AR) + extra;
+    let request = context.create_cell(request, withdrawal_request_data(1_554));
+    link_cell_to_header(&mut context, &request, &withdraw_header);
+    context.insert_header(deposit_header.clone());
+    let mut builder = TransactionBuilder::default()
+        .input(input(request))
+        .output(cell(claimed, &lock, None))
+        .output_data(Bytes::new().pack())
+        .header_dep(deposit_header.hash())
+        .witness(if witness_index { header_dep_index_witness(0) } else { Bytes::new() }.pack());
+    if withdrawing_block_listed {
+        builder = builder.header_dep(withdraw_header.hash());
+    }
+    let tx = context.complete_tx(builder.build());
+    context.verify(&tx, MAX_CYCLES)
+}
+
+#[test]
+fn verify_accepts_a_claim_of_exactly_its_maximum_withdraw() {
+    verify_claim_with_stand_in_dao(0, true, true).expect("the node accepts an exact claim");
+}
+
+#[test]
+#[should_panic(expected = "kind: Dao, inner: Overflow")]
+fn verify_rejects_a_claim_above_its_maximum_withdraw() {
+    let _ = verify_claim_with_stand_in_dao(1, true, true);
+}
+
+#[test]
+#[should_panic(expected = "kind: Dao, inner: InvalidOutPoint")]
+fn verify_rejects_a_claim_without_its_withdrawing_block() {
+    let _ = verify_claim_with_stand_in_dao(0, false, true);
+}
+
+#[test]
+#[should_panic(expected = "kind: Dao, inner: InvalidDaoFormat")]
+fn verify_rejects_a_claim_without_a_witness_header_index() {
+    let _ = verify_claim_with_stand_in_dao(0, true, false);
 }
 
 /// A phase 1 withdrawal whose request lock is smaller than its deposit's, for a deposit
@@ -134,20 +244,18 @@ fn verify_withdrawal_with_smaller_request_lock(block_number: u64) {
 }
 
 #[test]
-#[should_panic(expected = "changes the lock size of the deposit it withdraws")]
+#[should_panic(expected = "lock script size of deposit cell at index 0 does not match")]
 fn verify_rejects_a_withdrawal_request_whose_lock_size_differs() {
-    verify_withdrawal_with_smaller_request_lock(DAO_LOCK_SIZE_RULE_START_BLOCK);
+    verify_withdrawal_with_smaller_request_lock(mainnet().starting_block_limiting_dao_withdrawing_lock());
 }
 
 #[test]
 fn verify_exempts_deposits_older_than_the_lock_size_rule() {
-    verify_withdrawal_with_smaller_request_lock(DAO_LOCK_SIZE_RULE_START_BLOCK - 1);
+    verify_withdrawal_with_smaller_request_lock(mainnet().starting_block_limiting_dao_withdrawing_lock() - 1);
 }
 
 // Shared test constants and on-chain error codes.
 const MAX_CYCLES: u64 = 10_000_000;
-// The node's starting_block_limiting_dao_withdrawing_lock (ckb spec/src/consensus.rs).
-const DAO_LOCK_SIZE_RULE_START_BLOCK: u64 = 10_000_000;
 const CKB: u64 = 100_000_000;
 const GENESIS_AR: u64 = 10_000_000_000_000_000;
 const SIGNATURE_SIZE: usize = 65;
