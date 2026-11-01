@@ -1,74 +1,33 @@
 use super::*;
 
+/// A transaction moving a 500 CKB plain input into a 200 CKB output `stranded`, then one spending
+/// `stranded` into a plain output.
+fn create_then_spend(env: &Env, stranded: Cell) -> (TxSpec, TxSpec) {
+    let create = TxSpec { inputs: vec![In::new(env.plain(500 * CKB))], outputs: vec![stranded.clone().into()], ..Default::default() };
+    let spend = TxSpec { inputs: vec![In::new(stranded)], outputs: vec![env.plain(200 * CKB).into()], ..Default::default() };
+    (create, spend)
+}
+
 // Build a plain funding tx that creates an ickb_logic-locked non-DAO output, then try to spend the stranded cell: creation passes because output locks do not run, but the later spend fails because the live cell shape is script misuse.
 #[test]
 fn lock_only_ickb_logic_non_dao_output_can_be_created() {
     let mut context = Context::default();
-    let funding_lock = always_success_lock(&mut context);
-    let ickb_logic = ickb_logic_script(&mut context);
-    let helper_type = helper_type_script(&mut context);
-    let funding_input = context.create_cell(
-        cell(500 * CKB, &funding_lock, None),
-        Bytes::new(),
-    );
-
-    let tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .output(cell(200 * CKB, &ickb_logic, Some(&helper_type)))
-        .output_data(Bytes::new().pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
-        .expect("lock-only misuse cell creation bypasses ickb_logic");
-
-    let phantom_out_point = context.create_cell(
-        cell(200 * CKB, &ickb_logic, Some(&helper_type)),
-        Bytes::new(),
-    );
-    let spend_tx = TransactionBuilder::default()
-        .input(input(phantom_out_point))
-        .output(cell(200 * CKB, &always_success_lock(&mut context), None))
-        .output_data(Bytes::new().pack())
-        .build();
-
-    let spend_tx = context.complete_tx(spend_tx);
-    fail(&context, &spend_tx, ERROR_SCRIPT_MISUSE);
+    let env = Env::new(&mut context);
+    let stranded = Cell { capacity: 200 * CKB, lock: env.ickb.clone(), type_: Some(env.helper.clone()), data: vec![] };
+    let (create, spend) = create_then_spend(&env, stranded);
+    create.verify(&mut context).expect("lock-only misuse cell creation bypasses ickb_logic");
+    spend.fail(&mut context, ERROR_SCRIPT_MISUSE);
 }
 
 // Build a plain funding tx that creates an ickb_logic lock with non-empty args, then spend that output: creation passes because the lock is only on outputs, but the later spend fails because ickb_logic requires empty args when it finally executes.
 #[test]
 fn non_empty_args_ickb_logic_lock_output_can_be_created_but_not_spent() {
     let mut context = Context::default();
-    let funding_lock = always_success_lock(&mut context);
-    let ickb_logic_non_empty = data1_script(&mut context, "ickb_logic", Bytes::from(vec![1]));
-    let funding_input = context.create_cell(
-        cell(500 * CKB, &funding_lock, None),
-        Bytes::new(),
-    );
-
-    let tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .output(cell(200 * CKB, &ickb_logic_non_empty, None))
-        .output_data(Bytes::new().pack())
-        .build();
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
-        .expect("non-empty-args output lock can be created because output locks do not execute");
-
-    let out_point = context.create_cell(
-        cell(200 * CKB, &ickb_logic_non_empty, None),
-        Bytes::new(),
-    );
-    let spend_tx = TransactionBuilder::default()
-        .input(input(out_point))
-        .output(cell(200 * CKB, &always_success_lock(&mut context), None))
-        .output_data(Bytes::new().pack())
-        .build();
-    let spend_tx = context.complete_tx(spend_tx);
-    fail(&context, &spend_tx, ERROR_NOT_EMPTY_ARGS);
+    let env = Env::new(&mut context);
+    let stranded = Cell { lock: env.siblings[0].clone(), ..env.plain(200 * CKB) };
+    let (create, spend) = create_then_spend(&env, stranded);
+    create.verify(&mut context).expect("non-empty-args output lock can be created because output locks do not execute");
+    spend.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }
 
 // A withdrawal request keeps the deposit's DAO type but carries non-zero data, so it is no deposit;
@@ -76,31 +35,23 @@ fn non_empty_args_ickb_logic_lock_output_can_be_created_but_not_spent() {
 #[test]
 fn withdrawal_request_locked_by_ickb_logic_is_script_misuse() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
+    // An empty-args lock like ickb_logic's, so the control and misuse requests differ only in lock.
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_500 * CKB;
-    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, deposit_amount);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(deposit_amount));
+    let deposit = env.deposit(&env.ickb, deposit_amount);
+    let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
+    let inputs = vec![at(deposit.clone(), &deposit_header), In::new(env.udt(u128::from(deposit_amount)))];
 
-    let withdraw_tx = |request_lock: &Script| {
-        TransactionBuilder::default()
-            .input(input(deposit_input.clone()))
-            .input(input(udt_input.clone()))
-            .output(cell(deposit_total_capacity, request_lock, Some(&dao)))
-            .output_data(withdrawal_request_data(1554).pack())
-            .header_dep(deposit_header.hash())
-            .build()
+    let withdraw = |request_lock: &Script| TxSpec {
+        inputs: inputs.clone(),
+        outputs: vec![request(&deposit, request_lock, 1554).into()],
+        header_deps: vec![deposit_header.clone()],
     };
 
-    let control = context.complete_tx(withdraw_tx(&user_lock));
-    context
-        .verify(&control, MAX_CYCLES)
+    withdraw(&user_lock)
+        .verify(&mut context)
         .expect("the same request under a user lock is a valid phase1 withdrawal");
-
-    let misuse = context.complete_tx(withdraw_tx(&ickb_logic));
-    fail(&context, &misuse, ERROR_SCRIPT_MISUSE);
+    withdraw(&env.ickb).fail(&mut context, ERROR_SCRIPT_MISUSE);
 }

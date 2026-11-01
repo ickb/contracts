@@ -4,93 +4,50 @@ use super::*;
 #[test]
 fn mixed_flow_cannot_overmint_by_combining_new_deposit_with_phase2_receipt() {
     let mut context = Context::default();
-    let funding_lock = always_success_lock(&mut context);
-    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
+    let env = Env::new(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = create_receipt(&mut context, &funding_lock, &ickb_logic, 1, deposit_amount);
-    let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
-
-    let funding_input = context.create_cell(
-        cell(2_000 * CKB, &funding_lock, None),
-        Bytes::new(),
-    );
-
-    let deposit_output = cell(deposit_capacity(&ickb_logic, &dao, 8, deposit_amount), &ickb_logic, Some(&dao));
-    let new_receipt_output = cell(occupied_capacity(&funding_lock, &ickb_logic, 12), &funding_lock, Some(&ickb_logic));
-    let udt_output = cell(occupied_capacity(&funding_lock, &xudt, 16), &funding_lock, Some(&xudt));
-
-    let tx = TransactionBuilder::default()
-        .input(input(receipt_out_point))
-        .input(input(funding_input))
-        .outputs(vec![deposit_output, new_receipt_output, udt_output])
-        .outputs_data(
-            vec![
-                dao_deposit_data(),
-                receipt_data(1, deposit_amount),
-                udt_data(u128::from(deposit_amount) + 1),
-            ]
-            .pack(),
-        )
-        .header_dep(receipt_header.clone())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_AMOUNT_MISMATCH);
+    let receipt_header = gen_header(0, GENESIS_AR, 0, 0, 1);
+    let spec = TxSpec {
+        inputs: vec![at(env.receipt(1, deposit_amount), &receipt_header), In::new(env.plain(2_000 * CKB))],
+        outputs: vec![
+            env.deposit(&env.ickb, deposit_amount).into(),
+            env.receipt(1, deposit_amount).into(),
+            env.udt(u128::from(deposit_amount) + 1).into(),
+        ],
+        header_deps: vec![receipt_header],
+    };
+    spec.fail(&mut context, ERROR_AMOUNT_MISMATCH);
 }
 
 // Build one tx that simultaneously creates a new deposit, starts a withdrawal from another deposit, reissues a receipt, and remints xUDT by one extra shannon: even with phase1 and phase2 combined, the cross-flow accounting invariant should reject the overmint.
 #[test]
 fn mixed_flow_cannot_overmint_when_deposit_phase1_phase2_and_withdrawal_share_one_tx() {
     let mut context = Context::default();
-    let user_lock = always_success_lock(&mut context);
-    let ickb_logic = ickb_logic_script(&mut context);
-    let owned_owner = owned_owner_script(&mut context);
-    let xudt = xudt_script(&mut context, &ickb_logic);
-    let dao = dao_script(&mut context);
+    let env = Env::new(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let receipt_out_point = create_receipt(&mut context, &user_lock, &ickb_logic, 1, deposit_amount);
-    let receipt_header = insert_header_for_cell(&mut context, &receipt_out_point, 0, GENESIS_AR);
+    let receipt_header = gen_header(0, GENESIS_AR, 0, 0, 1);
+    let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
+    let deposit = env.deposit(&env.ickb, deposit_amount);
 
-    let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-
-    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(deposit_amount));
-    let funding_input = context.create_cell(
-        cell(2_000 * CKB, &user_lock, None),
-        Bytes::new(),
-    );
-
-    let new_deposit_output = cell(deposit_total_capacity, &ickb_logic, Some(&dao));
-    let owned_output = cell(deposit_total_capacity, &owned_owner, Some(&dao));
-    let owner_output = cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner));
-    let new_receipt_output = cell(occupied_capacity(&user_lock, &ickb_logic, 12), &user_lock, Some(&ickb_logic));
-    let udt_output = cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt));
-
-    let tx = TransactionBuilder::default()
-        .input(input(receipt_out_point))
-        .input(input(deposit_input))
-        .input(input(udt_input))
-        .input(input(funding_input))
-        .outputs(vec![new_deposit_output, owned_output, owner_output, new_receipt_output, udt_output])
-        .outputs_data(
-            vec![
-                dao_deposit_data(),
-                withdrawal_request_data(1554),
-                owner_distance_data(-1),
-                receipt_data(1, deposit_amount),
-                udt_data(u128::from(deposit_amount) + 1),
-            ]
-            .pack(),
-        )
-        .header_dep(receipt_header.clone())
-        .header_dep(deposit_header.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_AMOUNT_MISMATCH);
+    let spec = TxSpec {
+        inputs: vec![
+            at(env.receipt(1, deposit_amount), &receipt_header),
+            at(deposit.clone(), &deposit_header),
+            In::new(env.udt(u128::from(deposit_amount))),
+            In::new(env.plain(2_000 * CKB)),
+        ],
+        outputs: vec![
+            deposit.clone().into(),
+            request(&deposit, &env.owned_owner, 1554).into(),
+            owner(&env).into(),
+            env.receipt(1, deposit_amount).into(),
+            env.udt(u128::from(deposit_amount) + 1).into(),
+        ],
+        header_deps: vec![receipt_header, deposit_header],
+    };
+    spec.fail(&mut context, ERROR_AMOUNT_MISMATCH);
 }
 
 // Build one live transition that consumes a receipt, a DAO deposit, and a real limit order, then emits a new limit order plus a withdrawal pair: all three script families should compose cleanly when each sibling shape and amount is valid, so verification passes.
@@ -147,54 +104,33 @@ fn all_three_scripts_can_compose_in_one_live_state_transition() {
 #[test]
 fn fresh_deposit_cannot_replace_a_withdrawn_deposit_at_its_index() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
+    // An empty-args lock like the deposit's, so the request keeps the deposit's lock size.
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
     let amount = 1_500 * CKB;
-    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    let deposit_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(amount));
-    let funding_input = context.create_cell(
-        cell(2 * deposit_total_capacity, &user_lock, None),
-        Bytes::new(),
-    );
+    let deposit = env.deposit(&env.ickb, amount);
+    let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
+    let inputs = vec![
+        at(deposit.clone(), &deposit_header),
+        In::new(env.udt(u128::from(amount))),
+        In::new(env.plain(2 * deposit.capacity)),
+    ];
 
-    let request = (
-        cell(deposit_total_capacity, &user_lock, Some(&dao)),
-        withdrawal_request_data(1554),
-    );
-    let fresh_deposit = (
-        cell(deposit_total_capacity, &ickb_logic, Some(&dao)),
-        dao_deposit_data(),
-    );
-    let receipt = (
-        cell(occupied_capacity(&user_lock, &ickb_logic, 12), &user_lock, Some(&ickb_logic)),
-        receipt_data(1, amount),
-    );
-
-    let tx = |outputs: Vec<(CellOutput, Bytes)>| {
-        let (cells, data): (Vec<_>, Vec<_>) = outputs.into_iter().unzip();
-        let tx: TransactionView = TransactionBuilder::default()
-            .input(input(deposit_input.clone()))
-            .input(input(udt_input.clone()))
-            .input(input(funding_input.clone()))
-            .outputs(cells)
-            .outputs_data(data.pack())
-            .header_dep(deposit_header.hash())
-            .build();
-        tx
+    let request = request(&deposit, &user_lock, 1554);
+    let receipt = env.receipt(1, amount);
+    let tx = |outputs: [&Cell; 3]| TxSpec {
+        inputs: inputs.clone(),
+        outputs: outputs.into_iter().map(|c| c.clone().into()).collect(),
+        header_deps: vec![deposit_header.clone()],
     };
 
-    let withdraw_and_redeposit = context.complete_tx(tx(vec![request.clone(), fresh_deposit.clone(), receipt.clone()]));
-    context
-        .verify(&withdraw_and_redeposit, MAX_CYCLES)
+    tx([&request, &deposit, &receipt])
+        .verify(&mut context)
         .expect("withdrawing with the request at the deposit's index and re-depositing elsewhere verifies");
 
     // Same cells with the two DAO outputs swapped: the fresh deposit takes the withdrawn deposit's index.
-    let reset_in_place = context.complete_tx(tx(vec![fresh_deposit, request, receipt]));
-    fail(&context, &reset_in_place, ERROR_DAO_INVALID_WITHDRAWING_CELL);
+    tx([&deposit, &request, &receipt]).fail(&mut context, ERROR_DAO_INVALID_WITHDRAWING_CELL);
 }
 
 // Scenario 6G: a deposit and its receipt created in the same block read the same accumulated rate,
@@ -202,31 +138,25 @@ fn fresh_deposit_cannot_replace_a_withdrawn_deposit_at_its_index() {
 #[test]
 fn same_block_receipt_and_deposit_mint_nothing_when_spent_together() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
+    // An empty-args lock like the deposit's, so the request keeps the deposit's lock size.
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
     let amount = 1_500 * CKB;
-    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
+    let deposit = env.deposit(&env.ickb, amount);
     let creation_header = gen_header(1554, SYNTHETIC_WITHDRAW_AR, 35, 1000, 1000);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    let receipt_input = create_receipt(&mut context, &user_lock, &ickb_logic, 1, amount);
-    link_cell_to_header(&mut context, &deposit_input, &creation_header);
-    link_cell_to_header(&mut context, &receipt_input, &creation_header);
+    let inputs = vec![at(deposit.clone(), &creation_header), at(env.receipt(1, amount), &creation_header)];
 
     for minted in [0u128, 1] {
-        let mut builder = TransactionBuilder::default()
-            .input(input(deposit_input.clone()))
-            .input(input(receipt_input.clone()))
-            .output(cell(deposit_total_capacity, &user_lock, Some(&dao)))
-            .output_data(withdrawal_request_data(1554).pack())
-            .header_dep(creation_header.hash());
+        let mut spec = TxSpec {
+            inputs: inputs.clone(),
+            outputs: vec![request(&deposit, &user_lock, 1554).into()],
+            header_deps: vec![creation_header.clone()],
+        };
         if minted > 0 {
-            builder = builder
-                .output(cell(occupied_capacity(&user_lock, &xudt, 16), &user_lock, Some(&xudt)))
-                .output_data(udt_data(minted).pack());
+            spec.outputs.push(env.udt(minted).into());
         }
-        let tx = context.complete_tx(builder.build());
-        let result = context.verify(&tx, MAX_CYCLES);
+        let result = spec.verify(&mut context);
         if minted == 0 {
             result.expect("the receipt's value exactly pays for the same-rate deposit");
         } else {

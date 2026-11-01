@@ -4,8 +4,7 @@ use super::*;
 #[test]
 fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
     let mut context = Context::default();
-    let owner_lock = always_success_lock(&mut context);
-    let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
+    let env = Env::new(&mut context);
 
     let ar = 11_509_953_685_250_771u64;
     let amount_1152 = 1_152u64 * CKB;
@@ -16,49 +15,22 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
     assert!(exact_ickb_1152 > 1_000 * CKB as u128);
     assert!(exact_ickb_1151 < exact_ickb_1152);
 
-    let receipt_1152 = create_receipt(&mut context, &owner_lock, &ickb_logic, 1, amount_1152);
+    let receipt_1152 = env.receipt(1, amount_1152);
     let receipt_1152_header = gen_header(1, ar, 1, 1, 1000);
-    link_cell_to_header(&mut context, &receipt_1152, &receipt_1152_header);
-    let mint_claimed_1000_tx = TransactionBuilder::default()
-        .input(input(receipt_1152.clone()))
-        .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
-        .output_data(udt_data(1_000 * CKB as u128).pack())
-        .header_dep(receipt_1152_header.hash())
-        .build();
-    let mint_claimed_1000_tx = context.complete_tx(mint_claimed_1000_tx);
-    fail(&context, &mint_claimed_1000_tx, ERROR_AMOUNT_MISMATCH);
-
-    let mint_exact_1152_tx = TransactionBuilder::default()
-        .input(input(receipt_1152))
-        .input(input(funding_cell(&mut context)))
-        .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
-        .output_data(udt_data(exact_ickb_1152).pack())
-        .header_dep(receipt_1152_header.hash())
-        .build();
-    let mint_exact_1152_tx = context.complete_tx(mint_exact_1152_tx);
-    context
-        .verify(&mint_exact_1152_tx, MAX_CYCLES)
+    mint_at(&env, receipt_1152.clone(), &receipt_1152_header, 1_000 * CKB as u128, false).fail(&mut context, ERROR_AMOUNT_MISMATCH);
+    mint_at(&env, receipt_1152, &receipt_1152_header, exact_ickb_1152, true)
+        .verify(&mut context)
         .expect("1152 CKB receipt should mint its exact shannon-precision amount");
 
-    let receipt_1151 = create_receipt(&mut context, &owner_lock, &ickb_logic, 1, amount_1151);
     let receipt_1151_header = gen_header(2, ar, 1, 1, 1000);
-    link_cell_to_header(&mut context, &receipt_1151, &receipt_1151_header);
-    let remint_exact_1152_tx = TransactionBuilder::default()
-        .input(input(receipt_1151))
-        .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
-        .output_data(udt_data(exact_ickb_1152).pack())
-        .header_dep(receipt_1151_header.hash())
-        .build();
-    let remint_exact_1152_tx = context.complete_tx(remint_exact_1152_tx);
-    fail(&context, &remint_exact_1152_tx, ERROR_AMOUNT_MISMATCH);
+    mint_at(&env, env.receipt(1, amount_1151), &receipt_1151_header, exact_ickb_1152, false).fail(&mut context, ERROR_AMOUNT_MISMATCH);
 }
 
 // Pin the shifted soft-cap edge under a non-genesis AR: normalization reaches the cap at 110k CKB. Ten shannons past it, normalizing first mints cap+9 while applying the haircut first would mint cap+8, so the passing cap+9 mint proves normalization precedes the per-deposit haircut; eleven past it, cap+10 must fail.
 #[test]
 fn non_genesis_ar_soft_cap_boundary_preserves_integer_operation_order() {
     let mut context = Context::default();
-    let owner_lock = always_success_lock(&mut context);
-    let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
+    let env = Env::new(&mut context);
 
     let ar = 11_000_000_000_000_000u64;
     let soft_cap = 100_000 * CKB as u128;
@@ -74,18 +46,8 @@ fn non_genesis_ar_soft_cap_boundary_preserves_integer_operation_order() {
     assert_eq!(soft_capped_ickb(shifted_boundary + 11, ar), soft_cap + 9);
 
     let mut assert_mint = |block_number: u64, amount: u64, minted: u128, should_pass: bool| {
-        let receipt = create_receipt(&mut context, &owner_lock, &ickb_logic, 1, amount);
         let receipt_header = gen_header(block_number, ar, 1, 1, 1000);
-        link_cell_to_header(&mut context, &receipt, &receipt_header);
-        let tx = TransactionBuilder::default()
-            .input(input(receipt))
-            .input(input(funding_cell(&mut context)))
-            .output(cell(occupied_capacity(&owner_lock, &xudt, 16), &owner_lock, Some(&xudt)))
-            .output_data(udt_data(minted).pack())
-            .header_dep(receipt_header.hash())
-            .build();
-        let tx = context.complete_tx(tx);
-        let result = context.verify(&tx, MAX_CYCLES);
+        let result = mint_at(&env, env.receipt(1, amount), &receipt_header, minted, true).verify(&mut context);
 
         if should_pass {
             result.expect("exact mint at the AR-shifted soft-cap boundary should verify");
@@ -104,8 +66,7 @@ fn non_genesis_ar_soft_cap_boundary_preserves_integer_operation_order() {
 #[test]
 fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
     let mut context = Context::default();
-    let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
+    let env = Env::new(&mut context);
 
     let ar = 11_509_953_685_250_771u64;
     let amount_1152 = 1_152u64 * CKB;
@@ -114,65 +75,29 @@ fn reported_rounding_withdrawal_claim_is_blocked_by_actual_shannon_precision() {
 
     let header = gen_header(1554, ar, 35, 1000, 1000);
 
-    let deposit_1152 = create_deposit(&mut context, deposit_capacity(&ickb_logic, &dao, 8, amount_1152), &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_1152, &header);
+    // Withdraw a deposit of `amount` to an owned_owner request, burning `burned` iCKB.
+    let withdraw = |amount: u64, burned: u128| {
+        let deposit = env.deposit(&env.ickb, amount);
+        TxSpec {
+            inputs: vec![at(deposit.clone(), &header), In::new(env.udt(burned))],
+            outputs: vec![request(&deposit, &env.owned_owner, 1554).into(), owner(&env).into()],
+            header_deps: vec![header.clone()],
+        }
+    };
 
-    let udt_1000 = create_udt(&mut context, &user_lock, &xudt, 1_000 * CKB as u128);
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_1152))
-        .input(input(udt_1000))
-        .outputs(vec![
-            cell(deposit_capacity(&ickb_logic, &dao, 8, amount_1152), &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(header.hash())
-        .build();
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_AMOUNT_MISMATCH);
-
-    let deposit_1152_b = create_deposit(&mut context, deposit_capacity(&ickb_logic, &dao, 8, amount_1152), &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_1152_b, &header);
-    let udt_exact = create_udt(&mut context, &user_lock, &xudt, exact_ickb_1152);
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_1152_b))
-        .input(input(udt_exact))
-        .outputs(vec![
-            cell(deposit_capacity(&ickb_logic, &dao, 8, amount_1152), &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(header.hash())
-        .build();
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
+    withdraw(amount_1152, 1_000 * CKB as u128).fail(&mut context, ERROR_AMOUNT_MISMATCH);
+    withdraw(amount_1152, exact_ickb_1152)
+        .verify(&mut context)
         .expect("withdrawing 1152 CKB should require the exact shannon-precision iCKB amount");
-
-    let deposit_1151 = create_deposit(&mut context, deposit_capacity(&ickb_logic, &dao, 8, amount_1151), &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_1151, &header);
-    let udt_exact_again = create_udt(&mut context, &user_lock, &xudt, exact_ickb_1152);
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_1151))
-        .input(input(udt_exact_again))
-        .outputs(vec![
-            cell(deposit_capacity(&ickb_logic, &dao, 8, amount_1151), &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(header.hash())
-        .build();
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_AMOUNT_MISMATCH);
+    withdraw(amount_1151, exact_ickb_1152).fail(&mut context, ERROR_AMOUNT_MISMATCH);
 }
 
 // Build full phase1-plus-DAO-phase2 flows for older, newer, and soft-capped deposits: each case should pass and the later normalized claim value must stay within one shannon of the phase1 burn, showing the protocol does not open a profitable precision gap across time or size boundaries.
 #[test]
 fn withdrawal_burn_matches_later_protocol_value_within_one_shannon_across_header_and_soft_cap_cases() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
 
     let withdraw_ar = 12_000_000_000_000_000u64;
     let withdraw_header = gen_header(2_000_610, withdraw_ar, 575, 2_000_000, 1100);
@@ -180,7 +105,7 @@ fn withdrawal_burn_matches_later_protocol_value_within_one_shannon_across_header
     let mut run_case = |amount: u64, deposit_number: u64, deposit_ar: u64| -> u128 {
         let (burned_ickb, claim_capacity, deposit_occupied_capacity) = burn_and_claim(
             &mut context,
-            (&user_lock, &ickb_logic, &dao, &xudt),
+            (&env, &user_lock),
             (&withdraw_header, withdraw_ar),
             (amount, deposit_number, deposit_ar),
         );
@@ -212,68 +137,42 @@ fn withdrawal_burn_matches_later_protocol_value_within_one_shannon_across_header
 /// Returns (burned iCKB, claimed capacity, deposit occupied capacity).
 fn burn_and_claim(
     context: &mut Context,
-    scripts: (&Script, &Script, &Script, &Script),
-    withdraw: (&ckb_testtool::ckb_types::core::HeaderView, u64),
+    (env, user_lock): (&Env, &Script),
+    (withdraw_header, withdraw_ar): (&HeaderView, u64),
     (amount, deposit_number, deposit_ar): (u64, u64, u64),
 ) -> (u128, u64, u64) {
-    let (user_lock, ickb_logic, dao, xudt) = scripts;
-    let (withdraw_header, withdraw_ar) = withdraw;
     let deposit_header = gen_header(deposit_number, deposit_ar, 35, 1000, 1000);
-    let deposit_total_capacity = deposit_capacity(ickb_logic, dao, 8, amount);
-    let deposit_occupied_capacity = deposit_total_capacity - amount;
-
-    let deposit_input = create_deposit(context, deposit_total_capacity, ickb_logic, dao);
-    link_cell_to_header(context, &deposit_input, &deposit_header);
-
+    let deposit = env.deposit(&env.ickb, amount);
+    let deposit_occupied_capacity = deposit.capacity - amount;
     let burned_ickb = soft_capped_ickb(amount, deposit_ar);
-    let udt_input = create_udt(context, user_lock, xudt, burned_ickb);
+    // The user lock has empty args, like the deposit's ickb_logic lock, so the request occupies
+    // exactly what the deposit did and the claim counts exactly the deposit's amount.
+    let request = request(&deposit, user_lock, deposit_number);
 
-    let phase1_tx = TransactionBuilder::default()
-        .input(input(deposit_input))
-        .input(input(udt_input))
-        .output(cell(deposit_total_capacity, user_lock, Some(dao)))
-        .output_data(withdrawal_request_data(deposit_number).pack())
-        .header_dep(deposit_header.hash())
-        .build();
-    let phase1_tx = context.complete_tx(phase1_tx);
+    let phase1_tx = TxSpec {
+        inputs: vec![at(deposit, &deposit_header), In::new(sized(Cell { lock: user_lock.clone(), ..env.udt(burned_ickb) }))],
+        outputs: vec![request.clone().into()],
+        header_deps: vec![deposit_header.clone()],
+    }
+    .build(context);
     context
         .verify(&phase1_tx, MAX_CYCLES)
         .expect("exact phase1 burn should verify for the deposit header");
 
-    let withdrawal_out_point = OutPoint::new(phase1_tx.hash(), 0);
-    let withdrawal_output = phase1_tx.outputs().get(0).expect("withdrawing output");
-    context.create_cell_with_out_point(
-        withdrawal_out_point.clone(),
-        withdrawal_output.clone(),
-        withdrawal_request_data(deposit_number),
-    );
-    link_cell_to_header(context, &withdrawal_out_point, withdraw_header);
-
-    let claim_capacity = dao_maximum_withdraw_capacity(
-        &withdrawal_output,
-        withdrawal_request_data(deposit_number).len(),
-        deposit_ar,
-        withdraw_ar,
-    );
-    let witness = header_dep_index_witness(1);
-    let claim_tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(withdrawal_out_point)
-                .since(0x2003e800000002f4u64)
-                .build(),
-        )
-        .output(cell(claim_capacity, user_lock, None))
-        .output_data(Bytes::new().pack())
-        .header_dep(withdraw_header.hash())
-        .header_dep(deposit_header.hash())
-        .witness(witness.pack())
-        .build();
-    let claim_tx = context.complete_tx(claim_tx);
-    context
-        .verify(&claim_tx, MAX_CYCLES)
-        .expect("phase2 claim should verify for the withdrawal request");
-
+    let claim_capacity = dao_maximum_withdraw_capacity(&request.output(), request.data.len(), deposit_ar, withdraw_ar);
+    // The claim spends the request at the out point phase 1 created.
+    let claim = TxSpec {
+        inputs: vec![In {
+            out_point: OutPoint::new(phase1_tx.hash(), 0),
+            header: Some(withdraw_header.clone()),
+            since: 0x2003e800000002f4,
+            witness: header_dep_index_witness(1),
+            cell: request,
+        }],
+        outputs: vec![Cell { lock: user_lock.clone(), ..env.plain(claim_capacity) }.into()],
+        header_deps: vec![withdraw_header.clone(), deposit_header],
+    };
+    claim.verify(context).expect("phase2 claim should verify for the withdrawal request");
 
     (burned_ickb, claim_capacity, deposit_occupied_capacity)
 }
@@ -284,8 +183,8 @@ fn burn_and_claim(
 #[test]
 fn smaller_deposits_return_more_ckb_per_ickb_burned_by_their_occupied_capacity() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, dao, xudt) = ickb_logic_dao_and_xudt_scripts(&mut context);
     let withdraw_ar = 12_000_000_000_000_000u64;
     let withdraw_header = gen_header(2_000_610, withdraw_ar, 575, 2_000_000, 1100);
     let deposit_ar = 11_000_000_000_000_000u64;
@@ -294,7 +193,7 @@ fn smaller_deposits_return_more_ckb_per_ickb_burned_by_their_occupied_capacity()
         // The verified claim is the unoccupied capacity grown by the AR ratio, plus the occupied capacity.
         let (burned, claimed, _) = burn_and_claim(
             &mut context,
-            (&user_lock, &ickb_logic, &dao, &xudt),
+            (&env, &user_lock),
             (&withdraw_header, withdraw_ar),
             (amount, deposit_number, deposit_ar),
         );
