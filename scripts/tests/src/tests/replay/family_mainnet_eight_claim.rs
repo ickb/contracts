@@ -163,7 +163,7 @@ fn weak_mainnet_eight_claim_batch_can_reassign_later_phase2_claimants() {
         .input(
             CellInput::new_builder()
                 .previous_output(fresh_owned)
-                .since(u64_from_hex("0x2004ad01f0003124").pack())
+                .since(u64_from_hex("0x2004ad01f0003124"))
                 .build(),
         )
         .input(input(fresh_owner))

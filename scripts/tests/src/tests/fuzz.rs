@@ -258,7 +258,7 @@ impl TxSpec {
             context.insert_header(h.clone());
             context.link_cell_with_block(i.out_point.clone(), h.hash(), 0);
             builder = builder
-                .input(CellInput::new_builder().previous_output(i.out_point.clone()).since(i.since.pack()).build())
+                .input(CellInput::new_builder().previous_output(i.out_point.clone()).since(i.since).build())
                 .witness(i.witness.pack());
         }
         for o in &self.outputs {

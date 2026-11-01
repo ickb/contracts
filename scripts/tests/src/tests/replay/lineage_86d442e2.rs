@@ -236,13 +236,13 @@ fn mainnet_tx_86d442e2_claim_and_restake_shape() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned1_out_point)
-                .since(u64_from_hex("0x20041d018a0035ee").pack())
+                .since(u64_from_hex("0x20041d018a0035ee"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(owned0_out_point)
-                .since(u64_from_hex("0x20065100af0035ea").pack())
+                .since(u64_from_hex("0x20065100af0035ea"))
                 .build(),
         )
         .input(input(owner3_out_point))
@@ -370,13 +370,13 @@ fn mainnet_live_claims_cannot_rotate_into_new_owned_owner_pairs() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned1_out_point)
-                .since(u64_from_hex("0x20041d018a0035ee").pack())
+                .since(u64_from_hex("0x20041d018a0035ee"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(owned0_out_point)
-                .since(u64_from_hex("0x20065100af0035ea").pack())
+                .since(u64_from_hex("0x20065100af0035ea"))
                 .build(),
         )
         .input(input(owner3_out_point))

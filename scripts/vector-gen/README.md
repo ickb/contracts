@@ -2,7 +2,7 @@
 
 Golden protocol vectors for the iCKB stack's TypeScript contract oracle: the values the contracts' own Rust logic gives each case. The cases and their expected values live in `src/vectors.rs`; `src/main.rs` writes them as JSON.
 
-`src/vectors.rs` compiles `c256.rs` and `ickb_logic/constants.rs` straight from the contract sources and holds byte-exact copies of the private `deposit_to_ickb` and `validate`; `drift_checks` fails if a copy stops matching its source. The contract tests include the same file and replay its rows against the release binaries (`../tests/src/tests/protocol_vectors.rs`), skipping by name the two that describe cells consensus cannot create, so `cargo test -p tests` checks the vectors but does not build this writer.
+`src/vectors.rs` compiles `c256.rs` and `ickb_logic/constants.rs` straight from the contract sources and holds byte-exact copies of the private `deposit_to_ickb` and `validate`; `drift_checks` fails if a copy stops matching its source. The contract tests include the same file and replay its rows against the release binaries (`../tests/src/tests/protocol_vectors.rs`), skipping by name the two that describe cells consensus cannot create, so the test suite checks the vectors but does not build this writer.
 
 The crate stays outside the contracts workspace (see `Cargo.toml`). To regenerate the stack's fixture from a checkout next to this one:
 

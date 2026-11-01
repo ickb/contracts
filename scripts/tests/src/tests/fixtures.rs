@@ -151,7 +151,7 @@ pub(super) fn capacity_for_data(data_len: u64) -> u64 {
 /// A cell output with this capacity, lock and optional type.
 pub(super) fn cell(capacity: u64, lock: &Script, type_: Option<&Script>) -> CellOutput {
     CellOutput::new_builder()
-        .capacity(capacity.pack())
+        .capacity(capacity)
         .lock(lock.clone())
         .type_(type_.cloned().pack())
         .build()
@@ -242,7 +242,7 @@ pub(super) fn dao_maximum_withdraw_capacity(
 // Header and transaction-shape helpers.
 pub(super) fn insert_header_for_cell(context: &mut Context, out_point: &OutPoint, number: u64, ar: u64) -> Byte32 {
     let header = HeaderBuilder::default()
-        .number(number.pack())
+        .number(number)
         .dao(pack_dao_data(
             ar,
             ckb_testtool::ckb_types::core::Capacity::zero(),
@@ -269,8 +269,8 @@ pub(super) fn gen_header(
         .length(epoch_length)
         .build();
     HeaderBuilder::default()
-        .number(number.pack())
-        .epoch(epoch_ext.number_with_fraction(number).pack())
+        .number(number)
+        .epoch(epoch_ext.number_with_fraction(number))
         .dao(pack_dao_data(
             ar,
             ckb_testtool::ckb_types::core::Capacity::zero(),

@@ -90,7 +90,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
         .input(
             CellInput::new_builder()
                 .previous_output(protocol_owned.clone())
-                .since(0x2003e802340002f3u64.pack())
+                .since(0x2003e802340002f3u64)
                 .build(),
         )
         .input(input(foreign_owner.clone()))
@@ -121,7 +121,7 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
         .input(
             CellInput::new_builder()
                 .previous_output(protocol_owned)
-                .since(0x2003e802340002f3u64.pack())
+                .since(0x2003e802340002f3u64)
                 .build(),
         )
         .input(input(protocol_owner))

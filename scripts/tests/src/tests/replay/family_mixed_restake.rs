@@ -98,7 +98,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(u64_from_hex("0x20070804f20029d3").pack())
+                .since(u64_from_hex("0x20070804f20029d3"))
                 .build(),
         )
         .input(input(owner_input))
@@ -199,7 +199,7 @@ fn weak_live_mixed_restake_can_reassign_later_phase2_claimants() {
         .input(
             CellInput::new_builder()
                 .previous_output(fresh_owned)
-                .since(u64_from_hex("0x200708057c0029d3").pack())
+                .since(u64_from_hex("0x200708057c0029d3"))
                 .build(),
         )
         .input(input(fresh_owner))
@@ -334,7 +334,7 @@ fn sighash_live_mixed_restake_binds_fresh_owner_output() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(u64_from_hex("0x20070804f20029d3").pack())
+                .since(u64_from_hex("0x20070804f20029d3"))
                 .build(),
         )
         .input(input(owner_input))

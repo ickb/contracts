@@ -85,31 +85,31 @@ fn weak_lock_derived_five_claim_live_batch_can_flow_into_later_attacker_owned_li
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 4))
-                .since(u64_from_hex("0x20070804f5002c7a").pack())
+                .since(u64_from_hex("0x20070804f5002c7a"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 3))
-                .since(u64_from_hex("0x200708045f002c7a").pack())
+                .since(u64_from_hex("0x200708045f002c7a"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 2))
-                .since(u64_from_hex("0x200708033f002c7a").pack())
+                .since(u64_from_hex("0x200708033f002c7a"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 1))
-                .since(u64_from_hex("0x200708068a002c79").pack())
+                .since(u64_from_hex("0x200708068a002c79"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 0))
-                .since(u64_from_hex("0x2007080261002c79").pack())
+                .since(u64_from_hex("0x2007080261002c79"))
                 .build(),
         )
         .input(input(OutPoint::new(batch_tx_hash.clone(), 9)))
@@ -294,43 +294,43 @@ fn weak_lock_derived_eight_claim_batch_can_flow_into_later_attacker_owned_limit_
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 6))
-                .since(u64_from_hex("0x20057701e1003125").pack())
+                .since(u64_from_hex("0x20057701e1003125"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 5))
-                .since(u64_from_hex("0x20057701af003125").pack())
+                .since(u64_from_hex("0x20057701af003125"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 4))
-                .since(u64_from_hex("0x20057701af003125").pack())
+                .since(u64_from_hex("0x20057701af003125"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 3))
-                .since(u64_from_hex("0x20057701af003125").pack())
+                .since(u64_from_hex("0x20057701af003125"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 2))
-                .since(u64_from_hex("0x20057701af003125").pack())
+                .since(u64_from_hex("0x20057701af003125"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 1))
-                .since(u64_from_hex("0x2004ad0260003124").pack())
+                .since(u64_from_hex("0x2004ad0260003124"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(OutPoint::new(batch_tx_hash.clone(), 0))
-                .since(u64_from_hex("0x2004ad01f0003124").pack())
+                .since(u64_from_hex("0x2004ad01f0003124"))
                 .build(),
         )
         .input(input(OutPoint::new(batch_tx_hash.clone(), 14)))

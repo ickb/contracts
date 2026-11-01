@@ -74,7 +74,7 @@ fn adjacent_positive_distance_pair_can_complete_phase2_claim() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_out_point)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_out_point))
@@ -165,7 +165,7 @@ fn sparse_positive_distance_pair_can_complete_phase2_claim_at_exact_capacity() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_out_point)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_out_point))
@@ -250,7 +250,7 @@ fn secp_protected_sparse_pair_can_complete_signed_phase2_claim() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_out_point)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_out_point))

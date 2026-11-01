@@ -260,7 +260,7 @@ fn burn_and_claim(
         .input(
             CellInput::new_builder()
                 .previous_output(withdrawal_out_point)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .output(cell(claim_capacity, user_lock, None))

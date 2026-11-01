@@ -145,7 +145,7 @@ fn lock_only_limit_order_missing_udt_type_returns_typed_error_at_valid_capacity(
             forged_output
                 .clone()
                 .as_builder()
-                .capacity(forged_capacity.pack())
+                .capacity(forged_capacity)
                 .build(),
         )
         .output_data(order_data_custom(0, 0, [0u8; 32], 5i32.to_le_bytes(), (1, 1), (0, 0), 0).pack())
@@ -156,7 +156,7 @@ fn lock_only_limit_order_missing_udt_type_returns_typed_error_at_valid_capacity(
         .expect("lock-only limit_order output without a UDT type can still be created");
 
     let forged_out_point = context.create_cell(
-        forged_output.as_builder().capacity(forged_capacity.pack()).build(),
+        forged_output.as_builder().capacity(forged_capacity).build(),
         order_data_custom(0, 0, [0u8; 32], 5i32.to_le_bytes(), (1, 1), (0, 0), 0),
     );
     let spend_tx = TransactionBuilder::default()

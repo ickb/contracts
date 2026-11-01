@@ -29,7 +29,7 @@ fn dao_phase2_with_65_outputs_hits_the_upstream_batch_limit() {
         .input(
             CellInput::new_builder()
                 .previous_output(withdrawing_input)
-                .since(0x2003e8022a0002f3u64.pack())
+                .since(0x2003e8022a0002f3u64)
                 .build(),
         )
         .outputs(outputs)
@@ -74,7 +74,7 @@ fn dao_phase2_rejects_header_dep_index_witness_in_output_type() {
         .input(
             CellInput::new_builder()
                 .previous_output(withdrawing_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .output(cell(123_468_106_670u64, &owner_lock, None))
@@ -109,7 +109,7 @@ fn dao_phase2_rejects_short_header_dep_index_witness_in_input_type() {
         .input(
             CellInput::new_builder()
                 .previous_output(withdrawing_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .output(cell(123_468_106_670u64, &owner_lock, None))
@@ -170,13 +170,13 @@ fn dao_phase2_with_two_distinct_deposit_headers_passes() {
         .input(
             CellInput::new_builder()
                 .previous_output(input_1)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(input_2)
-                .since(0x2003e802340002f3u64.pack())
+                .since(0x2003e802340002f3u64)
                 .build(),
         )
         .output(cell(exact_capacity_1, &owner_lock, None))

@@ -66,7 +66,7 @@ fn foreign_dao_withdrawal_can_be_wrapped_and_claimed() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_out_point)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_out_point))

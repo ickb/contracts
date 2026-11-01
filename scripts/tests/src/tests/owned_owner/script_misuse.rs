@@ -59,7 +59,7 @@ fn zero_distance_owner_input_is_rejected() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_input))

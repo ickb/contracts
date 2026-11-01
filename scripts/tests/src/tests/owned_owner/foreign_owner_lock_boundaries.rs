@@ -53,7 +53,7 @@ fn phase1_accepts_unspendable_foreign_owner_lock() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_out_point)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_out_point))
@@ -120,7 +120,7 @@ fn phase1_accepts_limit_order_owner_lock_but_claim_strands() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_out_point)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_out_point))

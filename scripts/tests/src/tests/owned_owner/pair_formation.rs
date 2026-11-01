@@ -202,7 +202,7 @@ fn orphan_withdrawal_request_can_be_created_but_not_claimed() {
         .input(
             CellInput::new_builder()
                 .previous_output(orphan_out_point)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .output(cell(123_468_106_670u64, &user_lock, None))

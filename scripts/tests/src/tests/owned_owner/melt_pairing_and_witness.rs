@@ -38,7 +38,7 @@ fn melt_accepts_owner_distance_trailing_bytes_on_input() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_input))
@@ -93,7 +93,7 @@ fn valid_melt_pair_passes() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_input))
@@ -141,7 +141,7 @@ fn melt_rejects_misbound_deposit_header_index() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_input))
@@ -188,7 +188,7 @@ fn melt_rejects_short_header_dep_index_witness() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_input))
@@ -235,7 +235,7 @@ fn melt_rejects_header_dep_index_witness_in_output_type() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_input))
@@ -281,7 +281,7 @@ fn melt_rejects_truncated_owner_distance_on_input() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_input))

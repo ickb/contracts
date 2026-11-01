@@ -117,13 +117,13 @@ fn weak_two_claim_live_restake_can_reassign_later_phase2_claimants() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input_1)
-                .since(u64_from_hex("0x200708059e0029d2").pack())
+                .since(u64_from_hex("0x200708059e0029d2"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input_0)
-                .since(u64_from_hex("0x200708059e0029d2").pack())
+                .since(u64_from_hex("0x200708059e0029d2"))
                 .build(),
         )
         .input(input(owner_input_4))
@@ -214,7 +214,7 @@ fn weak_two_claim_live_restake_can_reassign_later_phase2_claimants() {
         .input(
             CellInput::new_builder()
                 .previous_output(fresh_owned)
-                .since(u64_from_hex("0x200708068b0029d2").pack())
+                .since(u64_from_hex("0x200708068b0029d2"))
                 .build(),
         )
         .input(input(fresh_owner))
@@ -370,13 +370,13 @@ fn sighash_two_claim_live_restake_binds_fresh_owner_output() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input_1)
-                .since(u64_from_hex("0x200708059e0029d2").pack())
+                .since(u64_from_hex("0x200708059e0029d2"))
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input_0)
-                .since(u64_from_hex("0x200708059e0029d2").pack())
+                .since(u64_from_hex("0x200708059e0029d2"))
                 .build(),
         )
         .input(input(owner_input_4))

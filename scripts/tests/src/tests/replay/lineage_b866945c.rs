@@ -79,7 +79,7 @@ fn mainnet_tx_b866945c_claim_and_limit_order_match_shape() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input_out_point)
-                .since(u64_from_hex("0x20041d018a0035ee").pack())
+                .since(u64_from_hex("0x20041d018a0035ee"))
                 .build(),
         )
         .input(input(owner_input_out_point))
@@ -205,7 +205,7 @@ fn mainnet_tx_b866945c_is_input_poisoned_by_non_empty_args_owned_owner_sibling()
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input_out_point)
-                .since(u64_from_hex("0x20041d018a0035ee").pack())
+                .since(u64_from_hex("0x20041d018a0035ee"))
                 .build(),
         )
         .input(input(owner_input_out_point))

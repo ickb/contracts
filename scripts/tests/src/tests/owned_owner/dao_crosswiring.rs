@@ -172,7 +172,7 @@ fn weak_lock_crosswired_batch_reassigns_phase2_claims() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned2.clone())
-                .since(0x2003e802340002f3u64.pack())
+                .since(0x2003e802340002f3u64)
                 .build(),
         )
         .input(input(owner1.clone()))
@@ -191,7 +191,7 @@ fn weak_lock_crosswired_batch_reassigns_phase2_claims() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned1)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner1))
@@ -298,7 +298,7 @@ fn weak_lock_three_way_crosswire_rotates_claims() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned2.clone())
-                .since(0x2003e802340002f3u64.pack())
+                .since(0x2003e802340002f3u64)
                 .build(),
         )
         .input(input(owner1.clone()))
@@ -317,7 +317,7 @@ fn weak_lock_three_way_crosswire_rotates_claims() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned2)
-                .since(0x2003e802340002f3u64.pack())
+                .since(0x2003e802340002f3u64)
                 .build(),
         )
         .input(input(owner2))

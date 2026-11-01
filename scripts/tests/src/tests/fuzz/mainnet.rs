@@ -6,7 +6,7 @@ use super::*;
 // the deployed scripts accepted a break. Fixtures are fetched separately and read from
 // `ICKB_MAINNET_FIXTURES`, so the test needs no network and stays out of the default suite:
 //   python3 -I scripts/tests/mainnet/ickb_mainnet.py fetch scripts/build/release <out_dir> [rpc_url]
-//   ICKB_MAINNET_FIXTURES=<out_dir>/fixtures.txt cargo test --locked -p tests -- --ignored mainnet
+//   ICKB_MAINNET_FIXTURES=<out_dir>/fixtures.txt cargo test --locked -- --ignored mainnet  (in scripts/tests)
 //
 // Fixture format, one record per line, hex without 0x:
 //   scripts <ickb_logic> <ickb_xudt> <owned_owner> <limit_order> <dao>   (mainnet script hashes)

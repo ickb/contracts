@@ -33,7 +33,7 @@ fn live_claim_cannot_roll_into_fresh_pair() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(input(owner_input))
@@ -144,13 +144,13 @@ fn live_claims_cannot_rotate_into_new_pairs() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned1)
-                .since(0x2003e800000002f4u64.pack())
+                .since(0x2003e800000002f4u64)
                 .build(),
         )
         .input(
             CellInput::new_builder()
                 .previous_output(owned2)
-                .since(0x2003e802340002f3u64.pack())
+                .since(0x2003e802340002f3u64)
                 .build(),
         )
         .input(input(owner1))

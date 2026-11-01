@@ -80,7 +80,7 @@ fn mainnet_tx_5f6d0d5b_claim_deposit_and_limit_order_shape() {
         .input(
             CellInput::new_builder()
                 .previous_output(owned_input_out_point)
-                .since(u64_from_hex("0x2005f30163003532").pack())
+                .since(u64_from_hex("0x2005f30163003532"))
                 .build(),
         )
         .input(input(owner_input_out_point))

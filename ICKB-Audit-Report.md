@@ -171,7 +171,7 @@ A [module wiring overview](scripts/tests/src/tests.rs) plus the [test layout not
 - **Scenario suite roots:** [ickb_logic](scripts/tests/src/tests/ickb_logic.rs), [owned_owner](scripts/tests/src/tests/owned_owner.rs), [limit_order](scripts/tests/src/tests/limit_order.rs), and [replay](scripts/tests/src/tests/replay.rs), each wiring topic-focused files under the matching subdirectory.
 - **Helper-focused unit coverage:** [helpers](scripts/tests/src/tests/helpers.rs), which checks the shared encoders and witness/data builders used by the larger suites.
 
-A fresh `cargo test -p tests` run passed `231` tests with no failures. Those tests cover deployment-hash sanity checks, helper encodings, core flows, blocked-path regressions, and replayed transaction shapes across `iCKB Logic`, `Owned Owner`, and `Limit Order`.
+A fresh `cargo test` run in `scripts/tests` passed `231` tests with no failures. Those tests cover deployment-hash sanity checks, helper encodings, core flows, blocked-path regressions, and replayed transaction shapes across `iCKB Logic`, `Owned Owner`, and `Limit Order`.
 
 The type-role scan regression verifies a phase-2 conversion with 512 unrelated outputs within the suite's `10,000,000`-cycle ceiling. Lock-role transactions also execute NervosDAO, whose separately tested 64-output boundary caps their outputs.
 
