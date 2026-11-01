@@ -9,6 +9,7 @@
 - `src/tests/helpers.rs`: focused unit tests for shared encoders.
 - `src/tests/protocol_vectors.rs`: replays the golden vectors of `../vector-gen` (the values the contracts' own Rust logic gives each case) against the release binaries, except two named vectors that describe cells consensus cannot create.
 - `src/tests/fuzz.rs` with `fuzz/generate.rs`, `fuzz/mutate.rs` and `fuzz/oracle.rs`: structured fuzzing of the deployed binaries. It composes valid transaction segments, mutates them, verifies each one and checks the protocol invariants on every accepted one. The default suite runs 100 fixed-seed cases; `ICKB_FUZZ_CASES`, `ICKB_FUZZ_SEED` and `ICKB_FUZZ_CASE_SEED` drive longer local runs, best in `--release`.
+- `src/tests/fuzz/mainnet.rs`: an ignored test that replays committed chain transactions through the same oracle, from fixtures that `mainnet/ickb_mainnet.py` fetches (mainnet by default, testnet with its RPC URL). The script also checks live iCKB supply against pool deposits and receipts.
 - `src/tests/ickb_logic.rs`, `owned_owner.rs`, `limit_order.rs`, `replay.rs`: thin suite roots that wire topic-focused files under `src/tests/ickb_logic/`, `owned_owner/`, `limit_order/`, and `replay/`.
 
 Some replay tests intentionally rebuild live transaction shapes instead of minimizing the fixture. Those cases keep the audit claims tied to realistic batching, witness layout, header dependencies, and cross-script interaction patterns.
