@@ -3,6 +3,7 @@ use ckb_dao_utils::extract_dao_data;
 use ckb_testtool::ckb_types::core::HeaderView;
 use std::collections::BTreeMap;
 
+mod exhaustive;
 mod generate;
 mod mainnet;
 mod mutate;
