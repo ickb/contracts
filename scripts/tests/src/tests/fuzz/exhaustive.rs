@@ -5,8 +5,8 @@ use super::*;
 // one funding input and one change output. The archetypes sit at the scripts' decision points
 // and their amounts derive from one deposit block, so balanced variants exist next to their
 // off-by-one neighbours. Each realistic transaction is verified, and each accepted one goes
-// through the fuzz oracle. The full search is `#[ignore]`d: its 37,797,412 cases took 3.7 hours
-// in --release as 20 `ICKB_EXHAUSTIVE_SHARD=i/n` processes on a 12-core laptop.
+// through the fuzz oracle. The full search is `#[ignore]`d: it takes hours in --release, best
+// sharded as `ICKB_EXHAUSTIVE_SHARD=i/n` processes.
 //
 // Symmetry choices:
 // - The funding input and change output always come last. They are plain cells no script reads,
@@ -295,7 +295,6 @@ impl Search {
     /// Every case `k` of the enumeration over these archetype subsets, input sequences outer and
     /// output sequences inner, with `k % shards == shard`.
     fn run(&mut self, ins: &[usize], outs: &[usize], (max_in, max_out, max_cells): (usize, usize, usize), (shard, shards): (u64, u64)) -> Summary {
-        let list = std::env::var("ICKB_EXHAUSTIVE_LIST_ACCEPTED").is_ok();
         let mut summary = Summary::default();
         let mut k = 0u64;
         for in_index in 0..sequences(ins.len(), max_in) {
@@ -305,7 +304,7 @@ impl Search {
             let mut out_index = (shard + shards - k % shards) % shards;
             while out_index < out_count {
                 let o: Vec<usize> = sequence(out_index, outs.len(), max_out).iter().map(|&x| outs[x]).collect();
-                self.case(&i, &o, list, &mut summary);
+                self.case(&i, &o, &mut summary);
                 out_index += shards;
             }
             k += out_count;
@@ -313,7 +312,7 @@ impl Search {
         summary
     }
 
-    fn case(&mut self, ins: &[usize], outs: &[usize], list: bool, summary: &mut Summary) {
+    fn case(&mut self, ins: &[usize], outs: &[usize], summary: &mut Summary) {
         summary.enumerated += 1;
         let mut spec = spec(&self.alphabet, ins, outs);
         if !spec.balance() {
@@ -331,9 +330,6 @@ impl Search {
             Ok(_) => {
                 summary.accepted += 1;
                 let names = self.names(ins, outs);
-                if list {
-                    println!("accepted: {names}");
-                }
                 let mut seen: Vec<String> = Vec::new();
                 for name in ins.iter().map(|&k| format!("in {}", self.alphabet.inputs[k].name))
                     .chain(outs.iter().map(|&k| format!("out {}", self.alphabet.outputs[k].0)))

@@ -30,11 +30,13 @@ mod protocol_vectors;
 mod replay;
 mod replay_helpers;
 mod signing;
+mod tx;
 
 use encoders::*;
 use fixtures::*;
 use replay_helpers::*;
 use signing::*;
+use tx::*;
 
 // ckb-testtool runs scripts only, so a fixture could build a transaction the node rejects and still
 // pass. Tests verify through this check, which also runs the node's own transaction verifiers and

@@ -28,32 +28,12 @@ fn point(tag: u8, index: u32) -> OutPoint {
     OutPoint::new([tag; 32].pack(), index)
 }
 
-fn plain(env: &Env, capacity: u64) -> Cell {
-    Cell { capacity, lock: env.user.clone(), type_: None, data: vec![] }
-}
-
-fn udt(env: &Env, amount: u128) -> Cell {
-    Cell { capacity: occupied_capacity(&env.user, &env.xudt, 16), lock: env.user.clone(), type_: Some(env.xudt.clone()), data: udt_data(amount).to_vec() }
-}
-
 fn deposit(env: &Env, lock: &Script, amount: u64, data: Vec<u8>) -> Cell {
     Cell { capacity: deposit_capacity(lock, &env.dao, 8, amount), lock: lock.clone(), type_: Some(env.dao.clone()), data }
 }
 
-fn owner(env: &Env, distance: i32) -> Cell {
-    Cell { capacity: occupied_capacity(&env.user, &env.owned_owner, 4), lock: env.user.clone(), type_: Some(env.owned_owner.clone()), data: distance.to_le_bytes().to_vec() }
-}
-
-fn receipt(env: &Env, quantity: u32, amount: u64) -> Cell {
-    Cell { capacity: occupied_capacity(&env.user, &env.ickb, 12), lock: env.user.clone(), type_: Some(env.ickb.clone()), data: receipt_data(quantity, amount).to_vec() }
-}
-
 fn input(cell: Cell, out_point: OutPoint, header: Option<&HeaderView>) -> In {
     In { cell, out_point, header: header.cloned(), since: 0, witness: Bytes::new() }
-}
-
-fn out(cell: Cell) -> Out {
-    Out { cell, change: false }
 }
 
 /// A funding input and its change output, so `balance` settles capacity as a wallet would.
@@ -85,12 +65,12 @@ fn withdrawal(env: &Env, pairs: u32, fillers: u64) -> TxSpec {
         value += soft_capped_ickb(MAX_DEPOSIT, ar);
         let request = Cell { lock: env.owned_owner.clone(), data: header.number().to_le_bytes().to_vec(), ..cell.clone() };
         spec.inputs.push(input(cell, point(1, k), Some(&header)));
-        spec.outputs.insert(k as usize, out(request));
-        spec.outputs.push(out(owner(env, -(pairs as i32))));
+        spec.outputs.insert(k as usize, Out::from(request));
+        spec.outputs.push(Out::from(env.owner(-(pairs as i32))));
         spec.header_deps.push(header);
     }
     let owners: u64 = spec.outputs[pairs as usize..].iter().map(|o| o.cell.capacity).sum();
-    spec.inputs.push(input(Cell { capacity: owners, ..udt(env, value) }, point(2, 0), None));
+    spec.inputs.push(input(Cell { capacity: owners, ..env.udt(value) }, point(2, 0), None));
     spec
 }
 
@@ -105,7 +85,7 @@ fn claim(env: &Env, pairs: u32, fillers: u64) -> TxSpec {
         let number = 1_554 + u64::from(k);
         let request = deposit(env, &env.owned_owner, MAX_DEPOSIT, number.to_le_bytes().to_vec());
         claimed += dao_maximum_withdraw_capacity(&request.output(), 8, GENESIS_AR, SYNTHETIC_WITHDRAW_AR);
-        let owner = owner(env, -(pairs as i32));
+        let owner = env.owner(-(pairs as i32));
         claimed += owner.capacity;
         spec.header_deps.push(gen_header(number, GENESIS_AR, 35, 1000, 1000));
         let witness = header_dep_index_witness(spec.header_deps.len() as u64 - 1);
@@ -113,7 +93,7 @@ fn claim(env: &Env, pairs: u32, fillers: u64) -> TxSpec {
         spec.inputs.push(input(owner, point(3, pairs + k), Some(&withdraw_header)));
     }
     spec.header_deps.extend(filler_headers(fillers));
-    spec.outputs.push(out(plain(env, claimed)));
+    spec.outputs.push(Out::from(env.plain(claimed)));
     spec
 }
 
@@ -147,11 +127,11 @@ fn receipts_redeem_at_soft_cap_and_rate_edges() {
     let env = Env::new(&mut context);
     let mut create = TxSpec::default();
     for _ in 0..MAX_RECEIPT_QUANTITY {
-        create.outputs.push(out(deposit(&env, &env.ickb, MAX_DEPOSIT, vec![0; 8])));
+        create.outputs.push(Out::from(deposit(&env, &env.ickb, MAX_DEPOSIT, vec![0; 8])));
     }
-    create.outputs.push(out(receipt(&env, MAX_RECEIPT_QUANTITY, MAX_DEPOSIT)));
+    create.outputs.push(Out::from(env.receipt(MAX_RECEIPT_QUANTITY, MAX_DEPOSIT)));
     let needed: u64 = create.outputs.iter().map(|o| o.cell.capacity).sum();
-    create.inputs.push(input(plain(&env, needed), point(4, 0), None));
+    create.inputs.push(input(env.plain(needed), point(4, 0), None));
     commit(&mut context, create);
 
     for (n, ar) in [GENESIS_AR, GENESIS_AR + 1, 2 * GENESIS_AR, u64::MAX].into_iter().enumerate() {
@@ -159,8 +139,8 @@ fn receipts_redeem_at_soft_cap_and_rate_edges() {
         for (m, amount) in edges.into_iter().filter(|a| (MIN_DEPOSIT..=MAX_DEPOSIT).contains(a)).enumerate() {
             let header = gen_header(1_000 + n as u64, ar, 35, 1000, 1000);
             let mut spec = TxSpec { header_deps: vec![header.clone()], ..Default::default() };
-            spec.inputs.push(input(receipt(&env, MAX_RECEIPT_QUANTITY, amount), point(5, (n * 8 + m) as u32), Some(&header)));
-            spec.outputs.push(out(udt(&env, u128::from(MAX_RECEIPT_QUANTITY) * soft_capped_ickb(amount, ar))));
+            spec.inputs.push(input(env.receipt(MAX_RECEIPT_QUANTITY, amount), point(5, (n * 8 + m) as u32), Some(&header)));
+            spec.outputs.push(Out::from(env.udt(u128::from(MAX_RECEIPT_QUANTITY) * soft_capped_ickb(amount, ar))));
             fund(&env, &mut spec);
             commit(&mut context, spec);
         }
@@ -181,9 +161,9 @@ fn deposits_withdraw_at_soft_cap_and_rate_edges() {
             let tag = (n * 8 + m) as u32;
             let mut spec = TxSpec { header_deps: vec![header.clone()], ..Default::default() };
             spec.inputs.push(input(cell, point(6, tag), Some(&header)));
-            spec.inputs.push(input(udt(&env, soft_capped_ickb(amount, ar)), point(7, tag), None));
-            spec.outputs.push(out(request));
-            spec.outputs.push(out(owner(&env, -1)));
+            spec.inputs.push(input(env.udt(soft_capped_ickb(amount, ar)), point(7, tag), None));
+            spec.outputs.push(Out::from(request));
+            spec.outputs.push(Out::from(env.owner(-1)));
             fund(&env, &mut spec);
             commit(&mut context, spec);
         }
@@ -202,10 +182,6 @@ fn order(env: &Env, unused: u64, amount: u128, master: &OutPoint) -> Cell {
     Cell { capacity: deposit_capacity(&env.limit_order, &env.xudt, 89, unused), lock: env.limit_order.clone(), type_: Some(env.xudt.clone()), data }
 }
 
-fn master(env: &Env) -> Cell {
-    Cell { capacity: occupied_capacity(&env.user, &env.limit_order, 0), lock: env.user.clone(), type_: Some(env.limit_order.clone()), data: vec![] }
-}
-
 // Fulfilled and dust orders: no CKB left to sell, no iCKB left to sell, or neither. The owner melts
 // each with its master and takes back what is left.
 #[test]
@@ -217,9 +193,9 @@ fn fulfilled_and_dust_orders_melt_with_their_master() {
         let master_point = point(tag, 1);
         let mut spec = TxSpec::default();
         spec.inputs.push(input(order(&env, unused, amount, &master_point), point(tag, 0), None));
-        spec.inputs.push(input(master(&env), master_point, None));
+        spec.inputs.push(input(env.master(), master_point, None));
         if amount > 0 {
-            spec.outputs.push(out(udt(&env, amount)));
+            spec.outputs.push(Out::from(env.udt(amount)));
         }
         fund(&env, &mut spec);
         commit(&mut context, spec);
@@ -240,8 +216,8 @@ fn order_remainder_below_the_minimum_match_can_be_filled_in_full() {
     let paid = (u128::from(left) * u128::from(C2U.0)).div_ceil(u128::from(C2U.1));
     let mut spec = TxSpec::default();
     spec.inputs.push(input(order(&env, left, 0, &master_point), point(12, 0), None));
-    spec.inputs.push(input(udt(&env, paid), point(13, 0), None));
-    spec.outputs.push(out(order(&env, 0, paid, &master_point)));
+    spec.inputs.push(input(env.udt(paid), point(13, 0), None));
+    spec.outputs.push(Out::from(order(&env, 0, paid, &master_point)));
     fund(&env, &mut spec);
     commit(&mut context, spec);
 
@@ -251,8 +227,8 @@ fn order_remainder_below_the_minimum_match_can_be_filled_in_full() {
     let paid = (left * u128::from(U2C.1)).div_ceil(u128::from(U2C.0)) as u64;
     let mut spec = TxSpec::default();
     spec.inputs.push(input(order(&env, 0, left, &master_point), point(14, 0), None));
-    spec.outputs.push(out(order(&env, paid, 0, &master_point)));
-    spec.outputs.push(out(udt(&env, left)));
+    spec.outputs.push(Out::from(order(&env, paid, 0, &master_point)));
+    spec.outputs.push(Out::from(env.udt(left)));
     fund(&env, &mut spec);
     commit(&mut context, spec);
 }

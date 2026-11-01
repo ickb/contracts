@@ -92,37 +92,16 @@ impl Gen<'_> {
         }
     }
 
-    fn udt_cell(&self, amount: u128) -> Cell {
-        let env = self.env;
-        Cell { capacity: occupied_capacity(&env.user, &env.xudt, 16), lock: env.user.clone(), type_: Some(env.xudt.clone()), data: udt_data(amount).to_vec() }
-    }
-
     fn deposit_cell(&self, lock: &Script, amount: u64, data: Vec<u8>) -> Cell {
-        let env = self.env;
-        Cell { capacity: deposit_capacity(lock, &env.dao, 8, amount), lock: lock.clone(), type_: Some(env.dao.clone()), data }
-    }
-
-    fn owner_cell(&self, distance: i32) -> Cell {
-        let env = self.env;
-        Cell {
-            capacity: occupied_capacity(&env.user, &env.owned_owner, 4),
-            lock: env.user.clone(),
-            type_: Some(env.owned_owner.clone()),
-            data: distance.to_le_bytes().to_vec(),
-        }
-    }
-
-    fn master_cell(&self) -> Cell {
-        let env = self.env;
-        Cell { capacity: occupied_capacity(&env.user, &env.limit_order, 0), lock: env.user.clone(), type_: Some(env.limit_order.clone()), data: vec![] }
+        Cell { data, ..self.env.deposit(lock, amount) }
     }
 
     /// Splits `total` iCKB into one or two xUDT cells.
     fn udt_outputs(&mut self, total: u128) -> Vec<Out> {
         let first = if total > 1 && self.rng.chance(1, 2) { u128::from(self.rng.below(total.min(u128::from(u64::MAX)) as u64)) } else { total };
-        let mut outs = vec![Out { cell: self.udt_cell(first), change: false }];
+        let mut outs = vec![Out { cell: self.env.udt(first), change: false }];
         if first != total {
-            outs.push(Out { cell: self.udt_cell(total - first), change: false });
+            outs.push(Out { cell: self.env.udt(total - first), change: false });
         }
         outs
     }
@@ -178,11 +157,11 @@ impl Gen<'_> {
         deposit.header = Some(header.clone());
         let value = soft_capped_ickb(amount, ar);
         let extra = if self.rng.chance(1, 2) { u128::from(self.rng.below(10 * CKB)) } else { 0 };
-        let udt = self.input(self.udt_cell(value + extra));
+        let udt = self.input(self.env.udt(value + extra));
         let request = Cell { lock: env.owned_owner.clone(), data: header.number().to_le_bytes().to_vec(), ..deposit.cell.clone() };
-        let mut outputs = vec![Out { cell: request, change: false }, Out { cell: self.owner_cell(0), change: false }];
+        let mut outputs = vec![Out { cell: request, change: false }, Out { cell: self.env.owner(0), change: false }];
         if extra > 0 {
-            outputs.push(Out { cell: self.udt_cell(extra), change: false });
+            outputs.push(Out { cell: self.env.udt(extra), change: false });
         }
         Segment {
             inputs: vec![deposit, udt],
@@ -212,7 +191,7 @@ impl Gen<'_> {
             witness: Bytes::new(),
         };
         let owner = In {
-            cell: self.owner_cell(owned_index as i32 - owner_index as i32),
+            cell: self.env.owner(owned_index as i32 - owner_index as i32),
             out_point: OutPoint::new(tx_hash.pack(), owner_index),
             // Created with its request, so it sits in the same block.
             header: Some(withdraw_header.clone()),
@@ -301,13 +280,13 @@ impl Gen<'_> {
         let mut s = Segment {
             outputs: vec![
                 Out { cell: self.order_cell(&udt_type, capacity, data), change: false },
-                Out { cell: self.master_cell(), change: false },
+                Out { cell: self.env.master(), change: false },
             ],
             distances: vec![(0, 1, MASTER_OFFSET)],
             ..Default::default()
         };
         if is_ickb && udt > 0 {
-            s.inputs.push(self.input(self.udt_cell(udt)));
+            s.inputs.push(self.input(self.env.udt(udt)));
         }
         s
     }
@@ -336,7 +315,7 @@ impl Gen<'_> {
             };
             let paid = ceil_div(taken * a, b) + u128::from(self.rng.below(3));
             if is_ickb {
-                s.inputs.push(self.input(self.udt_cell(paid)));
+                s.inputs.push(self.input(self.env.udt(paid)));
             }
             (capacity - taken as u64, udt + paid)
         } else {
@@ -349,7 +328,7 @@ impl Gen<'_> {
             };
             let paid = ceil_div(taken * d, c) + u128::from(self.rng.below(3));
             if is_ickb {
-                s.outputs.push(Out { cell: self.udt_cell(taken), change: false });
+                s.outputs.push(Out { cell: self.env.udt(taken), change: false });
             }
             (capacity + paid as u64, udt - taken)
         };
@@ -366,10 +345,10 @@ impl Gen<'_> {
         let udt = u128::from(self.rng.below(1_000_000_000_000));
         let capacity = deposit_capacity(&self.env.limit_order, &udt_type, ORDER_DATA_LEN, self.rng.below(2_000) * CKB);
         let (order, master) = self.order_input(&udt_type, (c2u, u2c, log), udt, capacity);
-        let master = In { cell: self.master_cell(), out_point: master, header: None, since: 0, witness: Bytes::new() };
+        let master = In { cell: self.env.master(), out_point: master, header: None, since: 0, witness: Bytes::new() };
         let mut s = Segment { inputs: vec![order, master], ..Default::default() };
         if is_ickb && udt > 0 {
-            s.outputs.push(Out { cell: self.udt_cell(udt), change: false });
+            s.outputs.push(Out { cell: self.env.udt(udt), change: false });
         }
         s
     }
