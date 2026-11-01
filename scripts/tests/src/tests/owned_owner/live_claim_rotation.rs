@@ -5,179 +5,44 @@ use super::*;
 #[test]
 fn live_claim_cannot_roll_into_fresh_pair() {
     let mut context = Context::default();
-    let owned_owner = owned_owner_script(&mut context);
-    let dao = dao_script(&mut context);
+    let env = Env::new(&mut context);
     let old_owner_lock = named_always_success_lock(&mut context, b"old-owner");
     let new_owner_lock = named_always_success_lock(&mut context, b"new-owner");
-    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
-    let shared_tx_hash = Byte32::from_slice(&[9u8; 32]).expect("shared tx hash");
-    let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
-    let owner_input = OutPoint::new(shared_tx_hash, 1);
-
-    context.create_cell_with_out_point(
-        owned_input.clone(),
-        cell(123_456_780_000u64, &owned_owner, Some(&dao)),
-        withdrawal_request_data(1554),
-    );
-    context.create_cell_with_out_point(
-        owner_input.clone(),
-        cell(occupied_capacity(&old_owner_lock, &owned_owner, 4), &old_owner_lock, Some(&owned_owner)),
-        owner_distance_data(-1),
-    );
-    link_cell_to_header(&mut context, &owned_input, &withdraw_header);
-    context.insert_header(deposit_header.clone());
-    let witness = header_dep_index_witness(1);
-
-    let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned_input)
-                .since(0x2003e800000002f4u64)
-                .build(),
-        )
-        .input(input(owner_input))
-        .outputs(vec![
-            cell(123_456_780_000u64, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&new_owner_lock, &owned_owner, 4), &new_owner_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                owner_distance_data(-1),
-            ]
-            .pack(),
-        )
-        .header_dep(withdraw_header.hash())
-        .header_dep(deposit_header.hash())
-        .witness(witness.pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_DAO_NEWLY_CREATED_CELL);
+    let mut spec = melt(&env, 9, owner(&env, &old_owner_lock, -1));
+    spec.outputs = vec![owned(&env, 123_456_780_000, 1554).into(), owner(&env, &new_owner_lock, -1).into()];
+    spec.fail(&mut context, ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
 // Consuming multiple live pairs still cannot rotate them into a new set of live pairs once the full DAO claim rules are enforced.
 #[test]
 fn live_claims_cannot_rotate_into_new_pairs() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user1_lock = named_always_success_lock(&mut context, b"user1");
     let user2_lock = named_always_success_lock(&mut context, b"user2");
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let amount1 = 1_000 * CKB;
-    let amount2 = 1_100 * CKB;
-    let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
-    let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
-    let deposit_header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit_header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header1 = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
-    let withdraw_header2 = gen_header(2_000_621, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
-    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
-    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit1, &deposit_header1);
-    link_cell_to_header(&mut context, &deposit2, &deposit_header2);
-    let udt_input = create_udt(&mut context, &user1_lock, &xudt, u128::from(amount1 + amount2));
+    let mut create = withdrawals(&env, &[1_000 * CKB, 1_100 * CKB]);
+    create.inputs.push(In::new(udt(&env, &user1_lock, u128::from(2_100 * CKB))));
+    create.inputs.push(funding(&env));
+    create.outputs.push(owner(&env, &user1_lock, -2).into());
+    create.outputs.push(owner(&env, &user2_lock, -2).into());
+    let live = accept(&mut context, &create, "initial live owned_owner pairs should verify");
 
-    let create_tx = TransactionBuilder::default()
-        .input(input(deposit1))
-        .input(input(deposit2))
-        .input(input(udt_input))
-        .input(input(funding_cell(&mut context)))
-        .outputs(vec![
-            cell(total1, &owned_owner, Some(&dao)),
-            cell(total2, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user1_lock, &owned_owner, 4), &user1_lock, Some(&owned_owner)),
-            cell(occupied_capacity(&user2_lock, &owned_owner, 4), &user2_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                withdrawal_request_data(1555),
-                owner_distance_data(-2),
-                owner_distance_data(-2),
-            ]
-            .pack(),
-        )
-        .header_dep(deposit_header1.hash())
-        .header_dep(deposit_header2.hash())
-        .build();
-    let create_tx = context.complete_tx(create_tx);
-    context
-        .verify(&create_tx, MAX_CYCLES)
-        .expect("initial live owned_owner pairs should verify");
-
-    let batch_hash = create_tx.hash();
-    let owned1 = OutPoint::new(batch_hash.clone(), 0);
-    let owned2 = OutPoint::new(batch_hash.clone(), 1);
-    let owner1 = OutPoint::new(batch_hash.clone(), 2);
-    let owner2 = OutPoint::new(batch_hash, 3);
-    context.create_cell_with_out_point(
-        owned1.clone(),
-        create_tx.outputs().get(0).expect("owned1 output"),
-        withdrawal_request_data(1554),
-    );
-    context.create_cell_with_out_point(
-        owned2.clone(),
-        create_tx.outputs().get(1).expect("owned2 output"),
-        withdrawal_request_data(1555),
-    );
-    context.create_cell_with_out_point(
-        owner1.clone(),
-        create_tx.outputs().get(2).expect("owner1 output"),
-        owner_distance_data(-2),
-    );
-    context.create_cell_with_out_point(
-        owner2.clone(),
-        create_tx.outputs().get(3).expect("owner2 output"),
-        owner_distance_data(-2),
-    );
-    link_cell_to_header(&mut context, &owned1, &withdraw_header1);
-    link_cell_to_header(&mut context, &owned2, &withdraw_header2);
-    context.insert_header(deposit_header1.clone());
-    context.insert_header(deposit_header2.clone());
-
-    let witness1 = header_dep_index_witness(2);
-    let witness2 = header_dep_index_witness(3);
-
-    let rotate_tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned1)
-                .since(0x2003e800000002f4u64)
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned2)
-                .since(0x2003e802340002f3u64)
-                .build(),
-        )
-        .input(input(owner1))
-        .input(input(owner2))
-        .outputs(vec![
-            cell(total1, &owned_owner, Some(&dao)),
-            cell(total2, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user1_lock, &owned_owner, 4), &user1_lock, Some(&owned_owner)),
-            cell(occupied_capacity(&user2_lock, &owned_owner, 4), &user2_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                withdrawal_request_data(1555),
-                owner_distance_data(-1),
-                owner_distance_data(-3),
-            ]
-            .pack(),
-        )
-        .header_dep(withdraw_header1.hash())
-        .header_dep(withdraw_header2.hash())
-        .header_dep(deposit_header1.hash())
-        .header_dep(deposit_header2.hash())
-        .witness(witness1.pack())
-        .witness(witness2.pack())
-        .build();
-
-    let rotate_tx = context.complete_tx(rotate_tx);
-    fail(&context, &rotate_tx, ERROR_DAO_NEWLY_CREATED_CELL);
+    let (withdraw_header1, withdraw_header2) = (withdraw_header(2_000_610), withdraw_header(2_000_621));
+    TxSpec {
+        inputs: vec![
+            claim(live[0].clone(), &withdraw_header1, 0x2003e800000002f4, 2),
+            claim(live[1].clone(), &withdraw_header2, 0x2003e802340002f3, 3),
+            live[2].clone(),
+            live[3].clone(),
+        ],
+        outputs: vec![
+            create.outputs[0].clone(),
+            create.outputs[1].clone(),
+            owner(&env, &user1_lock, -1).into(),
+            owner(&env, &user2_lock, -3).into(),
+        ],
+        header_deps: vec![withdraw_header1, withdraw_header2, deposit_header(1554), deposit_header(1555)],
+    }
+    .fail(&mut context, ERROR_DAO_NEWLY_CREATED_CELL);
 }

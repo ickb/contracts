@@ -1,99 +1,39 @@
 use super::*;
 
+/// Phase 1 withdrawing deposits of `amount1` and `amount2` with user1's xUDT, where the owner cells
+/// after both requests give user1 the first request and user2 the second.
+fn crosswired(env: &Env, user1_lock: &Script, user2_lock: &Script, amount1: u64, amount2: u64) -> TxSpec {
+    let mut spec = withdrawals(env, &[amount1, amount2]);
+    spec.inputs.push(In::new(udt(env, user1_lock, u128::from(amount1 + amount2))));
+    spec.inputs.push(funding(env));
+    spec.outputs.push(owner(env, user1_lock, -1).into());
+    spec.outputs.push(owner(env, user2_lock, -3).into());
+    spec
+}
+
 // Even with weak locks, some crosswired layouts are still stopped by the DAO's same-index withdrawal rules before any later claim can rotate.
 #[test]
 fn crosswired_batch_is_blocked_by_dao_index_rules() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user1_lock = named_always_success_lock(&mut context, b"user1");
     let user2_lock = named_always_success_lock(&mut context, b"user2");
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let amount1 = 1_000 * CKB;
-    let amount2 = 1_100 * CKB;
-    let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
-    let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
-    let header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
-    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit1, &header1);
-    link_cell_to_header(&mut context, &deposit2, &header2);
-    let udt_input = create_udt(&mut context, &user1_lock, &xudt, u128::from(amount1 + amount2));
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit1))
-        .input(input(deposit2))
-        .input(input(udt_input))
-        .outputs(vec![
-            cell(total1, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user1_lock, &owned_owner, 4), &user1_lock, Some(&owned_owner)),
-            cell(total2, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user2_lock, &owned_owner, 4), &user2_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                owner_distance_data(1),
-                withdrawal_request_data(1555),
-                owner_distance_data(-3),
-            ]
-            .pack(),
-        )
-        .header_dep(header1.hash())
-        .header_dep(header2.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_DAO_INVALID_WITHDRAWING_CELL);
+    let mut spec = withdrawals(&env, &[1_000 * CKB, 1_100 * CKB]);
+    spec.inputs.push(In::new(udt(&env, &user1_lock, u128::from(2_100 * CKB))));
+    spec.outputs.insert(1, owner(&env, &user1_lock, 1).into());
+    spec.outputs.push(owner(&env, &user2_lock, -3).into());
+    spec.fail(&mut context, ERROR_DAO_INVALID_WITHDRAWING_CELL);
 }
 
 // This two-way batch keeps DAO index rules satisfied, so weak phase 1 owner locks are enough to rotate later claim ownership.
 #[test]
 fn weak_lock_valid_dao_batch_can_crosswire_claims() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user1_lock = named_always_success_lock(&mut context, b"user1");
     let user2_lock = named_always_success_lock(&mut context, b"user2");
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let amount1 = 1_000 * CKB;
-    let amount2 = 1_100 * CKB;
-    let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
-    let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
-    let header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
-    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit1, &header1);
-    link_cell_to_header(&mut context, &deposit2, &header2);
-    let udt_input = create_udt(&mut context, &user1_lock, &xudt, u128::from(amount1 + amount2));
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit1))
-        .input(input(deposit2))
-        .input(input(udt_input))
-        .input(input(funding_cell(&mut context)))
-        .outputs(vec![
-            cell(total1, &owned_owner, Some(&dao)),
-            cell(total2, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user1_lock, &owned_owner, 4), &user1_lock, Some(&owned_owner)),
-            cell(occupied_capacity(&user2_lock, &owned_owner, 4), &user2_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                withdrawal_request_data(1555),
-                owner_distance_data(-1),
-                owner_distance_data(-3),
-            ]
-            .pack(),
-        )
-        .header_dep(header1.hash())
-        .header_dep(header2.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
+    crosswired(&env, &user1_lock, &user2_lock, 1_000 * CKB, 1_100 * CKB)
+        .verify(&mut context)
         .expect("under weak owner locks, owned_owner accepts crosswired owner assignments when DAO index rules are still satisfied");
 }
 
@@ -101,232 +41,55 @@ fn weak_lock_valid_dao_batch_can_crosswire_claims() {
 #[test]
 fn weak_lock_crosswired_batch_reassigns_phase2_claims() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user1_lock = named_always_success_lock(&mut context, b"user1");
     let user2_lock = named_always_success_lock(&mut context, b"user2");
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
+    let create = crosswired(&env, &user1_lock, &user2_lock, 1_000 * CKB, 1_200 * CKB);
+    let live = accept(&mut context, &create, "under weak owner locks, the crosswired phase1 batch should verify");
 
-    let amount1 = 1_000 * CKB;
-    let amount2 = 1_200 * CKB;
-    let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
-    let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
-    let deposit_header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit_header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header1 = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
-    let withdraw_header2 = gen_header(2_000_621, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
-    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
-    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit1, &deposit_header1);
-    link_cell_to_header(&mut context, &deposit2, &deposit_header2);
-    let udt_input = create_udt(&mut context, &user1_lock, &xudt, u128::from(amount1 + amount2));
+    let withdraw_header2 = withdraw_header(2_000_621);
+    TxSpec {
+        inputs: vec![claim(live[1].clone(), &withdraw_header2, 0x2003e802340002f3, 1), live[2].clone()],
+        outputs: vec![plain(&user1_lock, claim_capacity(&live[1].cell)).into()],
+        header_deps: vec![withdraw_header2, deposit_header(1555)],
+    }
+    .verify(&mut context)
+    .expect("under weak owner locks, user1's owner cell should successfully claim the crosswired second withdrawal request");
 
-    let create_tx = TransactionBuilder::default()
-        .input(input(deposit1))
-        .input(input(deposit2))
-        .input(input(udt_input))
-        .input(input(funding_cell(&mut context)))
-        .outputs(vec![
-            cell(total1, &owned_owner, Some(&dao)),
-            cell(total2, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user1_lock, &owned_owner, 4), &user1_lock, Some(&owned_owner)),
-            cell(occupied_capacity(&user2_lock, &owned_owner, 4), &user2_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                withdrawal_request_data(1555),
-                owner_distance_data(-1),
-                owner_distance_data(-3),
-            ]
-            .pack(),
-        )
-        .header_dep(deposit_header1.hash())
-        .header_dep(deposit_header2.hash())
-        .build();
-    let create_tx = context.complete_tx(create_tx);
-    context
-        .verify(&create_tx, MAX_CYCLES)
-        .expect("under weak owner locks, the crosswired phase1 batch should verify");
-
-    let batch_hash = create_tx.hash();
-    let owned1 = OutPoint::new(batch_hash.clone(), 0);
-    let owned2 = OutPoint::new(batch_hash.clone(), 1);
-    let owner1 = OutPoint::new(batch_hash.clone(), 2);
-    let owner2 = OutPoint::new(batch_hash, 3);
-    context.create_cell_with_out_point(owned1.clone(), create_tx.outputs().get(0).expect("owned1"), withdrawal_request_data(1554));
-    context.create_cell_with_out_point(owned2.clone(), create_tx.outputs().get(1).expect("owned2"), withdrawal_request_data(1555));
-    context.create_cell_with_out_point(owner1.clone(), create_tx.outputs().get(2).expect("owner1"), owner_distance_data(-1));
-    context.create_cell_with_out_point(owner2.clone(), create_tx.outputs().get(3).expect("owner2"), owner_distance_data(-3));
-    link_cell_to_header(&mut context, &owned1, &withdraw_header1);
-    link_cell_to_header(&mut context, &owned2, &withdraw_header2);
-    context.insert_header(deposit_header1.clone());
-    context.insert_header(deposit_header2.clone());
-
-    let owned2_output = create_tx.outputs().get(1).expect("owned2 output");
-    let exact_crosswired_capacity = dao_maximum_withdraw_capacity(
-        &owned2_output,
-        withdrawal_request_data(1555).len(),
-        GENESIS_AR as u64,
-        SYNTHETIC_WITHDRAW_AR,
-    );
-    let claim_with_crosswired_pair = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned2.clone())
-                .since(0x2003e802340002f3u64)
-                .build(),
-        )
-        .input(input(owner1.clone()))
-        .output(cell(exact_crosswired_capacity, &user1_lock, None))
-        .output_data(Bytes::new().pack())
-        .header_dep(withdraw_header2.hash())
-        .header_dep(deposit_header2.hash())
-        .witness(header_dep_index_witness(1).pack())
-        .build();
-    let claim_with_crosswired_pair = context.complete_tx(claim_with_crosswired_pair);
-    context
-        .verify(&claim_with_crosswired_pair, MAX_CYCLES)
-        .expect("under weak owner locks, user1's owner cell should successfully claim the crosswired second withdrawal request");
-
-    let claim_with_intended_pair = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned1)
-                .since(0x2003e800000002f4u64)
-                .build(),
-        )
-        .input(input(owner1))
-        .output(
-            cell(dao_maximum_withdraw_capacity(
-                    &create_tx.outputs().get(0).expect("owned1 output"),
-                    withdrawal_request_data(1554).len(),
-                    GENESIS_AR as u64,
-                    SYNTHETIC_WITHDRAW_AR,
-                ), &user1_lock, None),
-        )
-        .output_data(Bytes::new().pack())
-        .header_dep(withdraw_header1.hash())
-        .header_dep(deposit_header1.hash())
-        .witness(header_dep_index_witness(1).pack())
-        .build();
-    let claim_with_intended_pair = context.complete_tx(claim_with_intended_pair);
-    fail(&context, &claim_with_intended_pair, ERROR_OWNED_OWNER_MISMATCH);
+    let withdraw_header1 = withdraw_header(2_000_610);
+    TxSpec {
+        inputs: vec![claim(live[0].clone(), &withdraw_header1, 0x2003e800000002f4, 1), live[2].clone()],
+        outputs: vec![plain(&user1_lock, claim_capacity(&live[0].cell)).into()],
+        header_deps: vec![withdraw_header1, deposit_header(1554)],
+    }
+    .fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }
 
 // The same weak-lock claim rotation generalizes beyond two users: a three-way phase 1 crosswire can rotate later phase 2 ownership.
 #[test]
 fn weak_lock_three_way_crosswire_rotates_claims() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user1_lock = named_always_success_lock(&mut context, b"user1");
     let user2_lock = named_always_success_lock(&mut context, b"user2");
     let user3_lock = named_always_success_lock(&mut context, b"user3");
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
 
-    let amount1 = 1_000 * CKB;
-    let amount2 = 1_100 * CKB;
-    let amount3 = 1_200 * CKB;
-    let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
-    let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
-    let total3 = deposit_capacity(&ickb_logic, &dao, 8, amount3);
-    let deposit_header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit_header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit_header3 = gen_header(1556, GENESIS_AR as u64, 35, 1000, 1000);
-    let withdraw_header2 = gen_header(2_000_621, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+    let mut create = withdrawals(&env, &[1_000 * CKB, 1_100 * CKB, 1_200 * CKB]);
+    create.inputs.push(In::new(udt(&env, &user1_lock, u128::from(3_300 * CKB))));
+    create.inputs.push(funding(&env));
+    for (lock, distance) in [(&user1_lock, -2), (&user2_lock, -2), (&user3_lock, -5)] {
+        create.outputs.push(Cell { capacity: 200 * CKB, ..owner(&env, lock, distance) }.into());
+    }
+    let live = accept(&mut context, &create, "under weak owner locks, owned_owner accepts a three-way crosswired withdrawal batch when DAO index rules still hold");
 
-    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
-    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
-    let deposit3 = create_deposit(&mut context, total3, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit1, &deposit_header1);
-    link_cell_to_header(&mut context, &deposit2, &deposit_header2);
-    link_cell_to_header(&mut context, &deposit3, &deposit_header3);
-    let udt_input = create_udt(&mut context, &user1_lock, &xudt, u128::from(amount1 + amount2 + amount3));
-
-    let create_tx = TransactionBuilder::default()
-        .input(input(deposit1))
-        .input(input(deposit2))
-        .input(input(deposit3))
-        .input(input(udt_input))
-        .input(input(funding_cell(&mut context)))
-        .outputs(vec![
-            cell(total1, &owned_owner, Some(&dao)),
-            cell(total2, &owned_owner, Some(&dao)),
-            cell(total3, &owned_owner, Some(&dao)),
-            cell(200 * CKB, &user1_lock, Some(&owned_owner)),
-            cell(200 * CKB, &user2_lock, Some(&owned_owner)),
-            cell(200 * CKB, &user3_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                withdrawal_request_data(1555),
-                withdrawal_request_data(1556),
-                owner_distance_data(-2),
-                owner_distance_data(-2),
-                owner_distance_data(-5),
-            ]
-            .pack(),
-        )
-        .header_dep(deposit_header1.hash())
-        .header_dep(deposit_header2.hash())
-        .header_dep(deposit_header3.hash())
-        .build();
-
-    let create_tx = context.complete_tx(create_tx);
-    context
-        .verify(&create_tx, MAX_CYCLES)
-        .expect("under weak owner locks, owned_owner accepts a three-way crosswired withdrawal batch when DAO index rules still hold");
-
-    let batch_hash = create_tx.hash();
-    let owned2 = OutPoint::new(batch_hash.clone(), 1);
-    let owner1 = OutPoint::new(batch_hash.clone(), 3);
-    let owner2 = OutPoint::new(batch_hash, 4);
-    context.create_cell_with_out_point(owned2.clone(), create_tx.outputs().get(1).expect("owned2"), withdrawal_request_data(1555));
-    context.create_cell_with_out_point(owner1.clone(), create_tx.outputs().get(3).expect("owner1"), owner_distance_data(-2));
-    context.create_cell_with_out_point(owner2.clone(), create_tx.outputs().get(4).expect("owner2"), owner_distance_data(-2));
-    link_cell_to_header(&mut context, &owned2, &withdraw_header2);
-    context.insert_header(deposit_header2.clone());
-
-    let owned2_output = create_tx.outputs().get(1).expect("owned2 output");
-    let claim_capacity = dao_maximum_withdraw_capacity(
-        &owned2_output,
-        withdrawal_request_data(1555).len(),
-        GENESIS_AR as u64,
-        SYNTHETIC_WITHDRAW_AR,
-    );
-    let witness = header_dep_index_witness(1);
-
-    let claim_with_rotated_pair = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned2.clone())
-                .since(0x2003e802340002f3u64)
-                .build(),
-        )
-        .input(input(owner1.clone()))
-        .output(cell(claim_capacity, &user1_lock, None))
-        .output_data(Bytes::new().pack())
-        .header_dep(withdraw_header2.hash())
-        .header_dep(deposit_header2.hash())
-        .witness(witness.pack())
-        .build();
-    let claim_with_rotated_pair = context.complete_tx(claim_with_rotated_pair);
-    context
-        .verify(&claim_with_rotated_pair, MAX_CYCLES)
+    let withdraw_header2 = withdraw_header(2_000_621);
+    let claim_of = |owner: &In, lock: &Script| TxSpec {
+        inputs: vec![claim(live[1].clone(), &withdraw_header2, 0x2003e802340002f3, 1), owner.clone()],
+        outputs: vec![plain(lock, claim_capacity(&live[1].cell)).into()],
+        header_deps: vec![withdraw_header2.clone(), deposit_header(1555)],
+    };
+    claim_of(&live[3], &user1_lock)
+        .verify(&mut context)
         .expect("under weak owner locks, user1 should successfully claim user2's withdrawal request from a three-way crosswired batch");
-
-    let claim_with_intended_pair = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned2)
-                .since(0x2003e802340002f3u64)
-                .build(),
-        )
-        .input(input(owner2))
-        .output(cell(claim_capacity, &user2_lock, None))
-        .output_data(Bytes::new().pack())
-        .header_dep(withdraw_header2.hash())
-        .header_dep(deposit_header2.hash())
-        .witness(witness.pack())
-        .build();
-    let claim_with_intended_pair = context.complete_tx(claim_with_intended_pair);
-    fail(&context, &claim_with_intended_pair, ERROR_OWNED_OWNER_MISMATCH);
+    claim_of(&live[4], &user2_lock).fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }

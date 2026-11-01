@@ -5,36 +5,12 @@ use super::*;
 #[test]
 fn weak_lock_can_reassign_withdrawal_owner_output() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let weak_lock = always_success_lock(&mut context);
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let deposit_amount = 1_000 * CKB;
-    let (deposit_total_capacity, deposit_header, deposit_input, udt_input) = create_withdrawal_inputs(
-        &mut context,
-        &ickb_logic,
-        &dao,
-        &xudt,
-        weak_lock,
-        deposit_amount,
-        1554,
-    );
-
-    let owned_output = cell(deposit_total_capacity, &owned_owner, Some(&dao));
-    let owner_output = cell(occupied_capacity(&attacker_lock, &owned_owner, 4), &attacker_lock, Some(&owned_owner));
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_input))
-        .input(input(udt_input))
-        .outputs(vec![owned_output, owner_output])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(deposit_header.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
-        .expect("weak lock should allow reassigning the withdrawal owner output");
+    let mut spec = withdrawal(&env, &weak_lock);
+    spec.outputs[1] = owner(&env, &attacker_lock, -1).into();
+    spec.verify(&mut context).expect("weak lock should allow reassigning the withdrawal owner output");
 }
 
 // Scenario: a withdrawal is signed under a secp lock before any tampering.
@@ -160,50 +136,15 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
 #[test]
 fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let weak_lock_1 = named_always_success_lock(&mut context, b"weak1");
     let weak_lock_2 = named_always_success_lock(&mut context, b"weak2");
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let amount1 = 1_000 * CKB;
-    let amount2 = 1_200 * CKB;
-    let total1 = deposit_capacity(&ickb_logic, &dao, 8, amount1);
-    let total2 = deposit_capacity(&ickb_logic, &dao, 8, amount2);
-    let header1 = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let header2 = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let deposit1 = create_deposit(&mut context, total1, &ickb_logic, &dao);
-    let deposit2 = create_deposit(&mut context, total2, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit1, &header1);
-    link_cell_to_header(&mut context, &deposit2, &header2);
-    let weak_udt_1 = create_udt(&mut context, &weak_lock_1, &xudt, u128::from(amount1));
-    let weak_udt_2 = create_udt(&mut context, &weak_lock_2, &xudt, u128::from(amount2));
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit1))
-        .input(input(deposit2))
-        .input(input(weak_udt_1))
-        .input(input(weak_udt_2))
-        .outputs(vec![
-            cell(total1, &owned_owner, Some(&dao)),
-            cell(total2, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&attacker_lock, &owned_owner, 4), &attacker_lock, Some(&owned_owner)),
-            cell(occupied_capacity(&attacker_lock, &owned_owner, 4), &attacker_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                withdrawal_request_data(1555),
-                owner_distance_data(-2),
-                owner_distance_data(-2),
-            ]
-            .pack(),
-        )
-        .header_dep(header1.hash())
-        .header_dep(header2.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
-        .expect("all-weak withdrawal inputs can reassign both withdrawal owner outputs");
+    let (amount1, amount2) = (1_000 * CKB, 1_200 * CKB);
+    let mut spec = withdrawals(&env, &[amount1, amount2]);
+    spec.inputs.push(In::new(udt(&env, &weak_lock_1, u128::from(amount1))));
+    spec.inputs.push(In::new(udt(&env, &weak_lock_2, u128::from(amount2))));
+    spec.outputs.push(owner(&env, &attacker_lock, -2).into());
+    spec.outputs.push(owner(&env, &attacker_lock, -2).into());
+    spec.verify(&mut context).expect("all-weak withdrawal inputs can reassign both withdrawal owner outputs");
 }
