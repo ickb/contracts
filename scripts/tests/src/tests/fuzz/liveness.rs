@@ -15,11 +15,11 @@ const MIN_DEPOSIT: u64 = 1_000 * CKB;
 
 /// Verifies like the node, whose checks include the mainnet block size limit, within mainnet's
 /// block cycle limit, then requires the invariants to hold.
-fn commit(context: &mut Context, env: &Env, mut spec: TxSpec) -> u64 {
+fn commit(context: &mut Context, mut spec: TxSpec) -> u64 {
     assert!(spec.balance(), "the test built an unbalanceable transaction");
     let tx = spec.build(context);
     let cycles = context.verify(&tx, mainnet().max_block_cycles()).unwrap_or_else(|e| panic!("rejected: {e}"));
-    let violations = check_invariants(env, context, &tx);
+    let violations = check_invariants(context, &tx);
     assert!(violations.is_empty(), "{violations:?}");
     cycles
 }
@@ -121,8 +121,8 @@ fn claim(env: &Env, pairs: u32, fillers: u64) -> TxSpec {
 fn largest_withdrawal_and_its_claim_each_fit_one_block() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
-    let withdraw = commit(&mut context, &env, withdrawal(&env, MAX_WITHDRAWAL_PAIRS, 0));
-    let claim = commit(&mut context, &env, claim(&env, MAX_WITHDRAWAL_PAIRS, 0));
+    let withdraw = commit(&mut context, withdrawal(&env, MAX_WITHDRAWAL_PAIRS, 0));
+    let claim = commit(&mut context, claim(&env, MAX_WITHDRAWAL_PAIRS, 0));
     eprintln!("{MAX_WITHDRAWAL_PAIRS} pairs: withdrawal {withdraw} cycles, claim {claim} cycles");
 }
 
@@ -135,8 +135,8 @@ fn header_deps_past_index_255_block_neither_withdrawal_nor_claim() {
     let env = Env::new(&mut context);
     let spec = withdrawal(&env, 4, 300);
     assert!(spec.header_deps.len() > 300);
-    commit(&mut context, &env, spec);
-    commit(&mut context, &env, claim(&env, 4, 300));
+    commit(&mut context, spec);
+    commit(&mut context, claim(&env, 4, 300));
 }
 
 // The largest receipt one deposit transaction can create, then that receipt and the soft-cap edges
@@ -152,7 +152,7 @@ fn receipts_redeem_at_soft_cap_and_rate_edges() {
     create.outputs.push(out(receipt(&env, MAX_RECEIPT_QUANTITY, MAX_DEPOSIT)));
     let needed: u64 = create.outputs.iter().map(|o| o.cell.capacity).sum();
     create.inputs.push(input(plain(&env, needed), point(4, 0), None));
-    commit(&mut context, &env, create);
+    commit(&mut context, create);
 
     for (n, ar) in [GENESIS_AR, GENESIS_AR + 1, 2 * GENESIS_AR, u64::MAX].into_iter().enumerate() {
         let edges = [MIN_DEPOSIT, soft_cap(ar) - 1, soft_cap(ar), soft_cap(ar) + 1, MAX_DEPOSIT];
@@ -162,7 +162,7 @@ fn receipts_redeem_at_soft_cap_and_rate_edges() {
             spec.inputs.push(input(receipt(&env, MAX_RECEIPT_QUANTITY, amount), point(5, (n * 8 + m) as u32), Some(&header)));
             spec.outputs.push(out(udt(&env, u128::from(MAX_RECEIPT_QUANTITY) * soft_capped_ickb(amount, ar))));
             fund(&env, &mut spec);
-            commit(&mut context, &env, spec);
+            commit(&mut context, spec);
         }
     }
 }
@@ -185,7 +185,7 @@ fn deposits_withdraw_at_soft_cap_and_rate_edges() {
             spec.outputs.push(out(request));
             spec.outputs.push(out(owner(&env, -1)));
             fund(&env, &mut spec);
-            commit(&mut context, &env, spec);
+            commit(&mut context, spec);
         }
     }
 }
@@ -222,7 +222,7 @@ fn fulfilled_and_dust_orders_melt_with_their_master() {
             spec.outputs.push(out(udt(&env, amount)));
         }
         fund(&env, &mut spec);
-        commit(&mut context, &env, spec);
+        commit(&mut context, spec);
     }
 }
 
@@ -243,7 +243,7 @@ fn order_remainder_below_the_minimum_match_can_be_filled_in_full() {
     spec.inputs.push(input(udt(&env, paid), point(13, 0), None));
     spec.outputs.push(out(order(&env, 0, paid, &master_point)));
     fund(&env, &mut spec);
-    commit(&mut context, &env, spec);
+    commit(&mut context, spec);
 
     // iCKB to CKB: iCKB worth less than the minimum match left, all taken, paid in CKB rounded up.
     let master_point = point(14, 1);
@@ -254,5 +254,5 @@ fn order_remainder_below_the_minimum_match_can_be_filled_in_full() {
     spec.outputs.push(out(order(&env, paid, 0, &master_point)));
     spec.outputs.push(out(udt(&env, left)));
     fund(&env, &mut spec);
-    commit(&mut context, &env, spec);
+    commit(&mut context, spec);
 }

@@ -37,7 +37,8 @@ use replay_helpers::*;
 use signing::*;
 
 // ckb-testtool runs scripts only, so a fixture could build a transaction the node rejects and still
-// pass. Tests verify through this check, which also runs the node's own transaction verifiers.
+// pass. Tests verify through this check, which also runs the node's own transaction verifiers and
+// the invariant oracle on every transaction the scripts accept.
 trait VerifyRealistic {
     fn verify(&self, tx: &TransactionView, max_cycles: u64) -> Result<u64, Error>;
     fn node_rejection(&self, tx: &TransactionView) -> Option<String>;
@@ -72,6 +73,8 @@ impl VerifyRealistic for Context {
         if let Some(rejection) = self.node_rejection(tx) {
             panic!("the scripts accept a transaction the node rejects: {rejection}");
         }
+        let violations = fuzz::check_invariants(self, tx);
+        assert!(violations.is_empty(), "the scripts accept a transaction that breaks an invariant: {violations:?}");
         Ok(cycles)
     }
 

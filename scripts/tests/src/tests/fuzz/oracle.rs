@@ -42,22 +42,41 @@ impl C {
     }
 }
 
-struct Hashes {
-    ickb: Byte32,
-    dao: Byte32,
-    xudt: Byte32,
-    owned_owner: Byte32,
-    limit_order: Byte32,
+pub(in crate::tests) struct Hashes {
+    pub(in crate::tests) ickb: Byte32,
+    pub(in crate::tests) dao: Byte32,
+    pub(in crate::tests) xudt: Byte32,
+    pub(in crate::tests) owned_owner: Byte32,
+    pub(in crate::tests) limit_order: Byte32,
 }
 
-pub(super) fn check_invariants(env: &Env, context: &Context, tx: &TransactionView) -> Vec<String> {
-    let h = Hashes {
-        ickb: env.ickb.calc_script_hash(),
-        dao: env.dao.calc_script_hash(),
-        xudt: env.xudt.calc_script_hash(),
-        owned_owner: env.owned_owner.calc_script_hash(),
-        limit_order: env.limit_order.calc_script_hash(),
-    };
+/// The deployed scripts' hashes: data1 references to the release binaries with empty args, the
+/// iCKB xUDT, and the genesis NervosDAO type. Every test context deploys the same bytes this way,
+/// so the hashes are the same in all of them, and the chain replay checks they are mainnet's.
+pub(in crate::tests) fn deployed() -> &'static Hashes {
+    static DEPLOYED: std::sync::OnceLock<Hashes> = std::sync::OnceLock::new();
+    DEPLOYED.get_or_init(|| {
+        let data1 = |name: &str, args: Vec<u8>| {
+            let code_hash = CellOutput::calc_data_hash(&load_binary(name));
+            Script::new_builder().code_hash(code_hash).hash_type(ScriptHashType::Data1).args(Bytes::from(args).pack()).build()
+        };
+        let ickb = data1("ickb_logic", vec![]);
+        let dao = Script::new_builder()
+            .code_hash(build_genesis_type_id_script(OUTPUT_INDEX_DAO).calc_script_hash())
+            .hash_type(ScriptHashType::Type)
+            .build();
+        Hashes {
+            xudt: data1("xudt", xudt_args(&ickb).to_vec()).calc_script_hash(),
+            ickb: ickb.calc_script_hash(),
+            dao: dao.calc_script_hash(),
+            owned_owner: data1("owned_owner", vec![]).calc_script_hash(),
+            limit_order: data1("limit_order", vec![]).calc_script_hash(),
+        }
+    })
+}
+
+pub(in crate::tests) fn check_invariants(context: &Context, tx: &TransactionView) -> Vec<String> {
+    let h = deployed();
     let deps: Vec<Byte32> = tx.header_deps().into_iter().collect();
     let inputs: Vec<C> = tx
         .inputs()
@@ -418,6 +437,6 @@ fn oracle_flags_one_break_per_invariant() {
     ];
     for (name, inputs, outputs) in cases {
         let tx = TxSpec { inputs, outputs, header_deps: vec![] }.build(&mut context);
-        assert!(!check_invariants(&env, &context, &tx).is_empty(), "oracle missed: {name}");
+        assert!(!check_invariants(&context, &tx).is_empty(), "oracle missed: {name}");
     }
 }

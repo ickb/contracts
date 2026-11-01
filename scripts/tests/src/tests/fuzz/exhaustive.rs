@@ -343,7 +343,7 @@ impl Search {
                         seen.push(name);
                     }
                 }
-                let violations = check_invariants(&self.env, &self.context, &tx);
+                let violations = check_invariants(&self.context, &tx);
                 if !violations.is_empty() {
                     summary.violations.push(format!(
                         "{names}\n  violations:\n    {}\n  transaction:\n{}",

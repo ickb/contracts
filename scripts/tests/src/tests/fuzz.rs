@@ -13,6 +13,7 @@ mod oracle;
 use generate::*;
 use mutate::*;
 use oracle::*;
+pub(super) use oracle::check_invariants;
 
 // Structured fuzzing of the deployed binaries: each case composes valid iCKB, owned-owner and
 // limit-order transaction segments, applies a few field, count and ordering mutations, verifies
@@ -273,7 +274,7 @@ fn run_case(case_seed: u64, stats: Option<&mut Stats>) -> Result<(), String> {
         Some(tx) => match context.verify(&tx, FUZZ_MAX_CYCLES) {
             Err(err) => Outcome::Rejected(error_class(&env, &spec, &err.to_string())),
             Ok(_) => {
-                let violations = check_invariants(&env, &context, &tx);
+                let violations = check_invariants(&context, &tx);
                 if !violations.is_empty() {
                     return Err(format!(
                         "case seed {case_seed:#x}: accepted transaction breaks invariants\n  segments: {kinds:?}\n  mutations: {applied:?}\n  violations:\n    {}\n  transaction:\n{}",

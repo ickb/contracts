@@ -25,17 +25,17 @@ fn mainnet_transactions_keep_protocol_invariants() {
     let path = std::env::var("ICKB_MAINNET_FIXTURES").expect("ICKB_MAINNET_FIXTURES names the fixture file");
     let text = std::fs::read_to_string(&path).expect("read fixtures");
     let mut context = Context::default();
-    let env = Env::new(&mut context);
     let (mut replayed, mut failures) = (0usize, Vec::new());
     let mut tx: Option<(TransactionView, String)> = None;
     for line in text.lines() {
         let f: Vec<&str> = line.split(' ').collect();
         match f[0] {
             "scripts" => {
-                // The oracle names scripts by the hashes Env deploys; they must be mainnet's.
+                // The oracle names scripts by the hashes every test context deploys; they must be the chain's.
                 let expected: Vec<Byte32> = f[1..].iter().map(|s| hex32(s)).collect();
-                let actual = [&env.ickb, &env.xudt, &env.owned_owner, &env.limit_order, &env.dao].map(|s| s.calc_script_hash());
-                assert_eq!(actual.to_vec(), expected, "Env script hashes differ from mainnet");
+                let h = deployed();
+                let actual = [&h.ickb, &h.xudt, &h.owned_owner, &h.limit_order, &h.dao];
+                assert_eq!(actual.map(|h| h.clone()).to_vec(), expected, "deployed script hashes differ from the chain's");
             }
             "header" => {
                 let header = Header::from_slice(&hex::decode(f[1]).expect("hex")).expect("header").into_view();
@@ -55,7 +55,7 @@ fn mainnet_transactions_keep_protocol_invariants() {
             }
             "end" => {
                 let (view, roles) = tx.take().expect("end without tx");
-                let mut violations = check_invariants(&env, &context, &view);
+                let mut violations = check_invariants(&context, &view);
                 // A committed transaction passed the node, so a rejection here is a harness bug.
                 violations.extend(context.node_rejection(&view).map(|r| format!("the node check rejects it: {r}")));
                 if !violations.is_empty() {
