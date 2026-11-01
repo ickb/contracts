@@ -13,6 +13,7 @@ use ckb_testtool::context::Context;
 
 mod encoders;
 mod fixtures;
+mod fuzz;
 mod helpers;
 mod ickb_logic;
 mod limit_order;
