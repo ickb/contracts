@@ -313,9 +313,19 @@ fn script_name(env: &Env, s: &Script) -> String {
     } else if h == env.helper.calc_script_hash() {
         "helper_type".to_string()
     } else {
-        // The siblings share code with ickb_logic, owned_owner, limit_order and xUDT, with other args.
+        // The siblings share code with ickb_logic, owned_owner, limit_order and xUDT, in Env's order.
+        const SIBLINGS: [&str; 8] = [
+            "ickb_logic(args)",
+            "owned_owner(args)",
+            "limit_order(args)",
+            "xudt(args)",
+            "ickb_logic(data2)",
+            "owned_owner(data2)",
+            "limit_order(data2)",
+            "xudt(data2)",
+        ];
         match env.siblings.iter().position(|sibling| sibling.calc_script_hash() == h) {
-            Some(i) => format!("{}(args)", ["ickb_logic", "owned_owner", "limit_order", "xudt"][i]),
+            Some(i) => SIBLINGS[i].to_string(),
             None => format!("other:{}", hex::encode(&h.as_slice()[..4])),
         }
     }

@@ -14,7 +14,7 @@ pub(super) struct Env {
     pub(super) owned_owner: Script,
     pub(super) limit_order: Script,
     pub(super) helper: Script,
-    // Same code with non-empty args: different script hashes, so different groups.
+    // Same code with non-empty args, then under hash type data2: different script hashes, so different groups.
     pub(super) siblings: Vec<Script>,
 }
 
@@ -33,6 +33,15 @@ impl Env {
         let sibling_ickb = siblings[0].clone();
         let mut siblings = siblings;
         siblings.push(xudt_script(context, &sibling_ickb));
+        // The same code under hash type data2 (CKB VM v2) with empty args: different script hashes,
+        // and they pass the empty-args check, so each runs as an independent copy of the protocol.
+        let mut data2 = |name: &str| {
+            let code = deployed_cell(context, load_binary(name));
+            context.build_script_with_hash_type(&code, ScriptHashType::Data2, Bytes::new()).expect("data2 script")
+        };
+        let data2_ickb = data2("ickb_logic");
+        siblings.extend([data2_ickb.clone(), data2("owned_owner"), data2("limit_order")]);
+        siblings.push(xudt_script(context, &data2_ickb));
         Env { user, funding, ickb, dao, xudt, owned_owner, limit_order, helper, siblings }
     }
 
