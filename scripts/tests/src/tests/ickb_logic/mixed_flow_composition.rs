@@ -164,3 +164,46 @@ fn same_block_receipt_and_deposit_mint_nothing_when_spent_together() {
         }
     }
 }
+
+// A cell can be a limit order and an iCKB receipt at once: lock limit_order, type ickb_logic. Each
+// script reads its own prefix of the same data, a receipt from the first 12 bytes and the order's
+// UDT amount from the first 16. Created beside its deposit and master, then matched, both rules
+// hold: raising the UDT field by one raises the receipt's quantity by one, so the match must also
+// create that many more deposits, and the redeemed receipt mints exactly its value.
+#[test]
+fn receipt_typed_order_keeps_both_rules_through_a_match() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    let amount = 1_000 * CKB;
+    // Quantity in bytes 0..4, deposit amount in bytes 4..12, as the receipt reads them.
+    let receipt_field = |quantity: u32| u128::from(quantity) | u128::from(amount) << 32;
+    let order = |capacity: u64, data: Bytes| Cell { capacity, lock: env.limit_order.clone(), type_: Some(env.ickb.clone()), data: data.to_vec() };
+    let mint_data = order_data_custom(receipt_field(1), 0, [0; 32], 1i32.to_le_bytes(), (1, 1), (0, 0), 0);
+    let hybrid = order(order(0, mint_data.clone()).occupied() + 100 * CKB, mint_data);
+
+    let create = TxSpec {
+        inputs: vec![In::new(env.plain(1_000_000 * CKB))],
+        outputs: vec![hybrid.clone().into(), env.master().into(), env.deposit(&env.ickb, amount).into(), env.plain(10_000 * CKB).into()],
+        ..Default::default()
+    };
+    let created = create.accept(&mut context, "the order, its master and the deposit the receipt counts should verify");
+
+    let header = gen_header(1_000, GENESIS_AR, 35, 1000, 1000);
+    let master = created[1].out_point.clone();
+    let match_data = order_data_custom(receipt_field(2), 1, master.tx_hash().as_slice().try_into().expect("hash"), Unpack::<u32>::unpack(&master.index()).to_le_bytes(), (1, 1), (0, 0), 0);
+    let matched = TxSpec {
+        inputs: vec![created[0].clone().in_block(&header), In::new(env.plain(1_000_000 * CKB))],
+        outputs: vec![
+            order(hybrid.capacity - 1, match_data).into(),
+            env.deposit(&env.ickb, amount).into(),
+            env.deposit(&env.ickb, amount).into(),
+            env.udt(soft_capped_ickb(amount, GENESIS_AR)).into(),
+        ],
+        header_deps: vec![header],
+    };
+    matched.verify(&mut context).expect("a one-shannon match that adds the deposits the higher quantity counts should verify");
+
+    // The same match without the extra deposit leaves the raised receipt unbacked.
+    let unbacked = TxSpec { outputs: [&matched.outputs[..2], &matched.outputs[3..]].concat(), ..matched.clone() };
+    unbacked.fail(&mut context, ERROR_RECEIPT_MISMATCH);
+}
