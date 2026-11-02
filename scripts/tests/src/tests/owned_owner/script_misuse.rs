@@ -6,14 +6,10 @@ use super::*;
 fn zero_distance_owner_output_is_rejected() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
-    let funding_lock = always_success_lock(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    TxSpec {
-        inputs: vec![In::new(plain(&funding_lock, 2_000 * CKB))],
-        outputs: vec![owned(&env, 1_000 * CKB, 1554).into(), env.owner(0).under(&owner_lock).into()],
-        ..Default::default()
-    }
-    .fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
+    let mut spec = withdrawal(&env, &owner_lock);
+    spec.outputs[1] = env.owner(0).under(&owner_lock).into();
+    spec.fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }
 
 // Scenario: a live owner input uses distance `0` during phase 2.

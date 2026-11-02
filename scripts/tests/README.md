@@ -14,7 +14,7 @@ Long runs, best in `--release`:
 
 ## Layout
 
-- `src/tests.rs`: `VerifyRealistic`, through which every test verifies. It adds the node's own transaction verifiers and the invariant oracle to every transaction the scripts accept.
+- `src/tests.rs`: `VerifyRealistic`, through which every test verifies. It adds the node's own transaction verifiers and the invariant oracle to every transaction the scripts accept, and the node verifiers to every transaction they reject, unless the test names the node rule its point overlaps (`verify_where_node_also_rejects`).
 - `src/tests/tx.rs`: the one way tests build transactions, as plain cell values assembled by `TxSpec`.
 - `src/tests/ickb_logic/`, `owned_owner/`, `limit_order/`: hand-written scenarios per script, including every attack and boundary case the audit report cites.
 - `src/tests/replay/`: transaction shapes rebuilt from observed chain flows.

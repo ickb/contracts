@@ -8,8 +8,10 @@ fn mint_then_melt(context: &mut Context, master_lock: &Script) -> TxSpec {
         outputs: vec![env.order(1_500 * CKB, order_data_mint(0, 1, (1, 1))).into(), env.master().under(master_lock).into()],
         ..Default::default()
     };
+    let mut inputs = mint.accept(context, "the mint should verify because a master lock does not execute on creation");
+    inputs.push(env.funding_input());
     TxSpec {
-        inputs: mint.accept(context, "the mint should verify because a master lock does not execute on creation"),
+        inputs,
         outputs: vec![env.plain(1_700 * CKB).into()],
         ..Default::default()
     }

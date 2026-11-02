@@ -27,7 +27,7 @@ fn mint(env: &Env, receipt: Cell, minted: u128, funded: bool) -> TxSpec {
 }
 
 /// A phase2 mint of `minted` xUDT from `receipt`, created in `header`'s block, which the header deps
-/// list. `funded` adds the wallet's funding input; rejection cases omit it, as the scripts fail first.
+/// list. `funded` adds the wallet's funding input, which the mint needs unless the caller adds other capacity.
 fn mint_at(env: &Env, receipt: Cell, header: &HeaderView, minted: u128, funded: bool) -> TxSpec {
     let mut inputs = vec![In::new(receipt).in_block(header)];
     if funded {

@@ -84,7 +84,7 @@ fn phantom_limit_order_cannot_be_melted_with_an_unrelated_master() {
     let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     TxSpec {
-        inputs: vec![phantom_order(&env), In::new(env.master().under(&owner_lock))],
+        inputs: vec![phantom_order(&env), In::new(env.master().under(&owner_lock)), env.funding_input()],
         outputs: vec![plain(&owner_lock, 1_700 * CKB).into()],
         ..Default::default()
     }

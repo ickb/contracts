@@ -21,12 +21,14 @@ fn withdrawal_shape_cannot_be_created_without_any_dao_input() {
     let user_lock = named_always_success_lock(&mut context, b"no-dao-user");
     let funding_lock = named_always_success_lock(&mut context, b"no-dao-funding");
     let withdrawal_capacity = 123_456_780_000u64;
-    TxSpec {
-        inputs: vec![In::new(plain(&funding_lock, withdrawal_capacity + 200))],
+    let spec = TxSpec {
+        inputs: vec![In::new(plain(&funding_lock, withdrawal_capacity + 200)), env.funding_input()],
         outputs: vec![owned(&env, withdrawal_capacity, 1554).into(), env.owner(-1).under(&user_lock).into()],
         ..Default::default()
-    }
-    .fail(&mut context, ERROR_DAO_NEWLY_CREATED_CELL);
+    };
+    let tx = spec.build(&mut context);
+    // A request without a deposit at its index is the point, and the node checks that index too.
+    assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "The DAO output data at index 0").unwrap_err(), ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
 // Scenario: one withdrawal output is paired with two owner outputs in the same batch.
@@ -80,7 +82,7 @@ fn orphan_withdrawal_request_can_be_created_but_not_claimed() {
 
     let withdraw_header = withdraw_header(2_000_610);
     TxSpec {
-        inputs: vec![claim(live[0].clone(), &withdraw_header, 0x2003e800000002f4, 1)],
+        inputs: vec![claim(live[0].clone(), &withdraw_header, 0x2003e800000002f4, 1), env.funding_input()],
         outputs: vec![plain(&user_lock, 123_468_106_670).into()],
         header_deps: vec![withdraw_header, deposit_header(1554)],
     }

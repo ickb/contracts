@@ -8,6 +8,7 @@ fn unrelated_non_empty_args_output_lock_poisons_match() {
     let poisoned_lock = data1_script(&mut context, "limit_order", Bytes::from(vec![1]));
     let mut spec = udt_to_ckb_step(&env, 20 * CKB, (100, 80), 4);
     spec.outputs.push(plain(&poisoned_lock, 200 * CKB).into());
+    spec.inputs.push(env.funding_input());
     spec.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }
 
@@ -21,6 +22,7 @@ fn order_shaped_non_empty_args_output_poisons_match() {
     spec.inputs[1].cell.capacity = 400 * CKB;
     let poisoned_order = Cell { lock: poisoned_lock, ..env.order(0, order_data_mint(0, 1, (1, 1))) };
     spec.outputs.push(Cell { capacity: poisoned_order.occupied() + 300 * CKB, ..poisoned_order }.into());
+    spec.inputs.push(env.funding_input());
     spec.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }
 

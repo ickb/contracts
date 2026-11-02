@@ -20,9 +20,12 @@ fn crosswired_batch_is_blocked_by_dao_index_rules() {
     let user2_lock = named_always_success_lock(&mut context, b"user2");
     let mut spec = withdrawals(&env, &[1_000 * CKB, 1_100 * CKB]);
     spec.inputs.push(In::new(env.udt(u128::from(2_100 * CKB)).under(&user1_lock)));
+    spec.inputs.push(env.funding_input());
     spec.outputs.insert(1, env.owner(1).under(&user1_lock).into());
     spec.outputs.push(env.owner(-3).under(&user2_lock).into());
-    spec.fail(&mut context, ERROR_DAO_INVALID_WITHDRAWING_CELL);
+    let tx = spec.build(&mut context);
+    // The node's DAO rule pairs a request with the deposit at its index, the same rule under test.
+    assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "The DAO output data at index 2").unwrap_err(), ERROR_DAO_INVALID_WITHDRAWING_CELL);
 }
 
 // This two-way batch keeps DAO index rules satisfied, so weak phase 1 owner locks are enough to rotate later claim ownership.

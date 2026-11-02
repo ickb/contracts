@@ -87,6 +87,7 @@ fn withdrawal_with_one_missing_deposit_header_dep_is_rejected() {
     let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
     let mut spec = two_deposit_withdrawal(&env, &user_lock);
+    spec.inputs.push(env.funding_input());
     spec.header_deps.truncate(1);
     spec.fail(&mut context, ERROR_ITEM_MISSING);
 }

@@ -17,13 +17,13 @@ fn reported_rounding_claim_is_blocked_by_actual_shannon_precision() {
 
     let receipt_1152 = env.receipt(1, amount_1152);
     let receipt_1152_header = gen_header(1, ar, 1, 1, 1000);
-    mint_at(&env, receipt_1152.clone(), &receipt_1152_header, 1_000 * CKB as u128, false).fail(&mut context, ERROR_AMOUNT_MISMATCH);
+    mint_at(&env, receipt_1152.clone(), &receipt_1152_header, 1_000 * CKB as u128, true).fail(&mut context, ERROR_AMOUNT_MISMATCH);
     mint_at(&env, receipt_1152, &receipt_1152_header, exact_ickb_1152, true)
         .verify(&mut context)
         .expect("1152 CKB receipt should mint its exact shannon-precision amount");
 
     let receipt_1151_header = gen_header(2, ar, 1, 1, 1000);
-    mint_at(&env, env.receipt(1, amount_1151), &receipt_1151_header, exact_ickb_1152, false).fail(&mut context, ERROR_AMOUNT_MISMATCH);
+    mint_at(&env, env.receipt(1, amount_1151), &receipt_1151_header, exact_ickb_1152, true).fail(&mut context, ERROR_AMOUNT_MISMATCH);
 }
 
 // Pin the shifted soft-cap edge under a non-genesis AR: normalization reaches the cap at 110k CKB. Ten shannons past it, normalizing first mints cap+9 while applying the haircut first would mint cap+8, so the passing cap+9 mint proves normalization precedes the per-deposit haircut; eleven past it, cap+10 must fail.

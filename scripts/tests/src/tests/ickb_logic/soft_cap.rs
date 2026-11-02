@@ -8,7 +8,7 @@ fn phase2_mint_applies_soft_cap_discount_above_boundary() {
 
     let amount = 100_001 * CKB;
     let receipt = env.receipt(1, amount);
-    mint(&env, receipt.clone(), u128::from(amount), false).fail(&mut context, ERROR_AMOUNT_MISMATCH);
+    mint(&env, receipt.clone(), u128::from(amount), true).fail(&mut context, ERROR_AMOUNT_MISMATCH);
     mint(&env, receipt, soft_capped_ickb(amount, GENESIS_AR), true)
         .verify(&mut context)
         .expect("phase2 mint should apply the documented soft-cap discount above 100k iCKB");
@@ -43,7 +43,7 @@ fn multi_quantity_phase2_mint_applies_soft_cap_per_deposit() {
     let naive_aggregate = total_raw - (total_raw - soft_cap) / 10;
     assert!(exact > naive_aggregate);
 
-    mint(&env, receipt.clone(), naive_aggregate, false).fail(&mut context, ERROR_AMOUNT_MISMATCH);
+    mint(&env, receipt.clone(), naive_aggregate, true).fail(&mut context, ERROR_AMOUNT_MISMATCH);
     mint(&env, receipt, exact, true)
         .verify(&mut context)
         .expect("multi-quantity receipts should apply the soft cap per deposit, not once on the aggregate");

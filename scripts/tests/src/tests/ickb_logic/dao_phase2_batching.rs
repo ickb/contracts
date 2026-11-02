@@ -37,6 +37,10 @@ fn dao_phase2_with_65_outputs_hits_the_upstream_batch_limit() {
     link_cell_to_header(&mut context, &withdrawing_input, &withdraw_header);
     context.insert_header(deposit_header.clone());
 
+    // Funds the payout beyond the one claim's maximum withdraw, so only the DAO's 64-output limit fails.
+    let funding_lock = always_success_lock(&mut context);
+    let funding = context.create_cell(cell(100_000 * CKB, &funding_lock, None), Bytes::new());
+
     let outputs = vec![
         cell(123_468_105_678u64, &owner_lock, None);
         65
@@ -51,15 +55,17 @@ fn dao_phase2_with_65_outputs_hits_the_upstream_batch_limit() {
                 .since(0x2003e8022a0002f3u64)
                 .build(),
         )
+        .input(input(funding))
         .outputs(outputs)
         .outputs_data(outputs_data.pack())
         .header_dep(withdraw_header.hash())
         .header_dep(deposit_header.hash())
         .witness(witness.pack())
+        .witness(Bytes::new().pack())
         .cell_dep(secp_data_dep)
         .build();
 
-    let tx = sign_tx(context.complete_tx(tx), &privkey);
+    let tx = sign_tx_by_input_group(context.complete_tx(tx), &privkey, 0, 1);
     fail(&context, &tx, ERROR_DAO_TOO_MANY_OUTPUT_CELLS);
 }
 
@@ -77,7 +83,9 @@ fn dao_phase2_with_64_outputs_from_64_distinct_headers_passes() {
 fn dao_phase2_rejects_header_dep_index_witness_in_output_type() {
     let mut context = Context::default();
     let spec = claim_with_witness(&mut context, witness_with_output_type(Bytes::from(1u64.to_le_bytes().to_vec())));
-    spec.fail(&mut context, -11);
+    let tx = spec.build(&mut context);
+    // The node reads the same witness slot for the deposit header, so it rejects the misplaced index too.
+    assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "InvalidDaoFormat").unwrap_err(), -11);
 }
 
 // Build a single-withdrawal DAO phase2 tx with an `input_type` witness that truncates the 8-byte header-dep index: the index encoding is incomplete, so DAO validation fails.
@@ -85,14 +93,17 @@ fn dao_phase2_rejects_header_dep_index_witness_in_output_type() {
 fn dao_phase2_rejects_short_header_dep_index_witness_in_input_type() {
     let mut context = Context::default();
     let spec = claim_with_witness(&mut context, witness_with_input_type(truncated_bytes(Bytes::from(1u64.to_le_bytes().to_vec()), 4)));
-    spec.fail(&mut context, -11);
+    let tx = spec.build(&mut context);
+    // The node decodes the same header index, so it rejects the truncated one too.
+    assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "InvalidDaoFormat").unwrap_err(), -11);
 }
 
 // Build a 64-item DAO phase2 batch but deliberately point one witness at the wrong deposit header: the batch shape is otherwise valid, so failure isolates the per-input header binding invariant.
 #[test]
 fn dao_phase2_rejects_misbound_deposit_header_index_in_large_batch() {
     let (context, tx) = build_many_header_phase2_batch(64, Some((37, 1)));
-    fail(&context, &tx, ERROR_DAO_INVALID_WITHDRAW_BLOCK);
+    // The node resolves the deposit header through the same witness index, so it rejects the misbinding too.
+    assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "InvalidOutPoint").unwrap_err(), ERROR_DAO_INVALID_WITHDRAW_BLOCK);
 }
 
 // Build one tx that claims two withdrawal cells from two different deposit headers with separate header indices: mixed-header phase2 batching is allowed when each input names its own deposit header, so verification should pass.

@@ -9,6 +9,7 @@ fn unrelated_non_empty_args_output_lock_poisons_withdrawal() {
     let owner_lock = named_always_success_lock(&mut context, b"owner");
     let poisoned_lock = data1_script(&mut context, "owned_owner", Bytes::from(vec![1]));
     let mut spec = withdrawal(&env, &owner_lock);
+    spec.inputs.push(env.funding_input());
     spec.outputs.push(plain(&poisoned_lock, 200 * CKB).into());
     spec.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }
@@ -39,7 +40,14 @@ fn owned_shaped_non_empty_args_output_poisons_withdrawal() {
     let poisoned_lock = data1_script(&mut context, "owned_owner", Bytes::from(vec![1]));
     let mut spec = withdrawal(&env, &owner_lock);
     let owned_shaped = Cell { lock: poisoned_lock, ..spec.outputs[0].cell.clone() };
-    spec.outputs.push(owned_shaped.into());
+    // A plain deposit at index 2, so the owned-shaped sibling is a well-formed request for it.
+    let header = deposit_header(1555);
+    let deposit = env.deposit(&env.user, 1_000 * CKB);
+    let request = Cell { capacity: deposit.capacity, data: withdrawal_request_data(1555).to_vec(), ..owned_shaped };
+    spec.inputs.push(In::new(deposit).in_block(&header));
+    spec.header_deps.push(header);
+    spec.outputs.push(request.into());
+    spec.inputs.push(env.funding_input());
     spec.fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }
 

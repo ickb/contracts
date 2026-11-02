@@ -7,7 +7,7 @@ fn match_rejects_two_outputs_sharing_one_master() {
     let env = Env::new(&mut context);
     let master = OutPoint::new(Byte32::zero(), 5);
     TxSpec {
-        inputs: vec![In::new(env.order_unused(1_500 * CKB, order_data_match(0, &master, (1, 1))))],
+        inputs: vec![In::new(env.order_unused(1_500 * CKB, order_data_match(0, &master, (1, 1)))), env.funding_input()],
         outputs: vec![
             env.order_unused(1_400 * CKB, order_data_match(50 * CKB as u128, &master, (1, 1))).into(),
             env.order_unused(100 * CKB, order_data_match(10 * CKB as u128, &master, (1, 1))).into(),
@@ -45,11 +45,14 @@ fn duplicate_master_input_shape_is_blocked_before_script_invariants() {
     let master = live(&context, real_master_out_point);
     // Duplicate inputs are rejected by transaction-level validation before the contract can reach
     // its internal DuplicatedMaster branch, so there is no stable limit_order error code to assert.
-    TxSpec {
+    let tx = TxSpec {
         inputs: vec![master.clone(), master],
         outputs: vec![plain(&owner_lock, 400 * CKB).into()],
         ..Default::default()
     }
-    .verify(&mut context)
-    .expect_err("duplicating a master input should be blocked before a reachable DuplicatedMaster path");
+    .build(&mut context);
+    // The duplicated input is the point, so the node's spent-twice rule overlaps by construction.
+    context
+        .verify_where_node_also_rejects(&tx, MAX_CYCLES, "spent twice")
+        .expect_err("duplicating a master input should be blocked before a reachable DuplicatedMaster path");
 }

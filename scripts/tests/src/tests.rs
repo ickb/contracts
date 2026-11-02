@@ -39,10 +39,11 @@ use signing::*;
 use tx::*;
 
 // ckb-testtool runs scripts only, so a fixture could build a transaction the node rejects and still
-// pass. Tests verify through this check, which also runs the node's own transaction verifiers and
-// the invariant oracle on every transaction the scripts accept.
+// pass. Tests verify through this check, which runs the node's own transaction verifiers on every
+// transaction, accepted or rejected, and the invariant oracle on every accepted one.
 trait VerifyRealistic {
     fn verify(&self, tx: &TransactionView, max_cycles: u64) -> Result<u64, Error>;
+    fn verify_where_node_also_rejects(&self, tx: &TransactionView, max_cycles: u64, node_rule: &str) -> Result<u64, Error>;
     fn node_rejection(&self, tx: &TransactionView) -> Option<String>;
 }
 
@@ -71,13 +72,26 @@ impl CellDataProvider for Loaded<'_> {
 
 impl VerifyRealistic for Context {
     fn verify(&self, tx: &TransactionView, max_cycles: u64) -> Result<u64, Error> {
-        let cycles = self.verify_tx(tx, max_cycles)?;
+        let result = self.verify_tx(tx, max_cycles);
+        // A rejection only shows something about the scripts when the node would take the
+        // transaction otherwise; a test whose point overlaps a node rule says so through
+        // verify_where_node_also_rejects.
         if let Some(rejection) = self.node_rejection(tx) {
-            panic!("the scripts accept a transaction the node rejects: {rejection}");
+            let built = if result.is_ok() { "the scripts accept" } else { "the test builds" };
+            panic!("{built} a transaction the node rejects: {rejection}");
         }
+        let cycles = result?;
         let violations = fuzz::check_invariants(self, tx);
         assert!(violations.is_empty(), "the scripts accept a transaction that breaks an invariant: {violations:?}");
         Ok(cycles)
+    }
+
+    /// Verifies a transaction that also breaks the node rule named by `node_rule`, for tests whose
+    /// point overlaps that rule; a different first node rejection still fails the test.
+    fn verify_where_node_also_rejects(&self, tx: &TransactionView, max_cycles: u64, node_rule: &str) -> Result<u64, Error> {
+        let rejection = self.node_rejection(tx).expect("the node accepts this transaction, so verify it with verify");
+        assert!(rejection.contains(node_rule), "the node rejects this transaction for another reason: {rejection}");
+        self.verify_tx(tx, max_cycles)
     }
 
     /// Why the node would reject `tx` before or after its scripts, if it would. Time-dependent
@@ -129,6 +143,28 @@ impl VerifyRealistic for Context {
         ];
         checks.into_iter().flatten().next().map(|error| format!("{error:?}"))
     }
+}
+
+/// A receipt for zero deposits, which iCKB Logic rejects, in a transaction whose output exceeds
+/// its input, which the node rejects too.
+fn rejected_and_unfunded(context: &mut Context) -> TxSpec {
+    let env = Env::new(context);
+    TxSpec { inputs: vec![In::new(env.plain(100 * CKB))], outputs: vec![env.receipt(0, 1_000 * CKB).into()], ..Default::default() }
+}
+
+#[test]
+#[should_panic(expected = "the test builds a transaction the node rejects")]
+fn verify_rejects_a_rejection_test_built_on_a_node_invalid_transaction() {
+    let mut context = Context::default();
+    rejected_and_unfunded(&mut context).fail(&mut context, ERROR_EMPTY_RECEIPT);
+}
+
+#[test]
+#[should_panic(expected = "the node rejects this transaction for another reason")]
+fn verify_where_node_also_rejects_requires_the_named_rule() {
+    let mut context = Context::default();
+    let tx = rejected_and_unfunded(&mut context).build(&mut context);
+    let _ = context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "InvalidDaoFormat");
 }
 
 #[test]
@@ -280,7 +316,6 @@ const ERROR_AMOUNT_MISMATCH: i8 = 11;
 const ERROR_AMOUNT_UNREASONABLY_BIG: i8 = 12;
 const ERROR_DAO_INVALID_WITHDRAW_BLOCK: i8 = -14;
 const ERROR_DAO_INVALID_WITHDRAWING_CELL: i8 = -20;
-const ERROR_DAO_INCORRECT_CAPACITY: i8 = -15;
 const ERROR_LIMIT_ORDER_INVALID_CONFIGURATION: i8 = 21;
 const ERROR_LIMIT_ORDER_DIFFERENT_INFO: i8 = 16;
 const ERROR_DAO_TOO_MANY_OUTPUT_CELLS: i8 = -18;

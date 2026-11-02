@@ -114,7 +114,7 @@ fn lock_only_limit_order_missing_udt_type_returns_typed_error_at_valid_capacity(
     .expect("lock-only limit_order output without a UDT type can still be created");
 
     TxSpec {
-        inputs: vec![In::new(forged)],
+        inputs: vec![In::new(forged), env.funding_input()],
         outputs: vec![env.plain(200 * CKB).into()],
         ..Default::default()
     }

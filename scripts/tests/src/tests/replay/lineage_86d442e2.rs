@@ -232,5 +232,6 @@ fn mainnet_live_claims_cannot_rotate_into_new_owned_owner_pairs() {
     };
 
     let rotate_tx = replay(&mut context, &spec, vec![Bytes::new(), header_dep_index_witness(1), header_dep_index_witness(2)]);
-    fail(&context, &rotate_tx, ERROR_DAO_NEWLY_CREATED_CELL);
+    // The node also requires a deposit, not a claim, at a new request's index: the same rule under test.
+    assert_script_error(context.verify_where_node_also_rejects(&rotate_tx, MAX_CYCLES, "The DAO output data at index 1").unwrap_err(), ERROR_DAO_NEWLY_CREATED_CELL);
 }

@@ -195,7 +195,7 @@ fn receiptless_aggregate_alone_cannot_mint_spread() {
     let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
 
     let spec = TxSpec {
-        inputs: vec![In::new(aggregate.clone()).in_block(&deposit_header)],
+        inputs: vec![In::new(aggregate.clone()).in_block(&deposit_header), env.funding_input()],
         outputs: vec![request(&aggregate, &user_lock, 1554).into(), env.udt(delta).into()],
         header_deps: vec![deposit_header],
     };

@@ -47,6 +47,6 @@ fn truncated_receipt_input_with_small_amount_is_rejected() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let receipt = receipt_holding(&env, truncated_bytes(receipt_data(1, 1_000 * CKB), 9));
-    let spec = mint(&env, receipt, u128::from(1_000 * CKB), false);
+    let spec = mint(&env, receipt, u128::from(1_000 * CKB), true);
     spec.fail(&mut context, ERROR_ENCODING);
 }

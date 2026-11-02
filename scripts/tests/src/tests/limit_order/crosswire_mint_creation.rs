@@ -29,7 +29,7 @@ fn mint_crosswire_swaps_order_masters() {
     .expect("master1 is bound to order2 when mint distances are cross-wired");
 
     TxSpec {
-        inputs: vec![order1.clone(), master1.clone()],
+        inputs: vec![order1.clone(), master1.clone(), env.funding_input()],
         outputs: vec![plain(&owner2_lock, 1_700 * CKB).into()],
         ..Default::default()
     }
@@ -67,7 +67,7 @@ fn sparse_far_distance_limit_order_crosswire_still_rebinds_master_assignment() {
     .expect("far-distance sparse layout still binds order1 to owner2's master");
 
     TxSpec {
-        inputs: vec![order1.clone(), master1.clone()],
+        inputs: vec![order1.clone(), master1.clone(), env.funding_input()],
         outputs: vec![plain(&owner1_lock, 1_700 * CKB).into()],
         ..Default::default()
     }
@@ -85,7 +85,7 @@ fn mint_pairs_each_order_with_exactly_one_master() {
     let order = |distance: i32| Out::from(env.order_unused(1_500 * CKB, order_data_mint(0, distance, (1, 1))));
     let master = || Out::from(env.master().under(&owner_lock));
     let mint = |outputs: Vec<Out>| TxSpec {
-        inputs: vec![In::new(env.plain(1_000 * CKB)), In::new(env.plain(1_000 * CKB))],
+        inputs: vec![In::new(env.plain(1_000 * CKB)), In::new(env.plain(1_000 * CKB)), In::new(plain(&env.funding, 2_000 * CKB))],
         outputs,
         ..Default::default()
     };

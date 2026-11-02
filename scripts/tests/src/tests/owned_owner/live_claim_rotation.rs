@@ -10,7 +10,9 @@ fn live_claim_cannot_roll_into_fresh_pair() {
     let new_owner_lock = named_always_success_lock(&mut context, b"new-owner");
     let mut spec = melt(&env, 9, env.owner(-1).under(&old_owner_lock));
     spec.outputs = vec![owned(&env, 123_456_780_000, 1554).into(), env.owner(-1).under(&new_owner_lock).into()];
-    spec.fail(&mut context, ERROR_DAO_NEWLY_CREATED_CELL);
+    let tx = spec.build(&mut context);
+    // The node also requires a deposit, not a claim, at a new request's index: the same rule under test.
+    assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "The DAO output data at index 0").unwrap_err(), ERROR_DAO_NEWLY_CREATED_CELL);
 }
 
 // Consuming multiple live pairs still cannot rotate them into a new set of live pairs once the full DAO claim rules are enforced.
@@ -29,7 +31,7 @@ fn live_claims_cannot_rotate_into_new_pairs() {
     let live = create.accept(&mut context, "initial live owned_owner pairs should verify");
 
     let (withdraw_header1, withdraw_header2) = (withdraw_header(2_000_610), withdraw_header(2_000_621));
-    TxSpec {
+    let spec = TxSpec {
         inputs: vec![
             claim(live[0].clone(), &withdraw_header1, 0x2003e800000002f4, 2),
             claim(live[1].clone(), &withdraw_header2, 0x2003e802340002f3, 3),
@@ -43,6 +45,8 @@ fn live_claims_cannot_rotate_into_new_pairs() {
             env.owner(-3).under(&user2_lock).into(),
         ],
         header_deps: vec![withdraw_header1, withdraw_header2, deposit_header(1554), deposit_header(1555)],
-    }
-    .fail(&mut context, ERROR_DAO_NEWLY_CREATED_CELL);
+    };
+    let tx = spec.build(&mut context);
+    // The node also requires a deposit, not a claim, at a new request's index: the same rule under test.
+    assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "The DAO output data at index 0").unwrap_err(), ERROR_DAO_NEWLY_CREATED_CELL);
 }

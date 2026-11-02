@@ -130,7 +130,9 @@ fn fresh_deposit_cannot_replace_a_withdrawn_deposit_at_its_index() {
         .expect("withdrawing with the request at the deposit's index and re-depositing elsewhere verifies");
 
     // Same cells with the two DAO outputs swapped: the fresh deposit takes the withdrawn deposit's index.
-    tx([&deposit, &request, &receipt]).fail(&mut context, ERROR_DAO_INVALID_WITHDRAWING_CELL);
+    let tx = tx([&deposit, &request, &receipt]).build(&mut context);
+    // The node's DAO rule pairs a request with the deposit at its index, the same rule under test.
+    assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "The DAO output data at index 1").unwrap_err(), ERROR_DAO_INVALID_WITHDRAWING_CELL);
 }
 
 // Scenario 6G: a deposit and its receipt created in the same block read the same accumulated rate,
@@ -154,6 +156,7 @@ fn same_block_receipt_and_deposit_mint_nothing_when_spent_together() {
             header_deps: vec![creation_header.clone()],
         };
         if minted > 0 {
+            spec.inputs.push(env.funding_input());
             spec.outputs.push(env.udt(minted).into());
         }
         let result = spec.verify(&mut context);

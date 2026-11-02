@@ -18,7 +18,7 @@ fn phase2_conversion_without_receipt_header_dep_is_rejected() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let amount = 1_000 * CKB;
-    let spec = TxSpec { header_deps: vec![], ..mint(&env, env.receipt(1, amount), u128::from(amount), false) };
+    let spec = TxSpec { header_deps: vec![], ..mint(&env, env.receipt(1, amount), u128::from(amount), true) };
     spec.fail(&mut context, ERROR_ITEM_MISSING);
 }
 
@@ -50,7 +50,7 @@ fn phase2_conversion_with_zero_accumulated_rate_header_is_rejected() {
     let amount = 1_000 * CKB;
     let malformed_header = gen_header(0, 0, 0, 0, 1);
     let spec = TxSpec {
-        inputs: vec![In::new(env.receipt(1, amount)).in_block(&malformed_header)],
+        inputs: vec![In::new(env.receipt(1, amount)).in_block(&malformed_header), env.funding_input()],
         outputs: vec![env.udt(u128::from(amount)).into()],
         header_deps: vec![malformed_header],
     };
