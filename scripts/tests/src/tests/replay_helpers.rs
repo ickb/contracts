@@ -32,7 +32,7 @@ pub(super) fn build_many_header_phase2_batch(
         inputs.push(
             CellInput::new_builder()
                 .previous_output(withdrawing_input)
-                .since(since.pack())
+                .since(since)
                 .build(),
         );
         outputs.push(
@@ -100,8 +100,8 @@ pub(super) fn out_point_from_hex(tx_hash: &str, index: u32) -> OutPoint {
 
 pub(super) fn rpc_header(number: &str, epoch: &str, dao: &str) -> ckb_testtool::ckb_types::core::HeaderView {
     HeaderBuilder::default()
-        .number(u64_from_hex(number).pack())
-        .epoch(u64_from_hex(epoch).pack())
+        .number(u64_from_hex(number))
+        .epoch(u64_from_hex(epoch))
         .dao(byte32_from_hex(dao))
         .build()
 }

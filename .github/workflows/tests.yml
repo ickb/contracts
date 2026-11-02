@@ -18,9 +18,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # rustup reads scripts/rust-toolchain, so both steps use the pinned Rust.
+      # rustup reads scripts/tests/rust-toolchain here, so the tests build on their own Rust.
       - name: Test the release binaries
-        run: cargo test --locked -p tests
+        working-directory: scripts/tests
+        run: cargo test --locked
       # The suite compiles only vector-gen/src/vectors.rs; build the JSON writer too.
       - name: Build the vector generator
         working-directory: scripts/vector-gen

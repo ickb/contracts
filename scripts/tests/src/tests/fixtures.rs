@@ -53,25 +53,11 @@ pub(super) fn helper_type_script(context: &mut Context) -> Script {
     named_always_success_lock(context, b"helper-type")
 }
 
-pub(super) fn named_lock_and_helper_type_scripts(context: &mut Context, name: &[u8]) -> (Script, Script) {
-    let lock = named_always_success_lock(context, name);
-    let helper_type = helper_type_script(context);
-    // Tuple order is `(lock, helper_type)` so callers can drop it straight into output builders.
-    (lock, helper_type)
-}
-
 pub(super) fn limit_order_and_helper_type_scripts(context: &mut Context) -> (Script, Script) {
     let limit_order = limit_order_script(context);
     let helper_type = helper_type_script(context);
     // Returns the spend lock first; callers still choose the order data and capacity.
     (limit_order, helper_type)
-}
-
-pub(super) fn funding_limit_order_and_helper_type_scripts(context: &mut Context) -> (Script, Script, Script) {
-    let funding_lock = always_success_lock(context);
-    let (limit_order, helper_type) = limit_order_and_helper_type_scripts(context);
-    // Return order matches the common minting call sites: funding lock first, then the order pair.
-    (funding_lock, limit_order, helper_type)
 }
 
 pub(super) fn ickb_logic_and_limit_order_scripts(context: &mut Context) -> (Script, Script) {
@@ -90,12 +76,6 @@ pub(super) fn ickb_logic_and_xudt_scripts(context: &mut Context) -> (Script, Scr
     let ickb_logic = ickb_logic_script(context);
     let xudt = xudt_script(context, &ickb_logic);
     (ickb_logic, xudt)
-}
-
-pub(super) fn ickb_logic_dao_and_xudt_scripts(context: &mut Context) -> (Script, Script, Script) {
-    let (ickb_logic, dao) = ickb_logic_and_dao_scripts(context);
-    let xudt = xudt_script(context, &ickb_logic);
-    (ickb_logic, dao, xudt)
 }
 
 pub(super) fn ickb_logic_owned_owner_dao_and_xudt_scripts(
@@ -151,7 +131,7 @@ pub(super) fn capacity_for_data(data_len: u64) -> u64 {
 /// A cell output with this capacity, lock and optional type.
 pub(super) fn cell(capacity: u64, lock: &Script, type_: Option<&Script>) -> CellOutput {
     CellOutput::new_builder()
-        .capacity(capacity.pack())
+        .capacity(capacity)
         .lock(lock.clone())
         .type_(type_.cloned().pack())
         .build()
@@ -242,7 +222,7 @@ pub(super) fn dao_maximum_withdraw_capacity(
 // Header and transaction-shape helpers.
 pub(super) fn insert_header_for_cell(context: &mut Context, out_point: &OutPoint, number: u64, ar: u64) -> Byte32 {
     let header = HeaderBuilder::default()
-        .number(number.pack())
+        .number(number)
         .dao(pack_dao_data(
             ar,
             ckb_testtool::ckb_types::core::Capacity::zero(),
@@ -269,8 +249,8 @@ pub(super) fn gen_header(
         .length(epoch_length)
         .build();
     HeaderBuilder::default()
-        .number(number.pack())
-        .epoch(epoch_ext.number_with_fraction(number).pack())
+        .number(number)
+        .epoch(epoch_ext.number_with_fraction(number))
         .dao(pack_dao_data(
             ar,
             ckb_testtool::ckb_types::core::Capacity::zero(),
@@ -304,23 +284,6 @@ pub(super) fn seed_verified_output(
         data,
     );
     out_point
-}
-
-pub(super) fn create_receipt_input(
-    context: &mut Context,
-    lock: Script,
-    ickb_logic: &Script,
-    data: Bytes,
-    block_number: u64,
-    accumulated_rate: u64,
-) -> (OutPoint, Byte32) {
-    let receipt_out_point = context.create_cell(
-        cell(capacity_for_data(data.len() as u64), &lock, Some(ickb_logic)),
-        data,
-    );
-    let receipt_header = insert_header_for_cell(context, &receipt_out_point, block_number, accumulated_rate);
-    // Returns `(receipt_out_point, receipt_header_hash)` after linking the new cell to that header.
-    (receipt_out_point, receipt_header)
 }
 
 pub(super) fn create_withdrawal_inputs(

@@ -2,40 +2,35 @@ use super::*;
 
 // Withdrawal data-shape and header-dependency checks.
 
+/// The canonical withdrawal burning an xUDT cell under `user_lock` that holds `udt_data`, at its occupied capacity.
+fn withdrawal_with_udt_data(env: &Env, user_lock: &Script, udt_data: Vec<u8>) -> TxSpec {
+    let mut spec = withdrawal(env, user_lock);
+    let udt = &mut spec.inputs[1].cell;
+    udt.data = udt_data;
+    udt.capacity = udt.occupied();
+    spec
+}
+
+/// Phase 1 withdrawing deposits of 1,000 and 1,200 CKB with one xUDT under `user_lock`.
+fn two_deposit_withdrawal(env: &Env, user_lock: &Script) -> TxSpec {
+    let mut spec = withdrawals(env, &[1_000 * CKB, 1_200 * CKB]);
+    spec.inputs.push(In::new((env).udt(u128::from(2_200 * CKB)).under(user_lock)));
+    spec.outputs.push((env).owner(-2).under(user_lock).into());
+    spec.outputs.push((env).owner(-2).under(user_lock).into());
+    spec
+}
+
 // Scenario: the xUDT amount input contains the correct 16-byte amount plus trailing bytes.
 // Expectation: Owned Owner reads the prefix amount and accepts the withdrawal.
 #[test]
 fn withdrawal_accepts_xudt_input_with_trailing_bytes() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let deposit_amount = 1_000 * CKB;
-    let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-
-    let mut udt_input_data = udt_data(u128::from(deposit_amount)).to_vec();
+    let mut udt_input_data = udt_data(u128::from(1_000 * CKB)).to_vec();
     udt_input_data.push(0xaa);
-    let udt_input = context.create_cell(
-        cell(occupied_capacity(&user_lock, &xudt, udt_input_data.len()), &user_lock, Some(&xudt)),
-        Bytes::from(udt_input_data),
-    );
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_input))
-        .input(input(udt_input))
-        .outputs(vec![
-            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(deposit_header.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
+    withdrawal_with_udt_data(&env, &user_lock, udt_input_data)
+        .verify(&mut context)
         .expect("withdrawal should accept xudt input with trailing bytes");
 }
 
@@ -44,32 +39,10 @@ fn withdrawal_accepts_xudt_input_with_trailing_bytes() {
 #[test]
 fn withdrawal_rejects_short_xudt_input_data() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let deposit_amount = 1_000 * CKB;
-    let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-
-    let udt_input = context.create_cell(
-        cell(occupied_capacity(&user_lock, &xudt, 8), &user_lock, Some(&xudt)),
-        truncated_bytes(udt_data(u128::from(deposit_amount)), 8),
-    );
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_input))
-        .input(input(udt_input))
-        .outputs(vec![
-            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(deposit_header.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_ENCODING);
+    withdrawal_with_udt_data(&env, &user_lock, truncated_bytes(udt_data(u128::from(1_000 * CKB)), 8).to_vec())
+        .fail(&mut context, ERROR_ENCODING);
 }
 
 // Scenario: the xUDT input data is completely empty.
@@ -77,32 +50,9 @@ fn withdrawal_rejects_short_xudt_input_data() {
 #[test]
 fn withdrawal_rejects_zero_length_xudt_input_data() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let deposit_amount = 1_000 * CKB;
-    let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-
-    let udt_input = context.create_cell(
-        cell(occupied_capacity(&user_lock, &xudt, 0), &user_lock, Some(&xudt)),
-        Bytes::new(),
-    );
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_input))
-        .input(input(udt_input))
-        .outputs(vec![
-            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(deposit_header.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_ENCODING);
+    withdrawal_with_udt_data(&env, &user_lock, vec![]).fail(&mut context, ERROR_ENCODING);
 }
 
 // Scenario: the transaction omits the deposit header dep entirely.
@@ -110,27 +60,11 @@ fn withdrawal_rejects_zero_length_xudt_input_data() {
 #[test]
 fn withdrawal_without_deposit_header_dep_is_rejected() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let deposit_amount = 1_000 * CKB;
-    let (deposit_total_capacity, deposit_header) = deposit_total_capacity_and_header(&ickb_logic, &dao, deposit_amount, 1554);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
-    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(deposit_amount));
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_input))
-        .input(input(udt_input))
-        .outputs(vec![
-            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_ITEM_MISSING);
+    let mut spec = withdrawal(&env, &user_lock);
+    spec.header_deps.clear();
+    spec.fail(&mut context, ERROR_ITEM_MISSING);
 }
 
 // Scenario: two DAO deposits from different headers are withdrawn together with matching header deps.
@@ -138,49 +72,11 @@ fn withdrawal_without_deposit_header_dep_is_rejected() {
 #[test]
 fn withdrawal_with_two_deposits_from_distinct_headers_passes() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let first_amount = 1_000 * CKB;
-    let second_amount = 1_200 * CKB;
-    let first_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, first_amount);
-    let second_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, second_amount);
-    let first_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let second_header = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let first_deposit = create_deposit(&mut context, first_total_capacity, &ickb_logic, &dao);
-    let second_deposit = create_deposit(&mut context, second_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &first_deposit, &first_header);
-    link_cell_to_header(&mut context, &second_deposit, &second_header);
-    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(first_amount + second_amount));
-
-    let tx = TransactionBuilder::default()
-        .input(input(first_deposit))
-        .input(input(second_deposit))
-        .input(input(udt_input))
-        .input(input(funding_cell(&mut context)))
-        .outputs(vec![
-            cell(first_total_capacity, &owned_owner, Some(&dao)),
-            cell(second_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                withdrawal_request_data(1555),
-                owner_distance_data(-2),
-                owner_distance_data(-2),
-            ]
-            .pack(),
-        )
-        .header_dep(first_header.hash())
-        .header_dep(second_header.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
-        .expect("withdrawal should support multiple deposits from distinct headers");
+    let mut spec = two_deposit_withdrawal(&env, &user_lock);
+    spec.inputs.push(env.funding_input());
+    spec.verify(&mut context).expect("withdrawal should support multiple deposits from distinct headers");
 }
 
 // Scenario: one of two deposit headers is omitted from a multi-deposit batch.
@@ -188,45 +84,12 @@ fn withdrawal_with_two_deposits_from_distinct_headers_passes() {
 #[test]
 fn withdrawal_with_one_missing_deposit_header_dep_is_rejected() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let first_amount = 1_000 * CKB;
-    let second_amount = 1_200 * CKB;
-    let first_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, first_amount);
-    let second_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, second_amount);
-    let first_header = gen_header(1554, GENESIS_AR as u64, 35, 1000, 1000);
-    let second_header = gen_header(1555, GENESIS_AR as u64, 35, 1000, 1000);
-    let first_deposit = create_deposit(&mut context, first_total_capacity, &ickb_logic, &dao);
-    let second_deposit = create_deposit(&mut context, second_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &first_deposit, &first_header);
-    link_cell_to_header(&mut context, &second_deposit, &second_header);
-    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(first_amount + second_amount));
-
-    let tx = TransactionBuilder::default()
-        .input(input(first_deposit))
-        .input(input(second_deposit))
-        .input(input(udt_input))
-        .outputs(vec![
-            cell(first_total_capacity, &owned_owner, Some(&dao)),
-            cell(second_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                withdrawal_request_data(1554),
-                withdrawal_request_data(1555),
-                owner_distance_data(-2),
-                owner_distance_data(-2),
-            ]
-            .pack(),
-        )
-        .header_dep(first_header.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_ITEM_MISSING);
+    let mut spec = two_deposit_withdrawal(&env, &user_lock);
+    spec.inputs.push(env.funding_input());
+    spec.header_deps.truncate(1);
+    spec.fail(&mut context, ERROR_ITEM_MISSING);
 }
 
 // Scenario: the deposit header is present but its accumulated rate is zero.
@@ -234,29 +97,13 @@ fn withdrawal_with_one_missing_deposit_header_dep_is_rejected() {
 #[test]
 fn withdrawal_with_zero_accumulated_rate_deposit_header_is_rejected() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let user_lock = always_success_lock(&mut context);
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let deposit_amount = 1_000 * CKB;
-    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, deposit_amount);
     let malformed_header = gen_header(1554, 0, 35, 1000, 1000);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_input, &malformed_header);
-    let udt_input = create_udt(&mut context, &user_lock, &xudt, u128::from(deposit_amount));
-
-    let tx = TransactionBuilder::default()
-        .input(input(deposit_input))
-        .input(input(udt_input))
-        .outputs(vec![
-            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&user_lock, &owned_owner, 4), &user_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(malformed_header.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_SCRIPT_PANIC);
+    let mut spec = withdrawal(&env, &user_lock);
+    spec.inputs[0].header = Some(malformed_header.clone());
+    spec.header_deps = vec![malformed_header];
+    spec.fail(&mut context, ERROR_SCRIPT_PANIC);
 }
 
 // Scenario: the withdrawal amount is above the soft-cap boundary.
@@ -264,42 +111,16 @@ fn withdrawal_with_zero_accumulated_rate_deposit_header_is_rejected() {
 #[test]
 fn withdrawal_applies_soft_cap_discount_above_boundary() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let (ickb_logic, owned_owner, dao, xudt) = ickb_logic_owned_owner_dao_and_xudt_scripts(&mut context);
-
     let amount = 100_001 * CKB;
-    let deposit_total_capacity = deposit_capacity(&ickb_logic, &dao, 8, amount);
-    let deposit_header = gen_header(1554, GENESIS_AR, 35, 1000, 1000);
-    let deposit_input = create_deposit(&mut context, deposit_total_capacity, &ickb_logic, &dao);
-    link_cell_to_header(&mut context, &deposit_input, &deposit_header);
+    let mut spec = withdrawals(&env, &[amount]);
+    spec.inputs.push(In::new(env.udt(u128::from(amount)).under(&owner_lock)));
+    spec.outputs.push(env.owner(-1).under(&owner_lock).into());
+    spec.fail(&mut context, ERROR_AMOUNT_MISMATCH);
 
-    let naive_udt_input = create_udt(&mut context, &owner_lock, &xudt, u128::from(amount));
-    let naive_tx = TransactionBuilder::default()
-        .input(input(deposit_input.clone()))
-        .input(input(naive_udt_input))
-        .outputs(vec![
-            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(deposit_header.hash())
-        .build();
-    let naive_tx = context.complete_tx(naive_tx);
-    fail(&context, &naive_tx, ERROR_AMOUNT_MISMATCH);
-
-    let exact_udt_input = create_udt(&mut context, &owner_lock, &xudt, soft_capped_ickb(amount, GENESIS_AR));
-    let exact_tx = TransactionBuilder::default()
-        .input(input(deposit_input))
-        .input(input(exact_udt_input))
-        .outputs(vec![
-            cell(deposit_total_capacity, &owned_owner, Some(&dao)),
-            cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(-1)].pack())
-        .header_dep(deposit_header.hash())
-        .build();
-    let exact_tx = context.complete_tx(exact_tx);
-    context
-        .verify(&exact_tx, MAX_CYCLES)
+    // The same deposit cell, now with the soft-capped burn.
+    spec.inputs[1] = In::new(env.udt(soft_capped_ickb(amount, GENESIS_AR)).under(&owner_lock));
+    spec.verify(&mut context)
         .expect("withdrawal should require the soft-capped iCKB amount above the 100k boundary");
 }

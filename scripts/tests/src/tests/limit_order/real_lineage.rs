@@ -1,44 +1,41 @@
 use super::*;
 
+/// `real_order` continued into match state at 100 CKB progress, holding `continued` CKB and
+/// naming `master` with this ratio.
+fn continue_real_order(env: &Env, real_order: In, continued: u64, master: &OutPoint, ckb_to_udt: (u64, u64)) -> TxSpec {
+    TxSpec {
+        inputs: vec![real_order],
+        outputs: vec![env.order(continued, order_data_match(100 * CKB as u128, master, ckb_to_udt)).into()],
+        ..Default::default()
+    }
+}
+
 // Continue a real mint lineage into match state but point it at another real master's outpoint; the match path rejects the arbitrary lineage rewrite.
 #[test]
 fn real_order_match_cannot_rewrite_master_outpoint_to_an_arbitrary_master() {
     let mut context = Context::default();
-    let (owner_lock, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner");
+    let env = Env::new(&mut context);
+    let owner_lock = named_always_success_lock(&mut context, b"owner");
     let (real_order_out_point, _real_master_out_point) =
-        build_real_limit_order_and_master_with_capacity(&mut context, owner_lock.clone(), helper_type.clone(), 1_600 * CKB);
+        build_real_limit_order_and_master_with_capacity(&mut context, owner_lock.clone(), env.helper.clone(), 1_600 * CKB);
     let (_victim_order_out_point, victim_master_out_point) =
-        build_real_limit_order_and_master_with_capacity(&mut context, owner_lock.clone(), helper_type.clone(), 1_500 * CKB);
+        build_real_limit_order_and_master_with_capacity(&mut context, owner_lock.clone(), env.helper.clone(), 1_500 * CKB);
 
-    let limit_order = limit_order_script(&mut context);
-    let tx = TransactionBuilder::default()
-        .input(input(real_order_out_point))
-        .output(cell(1_500 * CKB, &limit_order, Some(&helper_type)))
-        .output_data(order_data_match(100 * CKB as u128, &victim_master_out_point, (1, 1)).pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
+    continue_real_order(&env, live(&context, real_order_out_point), 1_500 * CKB, &victim_master_out_point, (1, 1))
+        .fail(&mut context, ERROR_LIMIT_ORDER_INVALID_CONFIGURATION);
 }
 
 // Continue a real mint-state order into its first match state without spending the master cell; the match path accepts the derived metapoint continuation.
 #[test]
 fn real_limit_order_can_transition_from_mint_to_match_without_consuming_master() {
     let mut context = Context::default();
-    let (owner_lock, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner");
+    let env = Env::new(&mut context);
+    let owner_lock = named_always_success_lock(&mut context, b"owner");
     let (real_order_out_point, real_master_out_point) =
-        build_real_limit_order_and_master(&mut context, owner_lock, helper_type.clone());
+        build_real_limit_order_and_master(&mut context, owner_lock, env.helper.clone());
 
-    let limit_order = limit_order_script(&mut context);
-    let tx = TransactionBuilder::default()
-        .input(input(real_order_out_point))
-        .output(cell(1_400 * CKB, &limit_order, Some(&helper_type)))
-        .output_data(order_data_match(100 * CKB as u128, &real_master_out_point, (1, 1)).pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
+    continue_real_order(&env, live(&context, real_order_out_point), 1_400 * CKB, &real_master_out_point, (1, 1))
+        .verify(&mut context)
         .expect("a real minted order should be able to move into a match-state output without consuming its master");
 }
 
@@ -46,17 +43,11 @@ fn real_limit_order_can_transition_from_mint_to_match_without_consuming_master()
 #[test]
 fn real_limit_order_match_rejects_rewriting_order_info() {
     let mut context = Context::default();
-    let (owner_lock, helper_type) = named_lock_and_helper_type_scripts(&mut context, b"owner");
+    let env = Env::new(&mut context);
+    let owner_lock = named_always_success_lock(&mut context, b"owner");
     let (real_order_out_point, real_master_out_point) =
-        build_real_limit_order_and_master(&mut context, owner_lock, helper_type.clone());
+        build_real_limit_order_and_master(&mut context, owner_lock, env.helper.clone());
 
-    let limit_order = limit_order_script(&mut context);
-    let tx = TransactionBuilder::default()
-        .input(input(real_order_out_point))
-        .output(cell(1_400 * CKB, &limit_order, Some(&helper_type)))
-        .output_data(order_data_match(100 * CKB as u128, &real_master_out_point, (2, 1)).pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
+    continue_real_order(&env, live(&context, real_order_out_point), 1_400 * CKB, &real_master_out_point, (2, 1))
+        .fail(&mut context, ERROR_LIMIT_ORDER_DIFFERENT_INFO);
 }

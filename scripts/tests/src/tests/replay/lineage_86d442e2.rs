@@ -9,58 +9,44 @@ fn mainnet_tx_8aaf4923_deposit_and_limit_order_match_shape() {
     let dao = dao_script(&mut context);
     let xudt = xudt_script(&mut context, &ickb_logic);
 
-    let udt_input = context.create_cell(
-        cell(u64_from_hex("0x3663a5200"), &user_lock, Some(&xudt)),
-        bytes_from_hex("0x3ea3bf63450100000000000000000000"),
-    );
-    let ckb_input = context.create_cell(
-        cell(u64_from_hex("0x1c64f893723e"), &user_lock, None),
-        Bytes::new(),
-    );
-    let order_input = out_point_from_hex(
-        "0x86d442e2c056386b114b021194c8dbae30c97be8c943513d5bb0aa67a1ab38e8",
-        3,
-    );
-    context.create_cell_with_out_point(
-        order_input.clone(),
-        cell(u64_from_hex("0xa6d17e8d17c"), &limit_order, Some(&xudt)),
-        bytes_from_hex(
-            "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
-        ),
-    );
-
-    let tx = TransactionBuilder::default()
-        .input(input(udt_input))
-        .input(input(ckb_input))
-        .input(input(order_input))
-        .outputs(vec![
-            cell(u64_from_hex("0x903384caedb"), &limit_order, Some(&xudt)),
-            cell(u64_from_hex("0xadcdc889e23"), &ickb_logic, Some(&dao)),
-            cell(u64_from_hex("0x277cf2a00"), &user_lock, Some(&ickb_logic)),
-            cell(u64_from_hex("0x3663a5200"), &user_lock, Some(&xudt)),
-            cell(u64_from_hex("0x12ef83d72ac6"), &user_lock, None),
-        ])
-        .outputs_data(
-            vec![
-                bytes_from_hex(
-                    "0x00c809ae2e01000000000000000000000100000086d442e2c056386b114b021194c8dbae30c97be8c943513d5bb0aa67a1ab38e8020000000000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
+    let spec = TxSpec {
+        inputs: vec![
+            In::new(live("0x3663a5200", &user_lock, Some(&xudt), "0x3ea3bf63450100000000000000000000")),
+            In::new(live("0x1c64f893723e", &user_lock, None, "0x")),
+            at(
+                "0x86d442e2c056386b114b021194c8dbae30c97be8c943513d5bb0aa67a1ab38e8",
+                3,
+                live(
+                    "0xa6d17e8d17c",
+                    &limit_order,
+                    Some(&xudt),
+                    "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
                 ),
-                bytes_from_hex("0x0000000000000000"),
-                bytes_from_hex("0x01000000238cc6f3da0a0000"),
-                bytes_from_hex("0x3edbb5b5160000000000000000000000"),
-                Bytes::new(),
-            ]
-            .pack(),
-        )
-        .witness(
-            bytes_from_hex(
-                "0x5500000010000000550000005500000041000000cf897cf8dd14b9878c96353720effdfbeee2f29c14d738e0aa5b0c7a5a8fef9245252a229492ac302204dd5ee341e8e734dc44067c59890c337c42dade98345a01",
+            ),
+        ],
+        outputs: vec![
+            live(
+                "0x903384caedb",
+                &limit_order,
+                Some(&xudt),
+                "0x00c809ae2e01000000000000000000000100000086d442e2c056386b114b021194c8dbae30c97be8c943513d5bb0aa67a1ab38e8020000000000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
             )
-            .pack(),
-        )
-        .build();
+            .into(),
+            live("0xadcdc889e23", &ickb_logic, Some(&dao), "0x0000000000000000").into(),
+            live("0x277cf2a00", &user_lock, Some(&ickb_logic), "0x01000000238cc6f3da0a0000").into(),
+            live("0x3663a5200", &user_lock, Some(&xudt), "0x3edbb5b5160000000000000000000000").into(),
+            live("0x12ef83d72ac6", &user_lock, None, "0x").into(),
+        ],
+        ..Default::default()
+    };
 
-    let tx = context.complete_tx(tx);
+    let tx = replay(
+        &mut context,
+        &spec,
+        vec![bytes_from_hex(
+            "0x5500000010000000550000005500000041000000cf897cf8dd14b9878c96353720effdfbeee2f29c14d738e0aa5b0c7a5a8fef9245252a229492ac302204dd5ee341e8e734dc44067c59890c337c42dade98345a01",
+        )],
+    );
     context
         .verify(&tx, MAX_CYCLES)
         .expect("live mainnet deposit + limit_order match shape should replay locally");
@@ -72,82 +58,53 @@ fn mainnet_tx_42fe6a4c_phase2_and_limit_order_match_shape() {
     let mut context = Context::default();
     let user_lock = named_always_success_lock(&mut context, b"live-mainnet-phase2-match-lock");
     let (ickb_logic, limit_order, xudt) = ickb_logic_limit_order_and_xudt_scripts(&mut context);
-
-    let change_input = out_point_from_hex(
-        "0x8aaf4923a49d3775c9bf37b0800ce9288beb8075764c8e2ec04310d777444680",
-        4,
-    );
-    context.create_cell_with_out_point(
-        change_input.clone(),
-        cell(u64_from_hex("0x12ef83d72ac6"), &user_lock, None),
-        Bytes::new(),
-    );
-    let udt_input = out_point_from_hex(
-        "0x8aaf4923a49d3775c9bf37b0800ce9288beb8075764c8e2ec04310d777444680",
-        3,
-    );
-    context.create_cell_with_out_point(
-        udt_input.clone(),
-        cell(u64_from_hex("0x3663a5200"), &user_lock, Some(&xudt)),
-        bytes_from_hex("0x3edbb5b5160000000000000000000000"),
-    );
-    let receipt_input = out_point_from_hex(
-        "0x8aaf4923a49d3775c9bf37b0800ce9288beb8075764c8e2ec04310d777444680",
-        2,
-    );
-    context.create_cell_with_out_point(
-        receipt_input.clone(),
-        cell(u64_from_hex("0x277cf2a00"), &user_lock, Some(&ickb_logic)),
-        bytes_from_hex("0x01000000238cc6f3da0a0000"),
-    );
     let receipt_header = rpc_header(
         "0x1237a63",
         "0x4c403280036ce",
         "0x0060b4f7d056e858996feb5548672a00d59fb1cb2b85aa09002b8d5ce8793607",
     );
-    link_cell_to_header(&mut context, &receipt_input, &receipt_header);
-    let order_input = out_point_from_hex(
-        "0x8aaf4923a49d3775c9bf37b0800ce9288beb8075764c8e2ec04310d777444680",
-        0,
-    );
-    context.create_cell_with_out_point(
-        order_input.clone(),
-        cell(u64_from_hex("0x903384caedb"), &limit_order, Some(&xudt)),
-        bytes_from_hex(
-            "0x00c809ae2e01000000000000000000000100000086d442e2c056386b114b021194c8dbae30c97be8c943513d5bb0aa67a1ab38e8020000000000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
-        ),
-    );
 
-    let tx = TransactionBuilder::default()
-        .input(input(change_input))
-        .input(input(udt_input))
-        .input(input(receipt_input))
-        .input(input(order_input))
-        .outputs(vec![
-            cell(u64_from_hex("0x4a221e700"), &limit_order, Some(&xudt)),
-            cell(u64_from_hex("0x3663a5200"), &user_lock, Some(&xudt)),
-            cell(u64_from_hex("0x1bf091d09adb"), &user_lock, None),
-        ])
-        .outputs_data(
-            vec![
-                bytes_from_hex(
-                    "0x060aa19eb408000000000000000000000100000086d442e2c056386b114b021194c8dbae30c97be8c943513d5bb0aa67a1ab38e8020000000000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
+    let deposit_tx = "0x8aaf4923a49d3775c9bf37b0800ce9288beb8075764c8e2ec04310d777444680";
+    let spec = TxSpec {
+        inputs: vec![
+            at(deposit_tx, 4, live("0x12ef83d72ac6", &user_lock, None, "0x")),
+            at(deposit_tx, 3, live("0x3663a5200", &user_lock, Some(&xudt), "0x3edbb5b5160000000000000000000000")),
+            In {
+                header: Some(receipt_header.clone()),
+                ..at(deposit_tx, 2, live("0x277cf2a00", &user_lock, Some(&ickb_logic), "0x01000000238cc6f3da0a0000"))
+            },
+            at(
+                deposit_tx,
+                0,
+                live(
+                    "0x903384caedb",
+                    &limit_order,
+                    Some(&xudt),
+                    "0x00c809ae2e01000000000000000000000100000086d442e2c056386b114b021194c8dbae30c97be8c943513d5bb0aa67a1ab38e8020000000000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
                 ),
-                bytes_from_hex("0x5a6e8c13a90100000000000000000000"),
-                Bytes::new(),
-            ]
-            .pack(),
-        )
-        .witness(
-            bytes_from_hex(
-                "0x5500000010000000550000005500000041000000a4f1c5f9ef8580c0f18cd547ff92e025867969174dde4357e033a5342d7fc2a96051b42988e229113baeed5f652e76f0af82ed97b81669cd384fc40c276457c401",
+            ),
+        ],
+        outputs: vec![
+            live(
+                "0x4a221e700",
+                &limit_order,
+                Some(&xudt),
+                "0x060aa19eb408000000000000000000000100000086d442e2c056386b114b021194c8dbae30c97be8c943513d5bb0aa67a1ab38e8020000000000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
             )
-            .pack(),
-        )
-        .header_dep(receipt_header.hash())
-        .build();
+            .into(),
+            live("0x3663a5200", &user_lock, Some(&xudt), "0x5a6e8c13a90100000000000000000000").into(),
+            live("0x1bf091d09adb", &user_lock, None, "0x").into(),
+        ],
+        header_deps: vec![receipt_header],
+    };
 
-    let tx = context.complete_tx(tx);
+    let tx = replay(
+        &mut context,
+        &spec,
+        vec![bytes_from_hex(
+            "0x5500000010000000550000005500000041000000a4f1c5f9ef8580c0f18cd547ff92e025867969174dde4357e033a5342d7fc2a96051b42988e229113baeed5f652e76f0af82ed97b81669cd384fc40c276457c401",
+        )],
+    );
     context
         .verify(&tx, MAX_CYCLES)
         .expect("live mainnet phase2 plus limit_order match shape should replay locally");
@@ -160,64 +117,11 @@ fn mainnet_tx_86d442e2_claim_and_restake_shape() {
     let user_lock = named_always_success_lock(&mut context, b"live-mainnet-claim-lock");
     let (ickb_logic, limit_order, owned_owner, dao, xudt) =
         ickb_logic_limit_order_owned_owner_dao_and_xudt_scripts(&mut context);
-
-    let funding_out_point = out_point_from_hex(
-        "0x26cb2a2a4b0ec87884c793ec10a2b5124b571f073f899b76af6d7b1623775003",
-        1,
-    );
-    context.create_cell_with_out_point(
-        funding_out_point.clone(),
-        cell(u64_from_hex("0x2540be391"), &user_lock, None),
-        Bytes::new(),
-    );
-
-    let owned1_out_point = out_point_from_hex(
-        "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b",
-        1,
-    );
-    let owned0_out_point = out_point_from_hex(
-        "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b",
-        0,
-    );
-    let owner3_out_point = out_point_from_hex(
-        "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b",
-        3,
-    );
-    let owner2_out_point = out_point_from_hex(
-        "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b",
-        2,
-    );
-
-    let owned1 = cell(u64_from_hex("0xa923feb5eef"), &owned_owner, Some(&dao));
-    let owned0 = cell(u64_from_hex("0xabe8fa4120f"), &owned_owner, Some(&dao));
-    context.create_cell_with_out_point(
-        owned1_out_point.clone(),
-        owned1.clone(),
-        bytes_from_hex("0xf1b6e60000000000"),
-    );
-    context.create_cell_with_out_point(
-        owned0_out_point.clone(),
-        owned0.clone(),
-        bytes_from_hex("0xd5280b0100000000"),
-    );
-    context.create_cell_with_out_point(
-        owner3_out_point.clone(),
-        cell(u64_from_hex("0x2540be400"), &user_lock, Some(&owned_owner)),
-        bytes_from_hex("0xfeffffff"),
-    );
-    context.create_cell_with_out_point(
-        owner2_out_point.clone(),
-        cell(u64_from_hex("0x2540be400"), &user_lock, Some(&owned_owner)),
-        bytes_from_hex("0xfeffffff"),
-    );
-
     let withdraw_header = rpc_header(
         "0x11e44de",
         "0x6c0046a0035c6",
         "0xaf7963315bd6545847eedd55c64b2a0059b7cdd1800f7709009be20186033607",
     );
-    link_cell_to_header(&mut context, &owned1_out_point, &withdraw_header);
-    link_cell_to_header(&mut context, &owned0_out_point, &withdraw_header);
     let deposit_header_1 = rpc_header(
         "0xe6b6f1",
         "0x41d018a002c16",
@@ -228,58 +132,49 @@ fn mainnet_tx_86d442e2_claim_and_restake_shape() {
         "0x65100af003266",
         "0xacc68720a6d07156120740f8ebf02900e248e5bef77cd4080099d9bc0bc03407",
     );
-    context.insert_header(deposit_header_1.clone());
-    context.insert_header(deposit_header_2.clone());
 
-    let tx = TransactionBuilder::default()
-        .input(input(funding_out_point))
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned1_out_point)
-                .since(u64_from_hex("0x20041d018a0035ee").pack())
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned0_out_point)
-                .since(u64_from_hex("0x20065100af0035ea").pack())
-                .build(),
-        )
-        .input(input(owner3_out_point))
-        .input(input(owner2_out_point))
-        .outputs(vec![
-            cell(u64_from_hex("0xadcdc7bbf67"), &ickb_logic, Some(&dao)),
-            cell(u64_from_hex("0x283baec00"), &user_lock, Some(&ickb_logic)),
-            cell(u64_from_hex("0x23c346000"), &user_lock, Some(&limit_order)),
-            cell(u64_from_hex("0xa6d17e8d17c"), &limit_order, Some(&xudt)),
-            cell(u64_from_hex("0x63eb5b3469"), &user_lock, None),
-        ])
-        .outputs_data(
-            vec![
-                bytes_from_hex("0x0000000000000000"),
-                bytes_from_hex("0x0100000067adb9f3da0a0000"),
-                Bytes::new(),
-                bytes_from_hex(
-                    "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
-                ),
-                Bytes::new(),
-            ]
-            .pack(),
-        )
-        .witnesses(
-            vec![
-                Bytes::new(),
-                bytes_from_hex("0x1c00000010000000100000001c000000080000000100000000000000"),
-                bytes_from_hex("0x1c00000010000000100000001c000000080000000200000000000000"),
-            ]
-            .pack(),
-        )
-        .header_dep(withdraw_header.hash())
-        .header_dep(deposit_header_1.hash())
-        .header_dep(deposit_header_2.hash())
-        .build();
+    let withdraw_tx = "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b";
+    let spec = TxSpec {
+        inputs: vec![
+            at("0x26cb2a2a4b0ec87884c793ec10a2b5124b571f073f899b76af6d7b1623775003", 1, live("0x2540be391", &user_lock, None, "0x")),
+            In {
+                header: Some(withdraw_header.clone()),
+                since: u64_from_hex("0x20041d018a0035ee"),
+                ..at(withdraw_tx, 1, live("0xa923feb5eef", &owned_owner, Some(&dao), "0xf1b6e60000000000"))
+            },
+            In {
+                header: Some(withdraw_header.clone()),
+                since: u64_from_hex("0x20065100af0035ea"),
+                ..at(withdraw_tx, 0, live("0xabe8fa4120f", &owned_owner, Some(&dao), "0xd5280b0100000000"))
+            },
+            at(withdraw_tx, 3, live("0x2540be400", &user_lock, Some(&owned_owner), "0xfeffffff")),
+            at(withdraw_tx, 2, live("0x2540be400", &user_lock, Some(&owned_owner), "0xfeffffff")),
+        ],
+        outputs: vec![
+            live("0xadcdc7bbf67", &ickb_logic, Some(&dao), "0x0000000000000000").into(),
+            live("0x283baec00", &user_lock, Some(&ickb_logic), "0x0100000067adb9f3da0a0000").into(),
+            live("0x23c346000", &user_lock, Some(&limit_order), "0x").into(),
+            live(
+                "0xa6d17e8d17c",
+                &limit_order,
+                Some(&xudt),
+                "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000c16ff2862300f76adf1f9a792a000000000000000000000000000000000021",
+            )
+            .into(),
+            live("0x63eb5b3469", &user_lock, None, "0x").into(),
+        ],
+        header_deps: vec![withdraw_header, deposit_header_1, deposit_header_2],
+    };
 
-    let tx = context.complete_tx(tx);
+    let tx = replay(
+        &mut context,
+        &spec,
+        vec![
+            Bytes::new(),
+            bytes_from_hex("0x1c00000010000000100000001c000000080000000100000000000000"),
+            bytes_from_hex("0x1c00000010000000100000001c000000080000000200000000000000"),
+        ],
+    );
     context
         .verify(&tx, MAX_CYCLES)
         .expect("live mainnet claim + restake shape should replay locally");
@@ -293,62 +188,11 @@ fn mainnet_live_claims_cannot_rotate_into_new_owned_owner_pairs() {
     let user2_lock = named_always_success_lock(&mut context, b"live-claim-user2");
     let owned_owner = owned_owner_script(&mut context);
     let dao = dao_script(&mut context);
-
-    let funding_out_point = out_point_from_hex(
-        "0x26cb2a2a4b0ec87884c793ec10a2b5124b571f073f899b76af6d7b1623775003",
-        1,
-    );
-    context.create_cell_with_out_point(
-        funding_out_point.clone(),
-        cell(u64_from_hex("0x2540be391"), &user1_lock, None),
-        Bytes::new(),
-    );
-
-    let owned1_out_point = out_point_from_hex(
-        "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b",
-        1,
-    );
-    let owned0_out_point = out_point_from_hex(
-        "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b",
-        0,
-    );
-    let owner3_out_point = out_point_from_hex(
-        "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b",
-        3,
-    );
-    let owner2_out_point = out_point_from_hex(
-        "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b",
-        2,
-    );
-
-    context.create_cell_with_out_point(
-        owned1_out_point.clone(),
-        cell(u64_from_hex("0xa923feb5eef"), &owned_owner, Some(&dao)),
-        bytes_from_hex("0xf1b6e60000000000"),
-    );
-    context.create_cell_with_out_point(
-        owned0_out_point.clone(),
-        cell(u64_from_hex("0xabe8fa4120f"), &owned_owner, Some(&dao)),
-        bytes_from_hex("0xd5280b0100000000"),
-    );
-    context.create_cell_with_out_point(
-        owner3_out_point.clone(),
-        cell(u64_from_hex("0x2540be400"), &user1_lock, Some(&owned_owner)),
-        bytes_from_hex("0xfeffffff"),
-    );
-    context.create_cell_with_out_point(
-        owner2_out_point.clone(),
-        cell(u64_from_hex("0x2540be400"), &user2_lock, Some(&owned_owner)),
-        bytes_from_hex("0xfeffffff"),
-    );
-
     let withdraw_header = rpc_header(
         "0x11e44de",
         "0x6c0046a0035c6",
         "0xaf7963315bd6545847eedd55c64b2a0059b7cdd1800f7709009be20186033607",
     );
-    link_cell_to_header(&mut context, &owned1_out_point, &withdraw_header);
-    link_cell_to_header(&mut context, &owned0_out_point, &withdraw_header);
     let deposit_header_1 = rpc_header(
         "0xe6b6f1",
         "0x41d018a002c16",
@@ -359,53 +203,35 @@ fn mainnet_live_claims_cannot_rotate_into_new_owned_owner_pairs() {
         "0x65100af003266",
         "0xacc68720a6d07156120740f8ebf02900e248e5bef77cd4080099d9bc0bc03407",
     );
-    context.insert_header(deposit_header_1.clone());
-    context.insert_header(deposit_header_2.clone());
 
-    let witness1 = header_dep_index_witness(1);
-    let witness2 = header_dep_index_witness(2);
+    let withdraw_tx = "0xa862038bdb8a060a9ac40d1c56523f62dfa4329f89abe3e40624c5c14033041b";
+    let spec = TxSpec {
+        inputs: vec![
+            at("0x26cb2a2a4b0ec87884c793ec10a2b5124b571f073f899b76af6d7b1623775003", 1, live("0x2540be391", &user1_lock, None, "0x")),
+            In {
+                header: Some(withdraw_header.clone()),
+                since: u64_from_hex("0x20041d018a0035ee"),
+                ..at(withdraw_tx, 1, live("0xa923feb5eef", &owned_owner, Some(&dao), "0xf1b6e60000000000"))
+            },
+            In {
+                header: Some(withdraw_header.clone()),
+                since: u64_from_hex("0x20065100af0035ea"),
+                ..at(withdraw_tx, 0, live("0xabe8fa4120f", &owned_owner, Some(&dao), "0xd5280b0100000000"))
+            },
+            at(withdraw_tx, 3, live("0x2540be400", &user1_lock, Some(&owned_owner), "0xfeffffff")),
+            at(withdraw_tx, 2, live("0x2540be400", &user2_lock, Some(&owned_owner), "0xfeffffff")),
+        ],
+        outputs: vec![
+            live("0x2540be391", &user1_lock, None, "0x").into(),
+            live("0xa923feb5eef", &owned_owner, Some(&dao), "0xf1b6e60000000000").into(),
+            live("0xabe8fa4120f", &owned_owner, Some(&dao), "0xd5280b0100000000").into(),
+            live("0x2540be400", &user1_lock, Some(&owned_owner), "0xffffffff").into(),
+            live("0x2540be400", &user2_lock, Some(&owned_owner), "0xfdffffff").into(),
+        ],
+        header_deps: vec![withdraw_header, deposit_header_1, deposit_header_2],
+    };
 
-    let rotate_tx = TransactionBuilder::default()
-        .input(input(funding_out_point))
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned1_out_point)
-                .since(u64_from_hex("0x20041d018a0035ee").pack())
-                .build(),
-        )
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned0_out_point)
-                .since(u64_from_hex("0x20065100af0035ea").pack())
-                .build(),
-        )
-        .input(input(owner3_out_point))
-        .input(input(owner2_out_point))
-        .outputs(vec![
-            cell(u64_from_hex("0x2540be391"), &user1_lock, None),
-            cell(u64_from_hex("0xa923feb5eef"), &owned_owner, Some(&dao)),
-            cell(u64_from_hex("0xabe8fa4120f"), &owned_owner, Some(&dao)),
-            cell(u64_from_hex("0x2540be400"), &user1_lock, Some(&owned_owner)),
-            cell(u64_from_hex("0x2540be400"), &user2_lock, Some(&owned_owner)),
-        ])
-        .outputs_data(
-            vec![
-                Bytes::new(),
-                bytes_from_hex("0xf1b6e60000000000"),
-                bytes_from_hex("0xd5280b0100000000"),
-                bytes_from_hex("0xffffffff"),
-                bytes_from_hex("0xfdffffff"),
-            ]
-            .pack(),
-        )
-        .witness(Bytes::new().pack())
-        .witness(witness1.pack())
-        .witness(witness2.pack())
-        .header_dep(withdraw_header.hash())
-        .header_dep(deposit_header_1.hash())
-        .header_dep(deposit_header_2.hash())
-        .build();
-
-    let rotate_tx = context.complete_tx(rotate_tx);
-    fail(&context, &rotate_tx, ERROR_DAO_NEWLY_CREATED_CELL);
+    let rotate_tx = replay(&mut context, &spec, vec![Bytes::new(), header_dep_index_witness(1), header_dep_index_witness(2)]);
+    // The node also requires a deposit, not a claim, at a new request's index: the same rule under test.
+    assert_script_error(context.verify_where_node_also_rejects(&rotate_tx, MAX_CYCLES, "The DAO output data at index 1").unwrap_err(), ERROR_DAO_NEWLY_CREATED_CELL);
 }

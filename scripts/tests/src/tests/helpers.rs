@@ -134,7 +134,7 @@ fn order_data_custom_preserves_each_field_in_order() {
 fn xudt_owner_script_witness_uses_expected_table_layout() {
     let owner_script = Script::new_builder()
         .code_hash(Byte32::from_slice(&[0x42; 32]).expect("byte32"))
-        .hash_type(ScriptHashType::Type.into())
+        .hash_type(ScriptHashType::Type)
         .args(Bytes::from(vec![1, 2, 3, 4]).pack())
         .build();
     let owner_script_bytes = owner_script.as_bytes();

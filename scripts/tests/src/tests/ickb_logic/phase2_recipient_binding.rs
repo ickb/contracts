@@ -4,32 +4,13 @@ use super::*;
 #[test]
 fn weak_lock_receipt_can_reassign_phase2_mint_recipient() {
     let mut context = Context::default();
-    let weak_lock = always_success_lock(&mut context);
+    let env = Env::new(&mut context);
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
-    let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let deposit_amount = 1_000 * CKB;
-    let (receipt_out_point, receipt_header) = create_receipt_input(
-        &mut context,
-        weak_lock,
-        &ickb_logic,
-        receipt_data(1, deposit_amount),
-        0,
-        GENESIS_AR,
-    );
-
-    let tx = TransactionBuilder::default()
-        .input(input(receipt_out_point))
-        .input(input(funding_cell(&mut context)))
-        .output(cell(occupied_capacity(&attacker_lock, &xudt, 16), &attacker_lock, Some(&xudt)))
-        .output_data(udt_data(u128::from(deposit_amount)).pack())
-        .header_dep(receipt_header.clone())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
-        .expect("weak lock should allow reassigning the phase2 mint recipient");
+    let mut spec = mint(&env, env.receipt(1, deposit_amount), u128::from(deposit_amount), true);
+    spec.outputs[0] = Cell { lock: attacker_lock, ..env.udt(u128::from(deposit_amount)) }.into();
+    spec.verify(&mut context).expect("weak lock should allow reassigning the phase2 mint recipient");
 }
 
 // Build a signed phase2 mint from a secp-protected receipt, then tamper the xUDT recipient after signing: the original tx passes, but the modified output shape fails because sighash binds the minted recipient to the signed transaction.
@@ -118,32 +99,25 @@ fn mixed_sighash_and_weak_receipts_bind_all_phase2_outputs_once_signed() {
 #[test]
 fn two_weak_receipts_can_reassign_combined_phase2_mint_recipient() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let weak_lock_1 = named_always_success_lock(&mut context, b"weak1");
     let weak_lock_2 = named_always_success_lock(&mut context, b"weak2");
     let attacker_lock = named_always_success_lock(&mut context, b"attacker");
-    let (ickb_logic, xudt) = ickb_logic_and_xudt_scripts(&mut context);
 
     let amount1 = 1_000 * CKB;
     let amount2 = 1_200 * CKB;
-    let receipt1 = create_receipt(&mut context, &weak_lock_1, &ickb_logic, 1, amount1);
-    let receipt2 = create_receipt(&mut context, &weak_lock_2, &ickb_logic, 1, amount2);
-    let header1 = insert_header_for_cell(&mut context, &receipt1, 0, GENESIS_AR);
+    let header1 = gen_header(0, GENESIS_AR, 0, 0, 1);
     let header2 = gen_header(1, SYNTHETIC_WITHDRAW_AR, 1, 1, 1);
-    link_cell_to_header(&mut context, &receipt2, &header2);
     let expected = u128::from(amount1)
         + (u128::from(amount2) * u128::from(GENESIS_AR) / u128::from(SYNTHETIC_WITHDRAW_AR));
 
-    let tx = TransactionBuilder::default()
-        .input(input(receipt1))
-        .input(input(receipt2))
-        .output(cell(occupied_capacity(&attacker_lock, &xudt, 16), &attacker_lock, Some(&xudt)))
-        .output_data(udt_data(expected).pack())
-        .header_dep(header1)
-        .header_dep(header2.hash())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
-        .expect("all-weak phase2 inputs can reassign the combined phase2 mint recipient");
+    let spec = TxSpec {
+        inputs: vec![
+            In::new(Cell { lock: weak_lock_1, ..env.receipt(1, amount1) }).in_block(&header1),
+            In::new(Cell { lock: weak_lock_2, ..env.receipt(1, amount2) }).in_block(&header2),
+        ],
+        outputs: vec![Cell { lock: attacker_lock, ..env.udt(expected) }.into()],
+        header_deps: vec![header1, header2],
+    };
+    spec.verify(&mut context).expect("all-weak phase2 inputs can reassign the combined phase2 mint recipient");
 }

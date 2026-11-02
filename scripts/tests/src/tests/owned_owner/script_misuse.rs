@@ -5,26 +5,11 @@ use super::*;
 #[test]
 fn zero_distance_owner_output_is_rejected() {
     let mut context = Context::default();
-    let funding_lock = always_success_lock(&mut context);
+    let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let owned_owner = owned_owner_script(&mut context);
-    let dao = dao_script(&mut context);
-
-    let funding_input = context.create_cell(
-        cell(2_000 * CKB, &funding_lock, None),
-        Bytes::new(),
-    );
-    let owned_output = cell(1_000 * CKB, &owned_owner, Some(&dao));
-    let owner_output = cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner));
-
-    let tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .outputs(vec![owned_output, owner_output])
-        .outputs_data(vec![withdrawal_request_data(1554), owner_distance_data(0)].pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_OWNED_OWNER_MISMATCH);
+    let mut spec = withdrawal(&env, &owner_lock);
+    spec.outputs[1] = env.owner(0).under(&owner_lock).into();
+    spec.fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }
 
 // Scenario: a live owner input uses distance `0` during phase 2.
@@ -32,46 +17,11 @@ fn zero_distance_owner_output_is_rejected() {
 #[test]
 fn zero_distance_owner_input_is_rejected() {
     let mut context = Context::default();
-    let owned_owner = owned_owner_script(&mut context);
-    let dao = dao_script(&mut context);
+    let env = Env::new(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let deposit_header = gen_header(1554, SYNTHETIC_DEPOSIT_AR, 35, 1000, 1000);
-    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
-    let shared_tx_hash = Byte32::from_slice(&[8u8; 32]).expect("shared tx hash");
-    let owned_input = OutPoint::new(shared_tx_hash.clone(), 0);
-    let owner_input = OutPoint::new(shared_tx_hash, 1);
-
-    context.create_cell_with_out_point(
-        owned_input.clone(),
-        cell(123_456_780_000u64, &owned_owner, Some(&dao)),
-        withdrawal_request_data(1554),
-    );
-    context.create_cell_with_out_point(
-        owner_input.clone(),
-        cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner)),
-        owner_distance_data(0),
-    );
-    link_cell_to_header(&mut context, &owned_input, &withdraw_header);
-    context.insert_header(deposit_header.clone());
-    let witness = header_dep_index_witness(1);
-
-    let tx = TransactionBuilder::default()
-        .input(
-            CellInput::new_builder()
-                .previous_output(owned_input)
-                .since(0x2003e800000002f4u64.pack())
-                .build(),
-        )
-        .input(input(owner_input))
-        .output(cell(123_468_106_670u64, &owner_lock, None))
-        .output_data(Bytes::new().pack())
-        .header_dep(withdraw_header.hash())
-        .header_dep(deposit_header.hash())
-        .witness(witness.pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_OWNED_OWNER_MISMATCH);
+    let mut spec = melt(&env, 8, env.owner(0).under(&owner_lock));
+    spec.outputs.push(plain(&owner_lock, 123_468_106_670).into());
+    spec.fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }
 
 // Scenario: the owned cell uses DAO deposit bytes instead of withdrawal-request bytes.
@@ -79,83 +29,62 @@ fn zero_distance_owner_input_is_rejected() {
 #[test]
 fn non_withdrawal_owned_cell_is_rejected() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let funding_lock = always_success_lock(&mut context);
     let owner_lock = named_always_success_lock(&mut context, b"owner");
-    let owned_owner = owned_owner_script(&mut context);
-    let dao = dao_script(&mut context);
-
-    let funding_input = context.create_cell(
-        cell(2_000 * CKB, &funding_lock, None),
-        Bytes::new(),
-    );
-    let owned_output = cell(1_000 * CKB, &owned_owner, Some(&dao));
-    let owner_output = cell(occupied_capacity(&owner_lock, &owned_owner, 4), &owner_lock, Some(&owned_owner));
-
-    let tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .outputs(vec![owned_output, owner_output])
-        .outputs_data(vec![dao_deposit_data(), owner_distance_data(-1)].pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
+    let deposit_shaped = Cell { data: dao_deposit_data().to_vec(), ..owned(&env, 1_000 * CKB, 1554) };
+    TxSpec {
+        inputs: vec![In::new(plain(&funding_lock, 2_000 * CKB))],
+        outputs: vec![deposit_shaped.into(), env.owner(-1).under(&owner_lock).into()],
+        ..Default::default()
+    }
+    .fail(&mut context, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
 }
 
 // A lock-only Owned Owner look-alike can be created with arbitrary type data, but the first spend fails once Owned Owner actually classifies the cell.
 #[test]
 fn lock_only_owned_owner_non_dao_output_can_be_created_but_not_spent() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let funding_lock = always_success_lock(&mut context);
-    let owned_owner = owned_owner_script(&mut context);
-    let helper_type = helper_type_script(&mut context);
-    let funding_input = context.create_cell(cell(500 * CKB, &funding_lock, None), Bytes::new());
+    let look_alike = Cell { type_: Some(env.helper.clone()), ..plain(&env.owned_owner, 200 * CKB) };
+    TxSpec {
+        inputs: vec![In::new(plain(&funding_lock, 500 * CKB))],
+        outputs: vec![look_alike.clone().into()],
+        ..Default::default()
+    }
+    .verify(&mut context)
+    .expect("lock-only owned_owner misuse cell can be created because output locks do not execute");
 
-    let create_tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .output(cell(200 * CKB, &owned_owner, Some(&helper_type)))
-        .output_data(Bytes::new().pack())
-        .build();
-    let create_tx = context.complete_tx(create_tx);
-    context.verify(&create_tx, MAX_CYCLES).expect("lock-only owned_owner misuse cell can be created because output locks do not execute");
-
-    let forged_out_point = context.create_cell(
-        cell(200 * CKB, &owned_owner, Some(&helper_type)),
-        Bytes::new(),
-    );
-    let spend_tx = TransactionBuilder::default()
-        .input(input(forged_out_point))
-        .output(cell(200 * CKB, &always_success_lock(&mut context), None))
-        .output_data(Bytes::new().pack())
-        .build();
-    let spend_tx = context.complete_tx(spend_tx);
-    fail(&context, &spend_tx, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
+    TxSpec {
+        inputs: vec![In::new(look_alike)],
+        outputs: vec![plain(&always_success_lock(&mut context), 200 * CKB).into()],
+        ..Default::default()
+    }
+    .fail(&mut context, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
 }
 
 // The same creation-time gap allows a lock-only DAO-shaped look-alike, but the later spend still fails because it is not a withdrawal request pair.
 #[test]
 fn lock_only_owned_owner_dao_deposit_output_can_be_created_but_not_spent() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let funding_lock = always_success_lock(&mut context);
-    let owned_owner = owned_owner_script(&mut context);
-    let dao = dao_script(&mut context);
-    let funding_input = context.create_cell(cell(2_000 * CKB, &funding_lock, None), Bytes::new());
+    let look_alike = Cell { data: dao_deposit_data().to_vec(), ..owned(&env, 1_000 * CKB, 1554) };
+    TxSpec {
+        inputs: vec![In::new(plain(&funding_lock, 2_000 * CKB))],
+        outputs: vec![look_alike.clone().into()],
+        ..Default::default()
+    }
+    .verify(&mut context)
+    .expect("DAO deposit with owned_owner only on the output lock can be created");
 
-    let create_tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .output(cell(1_000 * CKB, &owned_owner, Some(&dao)))
-        .output_data(dao_deposit_data().pack())
-        .build();
-    let create_tx = context.complete_tx(create_tx);
-    context.verify(&create_tx, MAX_CYCLES).expect("DAO deposit with owned_owner only on the output lock can be created");
-
-    let forged_out_point = create_deposit(&mut context, 1_000 * CKB, &owned_owner, &dao);
-    let spend_tx = TransactionBuilder::default()
-        .input(input(forged_out_point))
-        .output(cell(1_000 * CKB, &always_success_lock(&mut context), None))
-        .output_data(Bytes::new().pack())
-        .build();
-    let spend_tx = context.complete_tx(spend_tx);
-    fail(&context, &spend_tx, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
+    TxSpec {
+        inputs: vec![In::new(look_alike)],
+        outputs: vec![plain(&always_success_lock(&mut context), 1_000 * CKB).into()],
+        ..Default::default()
+    }
+    .fail(&mut context, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
 }
 
 // Scenario: the same script is used as both lock and type on one cell.
@@ -163,18 +92,31 @@ fn lock_only_owned_owner_dao_deposit_output_can_be_created_but_not_spent() {
 #[test]
 fn cell_using_owned_owner_as_both_lock_and_type_is_rejected() {
     let mut context = Context::default();
+    let env = Env::new(&mut context);
     let funding_lock = always_success_lock(&mut context);
-    let owned_owner = owned_owner_script(&mut context);
+    TxSpec {
+        inputs: vec![In::new(plain(&funding_lock, 500 * CKB))],
+        outputs: vec![env.owner(0).under(&env.owned_owner).into()],
+        ..Default::default()
+    }
+    .fail(&mut context, ERROR_OWNED_OWNER_SCRIPT_MISUSE);
+}
 
-    let funding_input = context.create_cell(cell(500 * CKB, &funding_lock, None), Bytes::new());
-    let tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .output(
-            cell(occupied_capacity(&owned_owner, &owned_owner, 4), &owned_owner, Some(&owned_owner)),
-        )
-        .output_data(Bytes::from(vec![0u8; 4]).pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_OWNED_OWNER_SCRIPT_MISUSE);
+// Scenario: the owned cell carries withdrawal-request-shaped data (8 non-zero bytes) under a
+// non-DAO type.
+// Expectation: Owned Owner rejects it on the DAO type check alone; the other look-alike tests
+// fail the data check first, so only this case pins the type check.
+#[test]
+fn request_shaped_owned_cell_without_dao_type_is_rejected() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    let funding_lock = always_success_lock(&mut context);
+    let owner_lock = named_always_success_lock(&mut context, b"owner");
+    let request_shaped = Cell { type_: Some(env.helper.clone()), ..owned(&env, 1_000 * CKB, 1554) };
+    TxSpec {
+        inputs: vec![In::new(plain(&funding_lock, 2_000 * CKB))],
+        outputs: vec![request_shaped.into(), env.owner(-1).under(&owner_lock).into()],
+        ..Default::default()
+    }
+    .fail(&mut context, ERROR_OWNED_OWNER_NOT_WITHDRAW_REQUEST);
 }

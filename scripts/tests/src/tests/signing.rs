@@ -94,7 +94,7 @@ pub(super) fn secp_lock(context: &mut Context) -> (Privkey, Script, CellDep) {
         .expect("secp lock");
     let secp_data_dep = CellDep::new_builder()
         .out_point(secp_data_out_point)
-        .dep_type(ckb_testtool::ckb_types::core::DepType::Code.into())
+        .dep_type(ckb_testtool::ckb_types::core::DepType::Code)
         .build();
     (privkey, lock, secp_data_dep)
 }
@@ -107,7 +107,7 @@ fn sign_tx_by_input_group_covers_group_witnesses_and_trailing_extras_only() {
                 input(
                     OutPoint::new_builder()
                         .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
-                        .index((index as u32).pack())
+                        .index(index as u32)
                         .build(),
                 )
             })
@@ -183,7 +183,7 @@ fn sign_tx_binds_the_full_witness_set() {
                 input(
                     OutPoint::new_builder()
                         .tx_hash(Byte32::from_slice(&[index as u8; 32]).expect("tx hash"))
-                        .index((index as u32).pack())
+                        .index(index as u32)
                         .build(),
                 )
             })

@@ -4,60 +4,37 @@ use super::*;
 #[test]
 fn non_empty_args_output_lock_can_be_created_but_not_spent() {
     let mut context = Context::default();
-    let funding_lock = always_success_lock(&mut context);
+    let env = Env::new(&mut context);
     let limit_order_non_empty = data1_script(&mut context, "limit_order", Bytes::from(vec![1]));
-    let helper_type = helper_type_script(&mut context);
-    let funding_input = context.create_cell(
-        cell(2_000 * CKB, &funding_lock, None),
-        Bytes::new(),
-    );
+    let order = Cell { lock: limit_order_non_empty, ..env.order(0, order_data_mint(0, 1, (1, 1))) };
+    let order = Cell { capacity: order.occupied() + 1_500 * CKB, ..order };
+    TxSpec {
+        inputs: vec![In::new(env.plain(2_000 * CKB))],
+        outputs: vec![order.clone().into()],
+        ..Default::default()
+    }
+    .verify(&mut context)
+    .expect("non-empty-args limit_order output lock can be created because output locks do not execute");
 
-    let tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .output(
-            cell(deposit_capacity(&limit_order_non_empty, &helper_type, 89, 1_500 * CKB), &limit_order_non_empty, Some(&helper_type)),
-        )
-        .output_data(order_data_mint(0, 1, (1, 1)).pack())
-        .build();
-    let tx = context.complete_tx(tx);
-    context
-        .verify(&tx, MAX_CYCLES)
-        .expect("non-empty-args limit_order output lock can be created because output locks do not execute");
-
-    let out_point = context.create_cell(
-        cell(deposit_capacity(&limit_order_non_empty, &helper_type, 89, 1_500 * CKB), &limit_order_non_empty, Some(&helper_type)),
-        order_data_mint(0, 1, (1, 1)),
-    );
-    let spend_tx = TransactionBuilder::default()
-        .input(input(out_point))
-        .output(cell(1_500 * CKB, &always_success_lock(&mut context), None))
-        .output_data(Bytes::new().pack())
-        .build();
-    let spend_tx = context.complete_tx(spend_tx);
-    fail(&context, &spend_tx, ERROR_NOT_EMPTY_ARGS);
+    TxSpec {
+        inputs: vec![In::new(order)],
+        outputs: vec![env.plain(1_500 * CKB).into()],
+        ..Default::default()
+    }
+    .fail(&mut context, ERROR_NOT_EMPTY_ARGS);
 }
 
 // Forge a cell that uses `limit_order` as both lock and type so the type script executes immediately and rejects the misuse at creation.
 #[test]
 fn cell_using_limit_order_as_both_lock_and_type_is_rejected() {
     let mut context = Context::default();
-    let funding_lock = always_success_lock(&mut context);
-    let limit_order = limit_order_script(&mut context);
-    let funding_input = context.create_cell(
-        cell(2_000 * CKB, &funding_lock, None),
-        Bytes::new(),
-    );
-
-    let tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .output(
-            cell(occupied_capacity(&limit_order, &limit_order, 0), &limit_order, Some(&limit_order)),
-        )
-        .output_data(Bytes::new().pack())
-        .build();
-
-    let tx = context.complete_tx(tx);
-    fail(&context, &tx, ERROR_LIMIT_ORDER_SCRIPT_MISUSE);
+    let env = Env::new(&mut context);
+    TxSpec {
+        inputs: vec![In::new(env.plain(2_000 * CKB))],
+        outputs: vec![env.master().under(&env.limit_order).into()],
+        ..Default::default()
+    }
+    .fail(&mut context, ERROR_LIMIT_ORDER_SCRIPT_MISUSE);
 }
 
 // Create a lock-only output with undecodable order bytes, then spend it and fail once the input lock parses the malformed payload.
@@ -124,49 +101,24 @@ fn lock_only_limit_order_with_both_ratios_null_can_be_created_but_not_spent() {
 #[test]
 fn lock_only_limit_order_missing_udt_type_returns_typed_error_at_valid_capacity() {
     let mut context = Context::default();
-    let funding_lock = always_success_lock(&mut context);
-    let limit_order = limit_order_script(&mut context);
-    let forged_output = CellOutput::new_builder().lock(limit_order.clone()).build();
-    let forged_capacity = forged_output
-        .occupied_capacity(
-            ckb_testtool::ckb_types::core::Capacity::bytes(89)
-                .expect("occupied capacity bytes"),
-        )
-        .expect("occupied capacity")
-        .as_u64();
-    let funding_input = context.create_cell(
-        cell(200 * CKB, &funding_lock, None),
-        Bytes::new(),
-    );
+    let env = Env::new(&mut context);
+    let data = order_data_custom(0, 0, [0u8; 32], 5i32.to_le_bytes(), (1, 1), (0, 0), 0);
+    let forged = Cell { type_: None, ..env.order(0, data) };
+    let forged = Cell { capacity: forged.occupied(), ..forged };
+    TxSpec {
+        inputs: vec![In::new(env.plain(200 * CKB))],
+        outputs: vec![forged.clone().into()],
+        ..Default::default()
+    }
+    .verify(&mut context)
+    .expect("lock-only limit_order output without a UDT type can still be created");
 
-    let create_tx = TransactionBuilder::default()
-        .input(input(funding_input))
-        .output(
-            forged_output
-                .clone()
-                .as_builder()
-                .capacity(forged_capacity.pack())
-                .build(),
-        )
-        .output_data(order_data_custom(0, 0, [0u8; 32], 5i32.to_le_bytes(), (1, 1), (0, 0), 0).pack())
-        .build();
-    let create_tx = context.complete_tx(create_tx);
-    context
-        .verify(&create_tx, MAX_CYCLES)
-        .expect("lock-only limit_order output without a UDT type can still be created");
-
-    let forged_out_point = context.create_cell(
-        forged_output.as_builder().capacity(forged_capacity.pack()).build(),
-        order_data_custom(0, 0, [0u8; 32], 5i32.to_le_bytes(), (1, 1), (0, 0), 0),
-    );
-    let spend_tx = TransactionBuilder::default()
-        .input(input(forged_out_point))
-        .output(cell(200 * CKB, &always_success_lock(&mut context), None))
-        .output_data(Bytes::new().pack())
-        .build();
-
-    let spend_tx = context.complete_tx(spend_tx);
-    fail(&context, &spend_tx, ERROR_LIMIT_ORDER_MISSING_UDT_TYPE);
+    TxSpec {
+        inputs: vec![In::new(forged), env.funding_input()],
+        outputs: vec![env.plain(200 * CKB).into()],
+        ..Default::default()
+    }
+    .fail(&mut context, ERROR_LIMIT_ORDER_MISSING_UDT_TYPE);
 }
 
 // Create a lock-only output with valid mint data plus trailing bytes, then spend it and fail on the input-side length check.

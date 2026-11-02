@@ -1,17 +1,23 @@
-# Test Layout
+# Tests
 
-`src/tests.rs` keeps shared constants plus the top-level module wiring.
+The suite runs the deployed binaries in `../build/release`. Each module's header comment explains what it covers; this file maps them and says how to run them.
 
-- `src/tests/fixtures.rs`: script builders, DAO/header helpers, and the small repeated setup helpers used across suites.
-- `src/tests/encoders.rs`: receipt, owner-distance, witness, and limit-order data encoders.
-- `src/tests/signing.rs`: sighash signing helpers for whole-transaction-binding tests.
-- `src/tests/replay_helpers.rs`: live-shape parsers and batch builders used by replay-heavy cases.
-- `src/tests/helpers.rs`: focused unit tests for shared encoders.
-- `src/tests/protocol_vectors.rs`: replays the golden vectors of `../vector-gen` (the values the contracts' own Rust logic gives each case) against the release binaries, except two named vectors that describe cells consensus cannot create.
-- `src/tests/ickb_logic.rs`, `owned_owner.rs`, `limit_order.rs`, `replay.rs`: thin suite roots that wire topic-focused files under `src/tests/ickb_logic/`, `owned_owner/`, `limit_order/`, and `replay/`.
+## Running
 
-Some replay tests intentionally rebuild live transaction shapes instead of minimizing the fixture. Those cases keep the audit claims tied to realistic batching, witness layout, header dependencies, and cross-script interaction patterns.
+Run `cargo test --locked` from this directory. rustup reads `rust-toolchain` here, so the tests build on Rust 1.95 with the current CKB crates, while the contracts keep the 1.74 of `../rust-toolchain` that their deployed bytes need. Both share `../Cargo.lock`, which must keep lock format `version = 3`: the contracts' cargo 1.74 cannot read version 4, and newer cargo writes version 4 whenever it changes the lock, so set that line back after a dependency change.
 
-Current strong-lock coverage is direct for `secp256k1_blake160_sighash_all`, which the signed-flow tests use as the representative whole-transaction-binding lock. This repo does not include a `QRL` fixture or harness, so conclusions for other strong-lock deployments rely on the same binding property and deployment assumptions rather than a separate replay in this suite.
+Long runs, best in `--release`:
 
-`ckb-testtool`'s `Context::verify_tx` executes `OutputsDataVerifier`, which checks that the output and output-data counts match, and then executes the transaction scripts through `TransactionScriptsVerifier`. It does not run the full node non-contextual or contextual transaction verifiers, so it does not establish checks such as occupied capacity, `since`, or cellbase maturity. Tests therefore verify through `VerifyRealistic::verify` in `src/tests.rs`, which first holds every input and output to its occupied capacity, then holds every transaction the scripts accept to the node's capacity balance (outputs may not exceed inputs unless a DAO input is present) and to its DAO lock-size rule (for deposits committed since block 10,000,000). So no fixture builds a cell or transaction those node checks would reject. Other consensus-level conclusions rely on CKB source evidence rather than `Context::verify_tx` alone.
+- More fuzz cases: `ICKB_FUZZ_CASES`, `ICKB_FUZZ_SEED`, and `ICKB_FUZZ_CASE_SEED` to replay one case from the seed a failure prints.
+- The exhaustive search: `ICKB_EXHAUSTIVE_SHARD=i/n cargo test --locked --release -- --ignored exhaustive_small_scope`, one process per shard.
+- The chain replay: fetch fixtures with `mainnet/ickb_mainnet.py`, then `ICKB_MAINNET_FIXTURES=<dir>/fixtures.txt cargo test --locked --release -- --ignored mainnet`.
+
+## Layout
+
+- `src/tests.rs`: `VerifyRealistic`, through which every test verifies. It adds the node's own transaction verifiers and the invariant oracle to every transaction the scripts accept, and the node verifiers to every transaction they reject, unless the test names the node rule its point overlaps (`verify_where_node_also_rejects`).
+- `src/tests/tx.rs`: the one way tests build transactions, as plain cell values assembled by `TxSpec`.
+- `src/tests/ickb_logic/`, `owned_owner/`, `limit_order/`: hand-written scenarios per script, including every attack and boundary case the audit report cites.
+- `src/tests/replay/`: transaction shapes rebuilt from observed chain flows.
+- `src/tests/fuzz.rs` and `src/tests/fuzz/`: the structured fuzzer (`fuzz.rs`, `generate.rs`, `mutate.rs`), the invariant oracle (`oracle.rs`), the exhaustive search, the liveness tests and the chain replay (`mainnet.rs`).
+- `src/tests/protocol_vectors.rs`: replays the golden vectors of `../vector-gen` against the release binaries.
+- `src/tests/fixtures.rs`, `encoders.rs`, `signing.rs`, `replay_helpers.rs`: deployment fixtures, data encoders, secp signing and mainnet-shape helpers; `helpers.rs` unit-tests the encoders.
