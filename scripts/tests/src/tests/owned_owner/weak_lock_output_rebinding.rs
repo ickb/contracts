@@ -1,7 +1,7 @@
 use super::*;
 
 // Recipient binding depends on the user lock, not Owned Owner itself.
-// With a weak owner lock, phase 1 can redirect the owner cell to a different later claimant even though the DAO request itself is unchanged.
+// With a weak input lock, phase 1 can redirect the owner cell to a different later claimant even though the DAO request itself is unchanged.
 #[test]
 fn weak_lock_can_reassign_withdrawal_owner_output() {
     let mut context = Context::default();
@@ -62,7 +62,7 @@ fn sighash_lock_binds_withdrawal_owner_output_to_the_signed_transaction() {
     fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
-// Scenario: a batch mixes one signed owner and one weak owner.
+// Scenario: a batch mixes one signed input and one weak input.
 // Expectation: once the signed input group commits to the batch, both withdrawal outputs are bound and post-signing tampering fails.
 #[test]
 fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
@@ -131,7 +131,7 @@ fn mixed_sighash_and_weak_udts_bind_all_withdrawal_outputs_once_signed() {
     fail(&context, &tampered_tx, ERROR_SECP256K1_BLAKE160_SIGHASH_ALL);
 }
 
-// Scenario: both withdrawal owners are weak locks.
+// Scenario: both withdrawal inputs are under weak locks.
 // Expectation: nothing binds the owner outputs, so both claims can be reassigned together during phase 1.
 #[test]
 fn two_weak_udts_can_reassign_combined_withdrawal_owner_outputs() {

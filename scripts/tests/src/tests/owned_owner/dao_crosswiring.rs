@@ -28,7 +28,7 @@ fn crosswired_batch_is_blocked_by_dao_index_rules() {
     assert_script_error(context.verify_where_node_also_rejects(&tx, MAX_CYCLES, "The DAO output data at index 2").unwrap_err(), ERROR_DAO_INVALID_WITHDRAWING_CELL);
 }
 
-// This two-way batch keeps DAO index rules satisfied, so weak phase 1 owner locks are enough to rotate later claim ownership.
+// This two-way batch keeps DAO index rules satisfied, so weak phase 1 input locks are enough to rotate later claim ownership.
 #[test]
 fn weak_lock_valid_dao_batch_can_crosswire_claims() {
     let mut context = Context::default();
@@ -37,7 +37,7 @@ fn weak_lock_valid_dao_batch_can_crosswire_claims() {
     let user2_lock = named_always_success_lock(&mut context, b"user2");
     crosswired(&env, &user1_lock, &user2_lock, 1_000 * CKB, 1_100 * CKB)
         .verify(&mut context)
-        .expect("under weak owner locks, owned_owner accepts crosswired owner assignments when DAO index rules are still satisfied");
+        .expect("under weak input locks, owned_owner accepts crosswired owner assignments when DAO index rules are still satisfied");
 }
 
 // The later phase 2 claim follows the crosswired owner cell, not the user's intended pairing, once phase 1 accepted the weak-lock batch.
@@ -48,7 +48,7 @@ fn weak_lock_crosswired_batch_reassigns_phase2_claims() {
     let user1_lock = named_always_success_lock(&mut context, b"user1");
     let user2_lock = named_always_success_lock(&mut context, b"user2");
     let create = crosswired(&env, &user1_lock, &user2_lock, 1_000 * CKB, 1_200 * CKB);
-    let live = create.accept(&mut context, "under weak owner locks, the crosswired phase1 batch should verify");
+    let live = create.accept(&mut context, "under weak input locks, the crosswired phase1 batch should verify");
 
     let withdraw_header2 = withdraw_header(2_000_621);
     TxSpec {
@@ -57,7 +57,7 @@ fn weak_lock_crosswired_batch_reassigns_phase2_claims() {
         header_deps: vec![withdraw_header2, deposit_header(1555)],
     }
     .verify(&mut context)
-    .expect("under weak owner locks, user1's owner cell should successfully claim the crosswired second withdrawal request");
+    .expect("under weak input locks, user1's owner cell should successfully claim the crosswired second withdrawal request");
 
     let withdraw_header1 = withdraw_header(2_000_610);
     TxSpec {
@@ -83,7 +83,7 @@ fn weak_lock_three_way_crosswire_rotates_claims() {
     for (lock, distance) in [(&user1_lock, -2), (&user2_lock, -2), (&user3_lock, -5)] {
         create.outputs.push(Cell { capacity: 200 * CKB, ..env.owner(distance).under(lock) }.into());
     }
-    let live = create.accept(&mut context, "under weak owner locks, owned_owner accepts a three-way crosswired withdrawal batch when DAO index rules still hold");
+    let live = create.accept(&mut context, "under weak input locks, owned_owner accepts a three-way crosswired withdrawal batch when DAO index rules still hold");
 
     let withdraw_header2 = withdraw_header(2_000_621);
     let claim_of = |owner: &In, lock: &Script| TxSpec {
@@ -93,6 +93,6 @@ fn weak_lock_three_way_crosswire_rotates_claims() {
     };
     claim_of(&live[3], &user1_lock)
         .verify(&mut context)
-        .expect("under weak owner locks, user1 should successfully claim user2's withdrawal request from a three-way crosswired batch");
+        .expect("under weak input locks, user1 should successfully claim user2's withdrawal request from a three-way crosswired batch");
     claim_of(&live[4], &user2_lock).fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }

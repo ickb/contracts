@@ -1,6 +1,6 @@
 use super::*;
 
-// If phase 1 owner locks are weak, a mixed foreign-plus-iCKB batch can crosswire who later controls each valid DAO claim.
+// If the phase 1 input locks do not bind the outputs, a mixed foreign-plus-iCKB batch can crosswire who later controls each valid DAO claim.
 #[test]
 fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
     let mut context = Context::default();
@@ -45,6 +45,6 @@ fn weak_lock_mixed_foreign_and_ickb_batch_can_crosswire_claims() {
     };
     claim_by(&live[2], &foreign_owner_lock)
         .verify(&mut context)
-        .expect("under weak owner locks, the foreign owner cell should be able to claim the real iCKB withdrawal once the mixed batch crosswires the later claim assignment");
+        .expect("under weak input locks, the foreign owner cell should be able to claim the real iCKB withdrawal once the mixed batch crosswires the later claim assignment");
     claim_by(&live[3], &protocol_owner_lock).fail(&mut context, ERROR_OWNED_OWNER_MISMATCH);
 }
