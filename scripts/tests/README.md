@@ -19,6 +19,6 @@ Long runs, best in `--release`:
 - `src/tests/tx.rs`: the one way tests build transactions, as plain cell values assembled by `TxSpec`.
 - `src/tests/ickb_logic/`, `owned_owner/`, `limit_order/`: hand-written scenarios per script, including every attack and boundary case the audit report cites.
 - `src/tests/replay/`: transaction shapes rebuilt from observed chain flows.
-- `src/tests/fuzz.rs` and `src/tests/fuzz/`: the structured fuzzer (`fuzz.rs`, `generate.rs`, `mutate.rs`), the invariant oracle (`oracle.rs`), the exhaustive search, the liveness tests and the chain replay (`mainnet.rs`).
+- `src/tests/fuzz.rs` and `src/tests/fuzz/`: the structured fuzzer (`fuzz.rs`, `generate.rs`, `mutate.rs`), the invariant oracle (`oracle.rs`), the exhaustive search, the liveness tests, the chain replay (`mainnet.rs`) and the tests for machine code nothing else runs (`reach.rs`).
 - `src/tests/protocol_vectors.rs`: replays the golden vectors of `../vector-gen` against the release binaries.
 - `src/tests/fixtures.rs`, `encoders.rs`, `signing.rs`, `replay_helpers.rs`: deployment fixtures, data encoders, secp signing and mainnet-shape helpers; `helpers.rs` unit-tests the encoders.
