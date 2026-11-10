@@ -7,6 +7,8 @@ Usage (run with python3 -I):
 fetch writes <out_dir>/fixtures.txt (one record per line, molecule hex, read by the Rust replay test)
 and <out_dir>/meta.json. Every fetched transaction and header is re-serialized here and its hash
 checked against the RPC hash, so the molecule encoding is proven before it reaches the fixture.
+The fixtures carry every cell dep too, dep group members included, so the replay can execute each
+transaction's scripts on the code cells the chain used.
 """
 import hashlib
 import json
@@ -180,6 +182,32 @@ def fetch(release, out, url):
     prevs = dict(txs)
     for r in rpc.many([("get_transaction", [x]) for x in prev_hashes]):
         prevs[r["transaction"]["hash"]] = r
+    # Cell deps, then the members of the dep groups among them. A spent dep is still served by
+    # get_transaction, so the replay sees the code cells each transaction ran against.
+    dep_points = {(d["out_point"]["tx_hash"], int(d["out_point"]["index"], 16)) for r in txs.values() for d in r["transaction"]["cell_deps"]}
+    group_points = {(d["out_point"]["tx_hash"], int(d["out_point"]["index"], 16))
+                    for r in txs.values() for d in r["transaction"]["cell_deps"] if d["dep_type"] == "dep_group"}
+    dep_txs = {}
+
+    def fetch_dep_txs(points):
+        missing = sorted({x for x, _ in points} - set(dep_txs))
+        for r in rpc.many([("get_transaction", [x]) for x in missing]):
+            tx_bytes(r["transaction"])  # proves the dep cell bytes come from the committed transaction
+            dep_txs[r["transaction"]["hash"]] = r
+
+    fetch_dep_txs(dep_points)
+    for x, k in sorted(group_points):
+        members = h(dep_txs[x]["transaction"]["outputs_data"][k])
+        count = int.from_bytes(members[:4], "little")
+        assert len(members) == 4 + 36 * count, "dep group data is not an OutPointVec"
+        for m in range(count):
+            point = members[4 + 36 * m:40 + 36 * m]
+            dep_points.add(("0x" + point[:32].hex(), int.from_bytes(point[32:], "little")))
+    fetch_dep_txs(dep_points)
+    dep_lines = []
+    for x, k in sorted(dep_points):
+        t = dep_txs[x]["transaction"]
+        dep_lines.append(f"dep {out_point({'tx_hash': x, 'index': k}).hex()} {cell_output(t['outputs'][k]).hex()} {t['outputs_data'][k][2:]}")
     header_hashes = set()
     for r in txs.values():
         header_hashes.update(r["transaction"]["header_deps"])
@@ -204,15 +232,15 @@ def fetch(release, out, url):
         lines.append("end")
     head_lines = [f"header {header_bytes(headers[x]).hex()}" for x in header_hashes]
     meta_s = {k: script_hash(v) for k, v in s.items()}
-    text = "".join(l + "\n" for l in [f"scripts {meta_s['ickb_logic']} {meta_s['ickb_xudt']} {meta_s['owned_owner']} {meta_s['limit_order']} {meta_s['dao']}"] + head_lines + lines)
+    text = "".join(l + "\n" for l in [f"scripts {meta_s['ickb_logic']} {meta_s['ickb_xudt']} {meta_s['owned_owner']} {meta_s['limit_order']} {meta_s['dao']}"] + dep_lines + head_lines + lines)
     with open(f"{out}/fixtures.txt", "w") as f:
         f.write(text)
-    raw = {"txs": txs, "prevs": {k: v for k, v in prevs.items() if k not in txs}, "headers": headers}
+    raw = {"txs": txs, "prevs": {k: v for k, v in prevs.items() if k not in txs}, "deps": dep_txs, "headers": headers}
     with open(f"{out}/raw.json", "w") as f:
         json.dump(raw, f, sort_keys=True)
     meta = {"rpc": url, "tip_number": tip, "tip_hash": tip_hash, "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "indexer_entries_per_role": counts, "transactions": len(txs), "previous_transactions": len(prev_hashes),
-            "input_cells": cells, "headers": len(header_hashes), "scripts": s, "script_hashes": meta_s, "rpc_calls": rpc.calls}
+            "input_cells": cells, "dep_cells": len(dep_lines), "headers": len(header_hashes), "scripts": s, "script_hashes": meta_s, "rpc_calls": rpc.calls}
     for name in ["fixtures.txt", "raw.json"]:
         with open(f"{out}/{name}", "rb") as f:
             meta[f"sha256:{name}"] = hashlib.sha256(f.read()).hexdigest()
