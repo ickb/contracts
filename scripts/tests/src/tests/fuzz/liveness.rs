@@ -106,6 +106,40 @@ fn largest_withdrawal_and_its_claim_each_fit_one_block() {
     eprintln!("{MAX_WITHDRAWAL_PAIRS} pairs: withdrawal {withdraw} cycles, claim {claim} cycles");
 }
 
+// The largest withdrawal again, with its deposits at input positions 32 to 63 instead of 0 to 31,
+// in blocks past 10,000,000, where the node's DAO lock-size rule applies.
+#[test]
+fn largest_withdrawal_with_deposits_at_inputs_32_to_63_fits_one_block() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    let pairs = MAX_WITHDRAWAL_PAIRS;
+    let owner = env.owner(pairs as i32);
+    let mut spec = TxSpec::default();
+    // Inputs 0 to 30 are plain cells and input 31 the iCKB, so no DAO cell sits below position 32.
+    for k in 0..pairs - 1 {
+        spec.inputs.push(input(env.plain(owner.capacity), point(15, k), None));
+        spec.outputs.push(Out::from(owner.clone()));
+    }
+    let mut value = 0;
+    let mut requests = Vec::new();
+    for k in 0..pairs {
+        let ar = GENESIS_AR + u64::from(k);
+        let number = 12_000_000 + u64::from(k);
+        let header = gen_header(number, ar, 9_000, number - number % 1_800, 1_800);
+        let cell = deposit(&env, &env.ickb, MAX_DEPOSIT, vec![0; 8]);
+        value += soft_capped_ickb(MAX_DEPOSIT, ar);
+        requests.push(Out::from(Cell { lock: env.owned_owner.clone(), data: number.to_le_bytes().to_vec(), ..cell.clone() }));
+        spec.inputs.push(input(cell, point(16, k), Some(&header)));
+        spec.header_deps.push(header);
+    }
+    let udt = env.udt(value);
+    spec.inputs.insert(pairs as usize - 1, input(udt.clone(), point(17, 0), None));
+    spec.outputs.push(Out::from(Cell { capacity: udt.capacity, ..owner }));
+    spec.outputs.extend(requests);
+    assert_eq!(spec.outputs.len(), 64);
+    commit(&mut context, spec);
+}
+
 // The iCKB scripts find each input's header through the input itself, never through a header dep
 // index, so a long header dep list neither blocks a withdrawal nor a claim whose deposit headers
 // come first.
