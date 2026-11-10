@@ -11,6 +11,7 @@ Long runs, best in `--release`:
 - More fuzz cases: `ICKB_FUZZ_CASES`, `ICKB_FUZZ_SEED`, and `ICKB_FUZZ_CASE_SEED` to replay one case from the seed a failure prints.
 - The exhaustive search: `ICKB_EXHAUSTIVE_SHARD=i/n cargo test --locked --release -- --ignored exhaustive_small_scope`, one process per shard.
 - The chain replay: fetch fixtures with `mainnet/ickb_mainnet.py`, then `ICKB_MAINNET_FIXTURES=<dir>/fixtures.txt cargo test --locked --release -- --ignored mainnet`.
+- Instruction coverage of the deployed binaries: `coverage/run.sh <work_dir>`, see [`coverage/README.md`](coverage/README.md).
 
 ## Layout
 

@@ -1,0 +1,90 @@
+--- a/src/cov.rs
++++ b/src/cov.rs
+@@ -0,0 +1,43 @@
++// Coverage instrumentation, never part of a node: appends "<program fnv64> <pc>" for every instruction the
++// asm machine decodes into a trace, once per process, to the file named by ICKB_COV_FILE.
++use std::cell::Cell;
++use std::collections::HashSet;
++use std::io::Write;
++use std::sync::{Mutex, OnceLock};
++
++thread_local! { static CUR: Cell<u64> = const { Cell::new(0) }; }
++type State = (HashSet<(u64, u64)>, Option<std::fs::File>);
++static SEEN: OnceLock<Mutex<State>> = OnceLock::new();
++
++pub fn set_program(bytes: &[u8]) {
++    let mut h: u64 = 0xcbf29ce484222325;
++    for b in bytes {
++        h ^= u64::from(*b);
++        h = h.wrapping_mul(0x100000001b3);
++    }
++    CUR.with(|c| c.set(h));
++}
++
++pub fn record(pcs: &[u64]) {
++    let id = CUR.with(|c| c.get());
++    let m = SEEN.get_or_init(|| {
++        let f = std::env::var("ICKB_COV_FILE").ok().map(|p| {
++            std::fs::OpenOptions::new().create(true).append(true).open(p).unwrap()
++        });
++        Mutex::new((HashSet::new(), f))
++    });
++    let mut g = m.lock().unwrap();
++    if g.1.is_none() {
++        return;
++    }
++    let mut out = String::new();
++    for &v in pcs {
++        // High byte carries the instruction length (fused instructions span several).
++        if g.0.insert((id, v)) {
++            out.push_str(&format!("{:x} {:x} {}\n", id, v & 0x00ff_ffff_ffff_ffff, v >> 56));
++        }
++    }
++    if !out.is_empty() {
++        g.1.as_mut().unwrap().write_all(out.as_bytes()).unwrap();
++    }
++}
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -3,6 +3,7 @@
+ 
+ pub mod bits;
+ pub mod cost_model;
++pub mod cov;
+ pub mod debugger;
+ pub mod decoder;
+ pub mod elf;
+--- a/src/machine/mod.rs
++++ b/src/machine/mod.rs
+@@ -138,6 +138,7 @@
+         metadata: &ProgramMetadata,
+         update_pc: bool,
+     ) -> Result<u64, Error> {
++        crate::cov::set_program(program);
+         let version = self.version();
+         let mut bytes: u64 = 0;
+         for action in &metadata.actions {
+--- a/src/machine/asm/mod.rs
++++ b/src/machine/asm/mod.rs
+@@ -584,10 +584,13 @@
+                     let mut trace = Trace::default();
+                     let mut current_pc = pc;
+                     let mut i = 0;
++                    let mut cov_pcs = [0u64; TRACE_ITEM_LENGTH];
+                     while i < TRACE_ITEM_LENGTH {
++                        cov_pcs[i] = current_pc;
+                         let instruction = decoder.decode(self.machine.memory_mut(), current_pc)?;
+                         let end_instruction = is_basic_block_end_instruction(instruction);
+                         current_pc += u64::from(instruction_length(instruction));
++                        cov_pcs[i] |= u64::from(instruction_length(instruction)) << 56;
+                         trace.instructions[i] = instruction;
+                         trace.cycles += self.machine.instruction_cycle_func()(instruction);
+                         let opcode = extract_opcode(instruction);
+@@ -603,6 +606,7 @@
+                             break;
+                         }
+                     }
++                    crate::cov::record(&cov_pcs[..i]);
+                     trace.instructions[i] = blank_instruction(OP_CUSTOM_TRACE_END);
+                     trace.thread[i] = unsafe {
+                         u64::from(
