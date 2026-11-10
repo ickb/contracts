@@ -9,6 +9,8 @@
 //! - A script longer than 256 bytes, the running one or an output lock, takes a second read into heap memory.
 //! - The 128-bit division of the iCKB conversion has a correction step that few operands need.
 //! - The 256-bit order arithmetic only uses its upper words for amounts near their limits.
+//!
+//! The last section pins where each script runs out of its 516 KB heap, so the limits are known.
 use super::liveness::{claim, commit, deposit, fund, input, order, point, C2U, MAX_DEPOSIT, MIN_DEPOSIT, MIN_MATCH_LOG, U2C};
 use super::*;
 
@@ -588,4 +590,121 @@ fn wide_melt(env: &Env, tag: u8, count: u32) -> TxSpec {
     }
     fund(env, &mut melt);
     melt
+}
+
+/// The most orders one transaction can mint, fill or melt when the script meets their masters in
+/// sorted order, which leaves its map nodes half empty. Scattered masters fit more.
+const MAX_SORTED_ORDERS: u32 = 382;
+/// The node's default limit on the cycles of a transaction it takes into its pool.
+const POOL_CYCLES: u64 = 70_000_000;
+
+// `Limit Order` keeps about 8 KB per map node and has 516 KB of heap. With 383 sorted orders the
+// heap runs out and the script stops. That bounds a batch, not an order: each order still mints,
+// fills and melts in a smaller transaction, and 382 stay far below the block size and the pool cycles.
+#[test]
+fn sorted_orders_fit_one_transaction_up_to_382() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    let n = MAX_SORTED_ORDERS;
+    for spec in [wide_mint(&env, n), wide_match(&env, 0xb0, n, None), wide_melt(&env, 0xb4, n)] {
+        assert!(commit(&mut context, spec) < POOL_CYCLES);
+    }
+    for spec in [wide_mint(&env, n + 1), wide_match(&env, 0xb8, n + 1, None), wide_melt(&env, 0xbc, n + 1)] {
+        stops(&mut context, spec, ERROR_SCRIPT_PANIC);
+    }
+    // 400 orders whose masters the script meets out of order still melt at once.
+    let mut scattered = TxSpec::default();
+    for k in 0..400 {
+        let master = point(0xbf, k * 7 % 400);
+        scattered.inputs.push(input(order(&env, ORDER_CKB, 0, &master), point(0xbe, k), None));
+        scattered.inputs.push(input(env.master(), master, None));
+    }
+    fund(&env, &mut scattered);
+    assert!(commit(&mut context, scattered) < POOL_CYCLES);
+}
+
+/// The longest args of an output lock that every script still reads: a 256 KiB script.
+const MAX_LOCK_ARGS: usize = 262_091;
+
+// A lock is read into one heap block, and the largest free block holds 256 KiB. A longer output
+// lock stops whichever iCKB script runs. No wallet lock comes near, and whoever builds the
+// transaction picks its output locks.
+#[test]
+fn output_locks_up_to_256_kib_are_read() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    for spec in with_output_lock(&env, 0xc0, &long_lock(&env, MAX_LOCK_ARGS)) {
+        commit(&mut context, spec);
+    }
+    // Each time the script that stops is the one under test: the type of the receipt, the type of
+    // the master, the lock of the pool deposit, the lock of the withdrawal request.
+    let stopped_at = ["Outputs[1].Type", "Outputs[1].Type", "Inputs[0].Lock", "Inputs[0].Lock"];
+    for (mut spec, at) in with_output_lock(&env, 0xc4, &long_lock(&env, MAX_LOCK_ARGS + 1)).into_iter().zip(stopped_at) {
+        assert!(spec.balance());
+        let tx = spec.build(&mut context);
+        let err = context.verify(&tx, mainnet().max_block_cycles()).expect_err("the lock is too long to read");
+        assert!(err.to_string().contains(at), "{err}");
+        assert_script_error(err, ERROR_SCRIPT_PANIC);
+    }
+}
+
+// 500 withdrawal requests claimed at once, from one deposit block so one header dep serves them
+// all, stay within what a node takes into its pool. `Owned Owner` itself has room for six times
+// as many; the cycles of 1,000 claims already exceed the pool limit.
+#[test]
+fn five_hundred_claims_fit_the_pool_cycle_limit() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    let n = 500;
+    let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
+    let deposit_header = gen_header(1_554, GENESIS_AR, 35, 1000, 1000);
+    let mut spec = TxSpec { header_deps: vec![withdraw_header.clone(), deposit_header], ..Default::default() };
+    let mut claimed = 0;
+    for k in 0..n {
+        let request = deposit(&env, &env.owned_owner, MIN_DEPOSIT, 1_554u64.to_le_bytes().to_vec());
+        claimed += dao_maximum_withdraw_capacity(&request.output(), 8, GENESIS_AR, SYNTHETIC_WITHDRAW_AR);
+        let owner = env.owner(-(n as i32));
+        claimed += owner.capacity;
+        spec.inputs.push(In { since: CLAIM_SINCE, witness: header_dep_index_witness(1), ..input(request, point(0xc8, k), Some(&withdraw_header)) });
+        spec.inputs.push(input(owner, point(0xc8, n + k), Some(&withdraw_header)));
+    }
+    spec.outputs.push(Out::from(env.plain(claimed)));
+    assert!(commit(&mut context, spec) < POOL_CYCLES);
+}
+
+/// The most distinct pairing keys `Owned Owner` holds for one side of a transaction.
+const MAX_PAIRING_KEYS: i32 = 3_063;
+
+// `Owned Owner` runs out of heap too, far past any claim a node relays: owner cells pointing at
+// 3,064 different places stop the script, where 3,063 get the pairing error they deserve. Both
+// refuse the transaction.
+#[test]
+fn owned_owner_holds_3063_pairing_keys() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    let owners = |count: i32| {
+        let mut spec = TxSpec::default();
+        for k in 0..count {
+            spec.outputs.push(Out::from(env.owner(10_000 + k)));
+        }
+        fund(&env, &mut spec);
+        spec
+    };
+    stops(&mut context, owners(MAX_PAIRING_KEYS), ERROR_OWNED_OWNER_MISMATCH);
+    stops(&mut context, owners(MAX_PAIRING_KEYS + 1), ERROR_SCRIPT_PANIC);
+}
+
+// `iCKB Logic` keeps one small map entry per distinct amount, so its heap outlasts the block
+// size: 3,870 receipts of distinct amounts take about a whole block, and the receipt check still answers.
+#[test]
+fn ickb_logic_holds_a_block_of_distinct_receipt_amounts() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    let bare = env.user.clone().as_builder().args(Bytes::new().pack()).build();
+    let mut spec = TxSpec::default();
+    for i in 0..3_870 {
+        spec.outputs.push(Out::from(env.receipt(1, MIN_DEPOSIT + i).under(&bare)));
+    }
+    fund(&env, &mut spec);
+    stops(&mut context, spec, ERROR_RECEIPT_MISMATCH);
 }
