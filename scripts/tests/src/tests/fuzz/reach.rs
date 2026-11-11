@@ -453,8 +453,7 @@ fn fills_at_the_limits_of_every_operand_are_priced_exactly() {
 }
 
 /// (amount, accumulated rate) pairs that take each branch of the 128-bit division in the iCKB
-/// conversion. `../../../coverage/division_paths.py` ports the division the compiler links into
-/// the scripts and searches for such pairs. With `check` it confirms each row takes the branch named.
+/// conversion, as `trifecta` below labels them. Searches over random pairs found them.
 const DIVISION_ROWS: [(&str, u64, u64); 14] = [
     // The rows a deposit within the bounds can take at a rate between genesis and double genesis.
     ("B", 55_664_639_800_631, 10_869_849_637_299_280),
@@ -474,6 +473,80 @@ const DIVISION_ROWS: [(&str, u64, u64); 14] = [
     ("early0", 62, 4_278_428_074_455_958_971),
     ("small-divisor", 2_000, 4_000_000_000),
 ];
+
+/// `u128_div_rem` of compiler_builtins 0.1.101, which the compiler links into `iCKB Logic` for the
+/// conversion: `impl_trifecta!` with 32-bit halves (src/int/specialized_div_rem/trifecta.rs),
+/// ported line by line. Returns the quotient, the remainder and the branch that produced them.
+fn trifecta(duo: u128, div: u128) -> (u128, u128, &'static str) {
+    let (n, n_h) = (64, 32);
+    let div_lz = div.leading_zeros();
+    let mut duo_lz = duo.leading_zeros();
+    if div_lz <= duo_lz {
+        return if duo >= div { (1, duo - div, "early1") } else { (0, duo, "early0") };
+    }
+    if duo_lz >= n {
+        return (duo / div, duo % div, "half");
+    }
+    if div_lz >= n + n_h {
+        // Three half divisions by a 32-bit divisor; no accumulated rate is that small.
+        return (duo / div, duo % div, "small-divisor");
+    }
+    if div_lz - duo_lz < n_h {
+        let shift = n - duo_lz;
+        let quo = ((duo >> shift) as u64 / (div >> shift) as u64) as u128;
+        let (tmp, overflow) = quo.overflowing_mul(div);
+        return if overflow || duo < tmp {
+            (quo - 1, duo.wrapping_add(div).wrapping_sub(tmp), "A-corrected")
+        } else {
+            (quo, duo - tmp, "A")
+        };
+    }
+    let (mut duo, mut quo) = (duo, 0u128);
+    let div_extra = n + n_h - div_lz;
+    let div_sig_n_h_add1 = (div >> div_extra) as u32 as u64 + 1;
+    loop {
+        let duo_extra = n - duo_lz;
+        if div_extra <= duo_extra {
+            let quo_part = ((duo >> duo_extra) as u64 / div_sig_n_h_add1) as u128;
+            let extra_shl = duo_extra - div_extra;
+            quo += quo_part << extra_shl;
+            duo -= div.wrapping_mul(quo_part) << extra_shl;
+        } else {
+            let shift = n - duo_lz;
+            let quo_part = ((duo >> shift) as u64 / (div >> shift) as u64) as u128;
+            let tmp = quo_part.wrapping_mul(div);
+            return if duo < tmp {
+                (quo + quo_part - 1, duo.wrapping_add(div).wrapping_sub(tmp), "B-corrected")
+            } else {
+                (quo + quo_part, duo - tmp, "B")
+            };
+        }
+        duo_lz = duo.leading_zeros();
+        if div_lz <= duo_lz {
+            return if div <= duo { (quo + 1, duo - div, "loop-early1") } else { (quo, duo, "loop-early0") };
+        }
+        if n <= duo_lz {
+            return (quo + duo / div, duo % div, "loop-half");
+        }
+    }
+}
+
+// Each row takes the branch its label names. The port gives the native result on the rows and on
+// random pairs, so a slip in porting would show.
+#[test]
+fn division_rows_take_the_branch_their_label_names() {
+    for (label, amount, ar) in DIVISION_ROWS {
+        let (duo, div) = (u128::from(amount) * u128::from(GENESIS_AR), u128::from(ar));
+        assert_eq!(trifecta(duo, div), (duo / div, duo % div, label), "({amount}, {ar})");
+    }
+    let mut rng = Rng(1);
+    for _ in 0..300_000 {
+        let duo = u128::from(rng.next() >> rng.below(64)) * u128::from(GENESIS_AR);
+        let div = u128::from((rng.next() >> rng.below(64)).max(1));
+        let (quo, rem, branch) = trifecta(duo, div);
+        assert_eq!((quo, rem), (duo / div, duo % div), "({duo}, {div}) on {branch}");
+    }
+}
 
 // The quotient the script computes on RISC-V equals the one this test computes natively. One unit
 // more is refused. Both hold on every branch of the division, the two correction steps included.

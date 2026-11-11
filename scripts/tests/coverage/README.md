@@ -35,7 +35,3 @@ python3 -I coverage/coverage.py ../build/release /tmp/ickb-coverage/symbols /tmp
 - `--functions`: lists every function not fully executed.
 - `--runs`: prints the never-executed instructions that end neither in a panic nor in an allocation failure, as disassembly.
 - `--annotate <binary> <regex>`: prints the matching functions with `--` on each never-executed instruction.
-
-## Division Branches
-
-`division_paths.py` ports the 128-bit division that the compiler links into `iCKB Logic`. It searches for an amount and an accumulated rate per branch. `python3 -I coverage/division_paths.py check src/tests/fuzz/reach.rs` confirms that each row of `DIVISION_ROWS` takes the branch its label names.
