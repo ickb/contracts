@@ -116,7 +116,7 @@ The same [ancillary scripts section](https://github.com/ickb/whitepaper/blob/mas
 
 ## How the Deployed Bytes Were Tested
 
-The deployment can't be patched (see [Non-Upgradable Deployment](#non-upgradable-deployment)). So every result here is evidence about the bytes on chain, not regression protection. No check below found the deployed scripts accepting a transaction that breaks an invariant.
+The deployment can't be patched ([Non-Upgradable Deployment](#non-upgradable-deployment)), so every result here is evidence about the bytes on chain, not regression protection. No check below found the deployed scripts accepting a transaction that breaks an invariant.
 
 ### Reference Repositories
 
@@ -133,18 +133,18 @@ The `nervosnetwork/ckb` pin is release `v0.210.0`. It takes its genesis NervosDA
 
 ### Source Matches the Deployed Bytes
 
-Building the contracts at this repository state, in the image `scripts/Cross.toml` pins, gives back all three deployed binaries byte for byte: same data hashes as `scripts/build/release`. The [build recipe](scripts/README.md#building-the-scripts) runs the same `cargo build` that capsule 0.10.5 ran, without capsule or cross. So the source analysis in this report and the mutation testing below bind to the deployed code.
+Building the contracts at this repository state, in the image `scripts/Cross.toml` pins, gives back all three deployed binaries byte for byte: same data hashes as `scripts/build/release`. The [build recipe](scripts/README.md#building-the-scripts) runs the same `cargo build` that capsule 0.10.5 ran, without capsule or cross. So the source analysis and the mutation testing below bind to the deployed code.
 
 ### The Test Harness
 
 The suite runs the deployed binaries in `ckb-testtool`. Its `Context::verify_tx` executes the scripts but none of the other transaction checks of the node. So [every test verifies](scripts/tests/src/tests.rs) through `VerifyRealistic`, which adds two checks:
 
-- **Node verifiers:** every transaction also goes through `ckb-verification` 1.2.1 under mainnet consensus, so a rejection test shows something only the scripts refuse. Its transaction verifier is unchanged from node v0.210.0. It covers capacity, the NervosDAO maximum withdraw and the DAO lock-size and output-data rules. Only checks that waiting satisfies (`since` and cellbase maturity) are left out. The few rejection tests whose point overlaps a node rule, such as a malformed DAO witness, name that rule explicitly. The chain replay below confirms the check rejects none of the transactions the real chain accepted.
-- **Invariant oracle:** on every transaction the scripts accept, it re-derives the four invariants from the transaction and its resolved input cells, not from script code paths. It checks each one only when its owning script executes. It still parses cells with the same rules as the scripts (data lengths, the soft-capped conversion, the order encoding). So it catches a binary that differs from its source or a composition the scripts get wrong. It can't catch a rule that both the scripts and the oracle get wrong. A positive-control test feeds it one broken transaction per invariant, so a silenced oracle fails the suite.
+- **Node verifiers:** every transaction also goes through `ckb-verification` 1.2.1 under mainnet consensus, so a rejection test shows something only the scripts refuse. Its transaction verifier is unchanged from node v0.210.0. It covers capacity, the NervosDAO maximum withdraw and the DAO lock-size and output-data rules. Only checks that waiting satisfies (`since` and cellbase maturity) are left out. The few rejection tests whose point overlaps a node rule, such as a malformed DAO witness, name that rule explicitly. The chain replay below shows it rejects none of the transactions the real chain accepted.
+- **Invariant oracle:** on every transaction the scripts accept, it re-derives the four invariants from the transaction and its resolved input cells, not from script code paths. It checks each one only when its owning script executes. It still parses cells with the same rules as the scripts (data lengths, the soft-capped conversion, the order encoding). So it catches a binary that differs from its source or a composition the scripts get wrong, but not a rule both get wrong. A positive-control test feeds it one broken transaction per invariant, so a silenced oracle fails the suite.
 
-Output locks never execute. So the creation-time blind spots that each invariant section documents stay outside the oracle. The oracle also never checks recipients (see [Authorization Boundary](#authorization-boundary)).
+Output locks never execute, so the creation-time blind spots of each invariant section stay outside the oracle. It also never checks recipients (see [Authorization Boundary](#authorization-boundary)).
 
-A fresh `cargo test --locked` run in `scripts/tests` passes with no failures. The exhaustive search and the chain replay are ignored long runs. The hand-written scenarios reproduce each attack and boundary case this report cites, including [transaction shapes replayed](scripts/tests/src/tests/replay.rs) from observed protocol flows. Four kinds of generated evidence follow.
+A fresh `cargo test --locked` run in `scripts/tests` passes with no failures. The exhaustive search and the chain replay are ignored long runs. The hand-written scenarios reproduce each attack and boundary case this report cites, including [transaction shapes replayed](scripts/tests/src/tests/replay.rs) from observed protocol flows.
 
 ### Structured Fuzzing
 
@@ -167,7 +167,7 @@ Then it applies up to three mutations:
 - a DAO cell wrapped into an owned-owner pair
 - out point re-pointing
 
-Mutated cases the node would reject are dropped before the scripts run. An unmutated case that fails to verify fails the test, so the generator itself stays honest. Every generated header sits below block 10,000,000, so the DAO lock-size rule of the node never applies. So the harness accepts slightly more than a node would today. That widens what the oracle checks and hides nothing.
+Mutated cases the node would reject are dropped before the scripts run. An unmutated case that fails to verify fails the test, which keeps the generator honest. Every generated header sits below block 10,000,000, so the node never applies its DAO lock-size rule: the harness accepts slightly more than a node would today. That widens what the oracle checks and hides nothing.
 
 - **Volume:** 12 million cases. Of these, 9,033,755 passed the node check and ran through the scripts. The oracle checked every accepted one. None broke an invariant. Run as `ICKB_FUZZ_CASES=1000000` with seeds `0x5eed0021` to `0x5eed002c`, in `--release`.
 - **Coverage:** the fuzzer triggered every validation error of the three scripts except `DuplicatedMaster` and `AttemptToChangeFulfilled`, which [Invariant 3](#invariant-3-limit-orders-keep-their-value) explains are unreachable. It also never triggered these syscall-level codes: `IndexOutOfBound` in all three scripts, `LengthNotEnough` in `iCKB Logic` and `Owned Owner`, `ItemMissing` in `Owned Owner` and `Limit Order`.
@@ -175,7 +175,7 @@ Mutated cases the node would reject are dropped before the scripts run. An unmut
 
 ### Exhaustive Small-Scope Search
 
-Random cases can miss a narrow combination. So [the exhaustive search](scripts/tests/src/tests/fuzz/exhaustive.rs) enumerates every transaction of up to three inputs and three outputs, five cells in all, in every order. It draws them from a fixed set of 24 input and 33 output archetypes, plus one funding input and one change output. The archetypes sit where the checks switch:
+Random cases can miss a narrow combination, so [the exhaustive search](scripts/tests/src/tests/fuzz/exhaustive.rs) enumerates every transaction of up to three inputs and three outputs, five cells in all, in every order. It draws them from a fixed set of 24 input and 33 output archetypes, plus one funding input and one change output. The archetypes sit where the checks switch:
 
 - deposits at the 1,000 and 1,000,000 CKB bounds and one shannon past them
 - the soft-cap boundary
@@ -194,11 +194,11 @@ All amounts derive from one deposit block whose accumulated rate makes conversio
 
 All 646 committed mainnet transactions that touch the iCKB scripts, up to block 20,978,907, replay through the oracle and the node check with no violation. So do all 9,808 on testnet, up to block 23,022,391: testnet runs the same deployment, with the same script hashes. [The fetcher](scripts/tests/mainnet/src/main.rs) checks every re-encoded transaction and header hash against the RPC. It also stores every cell dep, dep group members included. [The replay test](scripts/tests/src/tests/fuzz/mainnet.rs) runs on its fixtures without network.
 
-The replay also executes each transaction: every script group, against the code cells the chain used. The chain accepted these transactions, so a rejection here would mean the harness runs scripts differently from a node. All 10,454 pass, across the iCKB scripts, `xUDT`, `NervosDAO` and every user lock in them.
+The replay also executes each transaction: every script group, against the code cells the chain used. Since the chain accepted them, a rejection would mean the harness runs scripts differently from a node. All 10,454 pass, across the iCKB scripts, `xUDT`, `NervosDAO` and every user lock in them.
 
 ### Mutation Testing
 
-`cargo-mutants` 27.1.0 mutated `scripts/contracts` once, as a local report. It also made six mutants in the loader of the test harness (`scripts/tests/src/lib.rs`), which the counts below leave out. The suite loads prebuilt binaries. So a `$CARGO` wrapper rebuilt the three contracts for RISC-V from each mutated copy, with Homebrew clang compiling the C part of ckb-std. It then ran the whole suite against them with `CAPSULE_TEST_ENV=debug`. It skipped only the deployed-hash test, which no rebuild can pass. Against the unmutated rebuild, every other test passes.
+`cargo-mutants` 27.1.0 mutated `scripts/contracts` once, as a local report. It also made six mutants in the loader of the test harness (`scripts/tests/src/lib.rs`), which the counts below leave out. The suite loads prebuilt binaries, so a `$CARGO` wrapper rebuilt the three contracts for RISC-V from each mutated copy, with clang compiling the C part of ckb-std. It then ran the whole suite against them with `CAPSULE_TEST_ENV=debug`. It skipped only the deployed-hash test, which no rebuild can pass. Against the unmutated rebuild, every other test passes.
 
 | Crate         | Caught | Missed | Unviable |
 | ------------- | ------ | ------ | -------- |
@@ -212,16 +212,16 @@ Unviable mutants don't compile: mostly constant and type positions where the rep
 - `>` to `>=` on the `u64::MAX` output ceiling in `check_output`, caught by a [boundary test that runs `iCKB Logic`](scripts/tests/src/tests/ickb_logic/xudt_amount_limits.rs).
 - `has_dao_type` returning `Ok(true)`, caught by [request-shaped data under a non-DAO type](scripts/tests/src/tests/owned_owner/script_misuse.rs).
 
-The two survivors are equivalent: `||` to `&&` in `from_hex`, which only validates compile-time constants that are already valid. No test can tell them apart.
+The two survivors are equivalent: `||` to `&&` in `from_hex`, which only validates compile-time constants that are already valid.
 
-How much does a clean fuzz run prove? The fuzz test alone, at its 100-case CI budget, catches 196 of the 229 caught mutants. Running 20,000 fuzz cases against each of the other 33 detects 22. For 14 the oracle flags an accepted invariant break. For 8 a valid base case is rejected. The 11 it misses:
+The fuzz test alone, at its 100-case CI budget, catches 196 of the 229 caught mutants. Running 20,000 fuzz cases against each of the other 33 detects 22: for 14 the oracle flags an accepted invariant break, for 8 a valid base case is rejected. The 11 it misses:
 
 - 10 change no invariant: the soft cap `>` to `>=` (equal at the boundary), three `has_empty_args` mutants (an args guard), two direction checks that only admit donations to an order, the sign of `ckb_unoccupied` (only stricter), the two `u64::MAX` ceiling mutants (a script guard, covered by the test above) and deleting the check against orders with both ratios empty (such an order can be minted and melted, but no fill of it can pass `validate`).
 - 1 is a remaining blind spot: `is_deposit_data` returning `true`. Its accepted transactions need an iCKB-locked withdrawal request spent with exactly its value burned, which takes several coordinated changes. The [iCKB-locked request test](scripts/tests/src/tests/ickb_logic/creation_blind_spots.rs) catches it.
 
 ### Instruction Coverage
 
-The checks above found no accepted transaction that breaks a rule. They don't show how much of the code on chain those checks really run. A binary also holds code that isn't in the contract source: the compiler and the libraries add their own. So [the coverage tooling](scripts/tests/coverage/README.md) records every machine instruction the three deployed binaries execute during a run. It works on the deployed bytes themselves: the copies that carry function names equal them byte for byte in every loaded section.
+The checks above don't show how much of the code on chain they run. A binary also holds code the compiler and the libraries add. So [the coverage tooling](scripts/tests/coverage/README.md) records every machine instruction the three deployed binaries execute during a run. It works on the deployed bytes themselves: the copies that carry function names equal them byte for byte in every loaded section.
 
 The record covers the default suite, 900,000 more fuzz cases (678,376 reached the scripts), two slices of the exhaustive search (77,203 transactions run) and the replay of both chains.
 
@@ -233,7 +233,7 @@ It showed code that a transaction can reach and that no run had ever executed:
 - **Large sums:** the sums of `iCKB Logic` have 128 bits. Their upper half only comes into play past 2^64 units, more than any chain state holds.
 - **Out of memory:** no run had used up the memory of a script.
 
-[The reach tests](scripts/tests/src/tests/fuzz/reach.rs) now run each of these and check the verdict both ways: accepted when right, refused when one entry among many is off by one unit. An independent pass over what was left found three more spots, now tested the same way: a split with the new entry in the middle of a node, a script reading its own long args, `Owned Owner` running out of memory.
+[The reach tests](scripts/tests/src/tests/fuzz/reach.rs) now run each of these and check the verdict both ways: accepted when right, refused when one entry among many is off by one unit. Three more spots, found in what was left, are now tested the same way: a split with the new entry in the middle of a node, a script reading its own long args, `Owned Owner` running out of memory.
 
 With these tests, the runs execute:
 
@@ -247,9 +247,7 @@ Every instruction that still never runs falls in one of three groups. The counts
 
 - **Message formatting** (3,443, 1,006 and 1,040 instructions): functions that are never entered, almost all of them code that builds panic messages. The release build prints no message ([`debug!`](https://github.com/nervosnetwork/ckb-std/blob/a6b9b66570e6f7f5c41a76249db6fb663011cf3c/src/debug.rs) compiles to nothing), so nothing calls them.
 - **Stops** (708, 668 and 581): paths that end by stopping the script. They are overflow checks that the [Arithmetic Bounds](#arithmetic-bounds) rule out, checks inside the standard library that its own logic guarantees, out-of-memory exits other than the ones the tests trigger.
-- **The rest** (887, 709 and 570): read piece by piece.
-
-The rest falls into these groups:
+- **The rest** (887, 709 and 570): read piece by piece, in these groups:
 
 - **Failures a node never returns:** the handling of a field load that fails with anything but the end of the list, of a wrong length for an out point or a header field, of an unknown error code.
 - **Malformed scripts:** the handling of a script whose encoding is broken. Each such path refuses the transaction.
