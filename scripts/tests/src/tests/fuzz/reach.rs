@@ -63,8 +63,8 @@ const ORDER_CKB: u64 = 100 * CKB;
 /// What a taker pays in iCKB for the `ORDER_CKB` of one order, at its ratio, rounded up.
 const PRICE: u128 = (ORDER_CKB as u128 * C2U.0 as u128).div_ceil(C2U.1 as u128);
 
-/// The out point of the master of order `key`. All masters share one transaction hash, so the
-/// script meets them in key order.
+/// The out point of the master of order `key`. All masters share one transaction hash, so their
+/// map keys sort by `key`.
 fn master_at(key: u32) -> OutPoint {
     point(0, key)
 }
@@ -539,6 +539,7 @@ fn owned_owner_holds_3063_pairing_keys() {
 fn ickb_logic_holds_a_block_of_distinct_receipt_amounts() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
+    // The shortest lock, with no args, so that this many receipts fit a block.
     let bare = env.user.clone().as_builder().args(Bytes::new().pack()).build();
     let receipts = (0..3_870).map(|i| env.receipt(1, MIN_DEPOSIT + i).under(&bare));
     refuse(&mut context, funded(&env, [], receipts), ERROR_RECEIPT_MISMATCH);
