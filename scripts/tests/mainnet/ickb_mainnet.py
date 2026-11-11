@@ -182,32 +182,30 @@ def fetch(release, out, url):
     prevs = dict(txs)
     for r in rpc.many([("get_transaction", [x]) for x in prev_hashes]):
         prevs[r["transaction"]["hash"]] = r
-    # Cell deps, then the members of the dep groups among them. A spent dep is still served by
-    # get_transaction, so the replay sees the code cells each transaction ran against.
-    dep_points = {(d["out_point"]["tx_hash"], int(d["out_point"]["index"], 16)) for r in txs.values() for d in r["transaction"]["cell_deps"]}
-    group_points = {(d["out_point"]["tx_hash"], int(d["out_point"]["index"], 16))
-                    for r in txs.values() for d in r["transaction"]["cell_deps"] if d["dep_type"] == "dep_group"}
+    # Cell deps, then the members of the dep groups among them, each as its molecule OutPoint. A
+    # spent dep is still served by get_transaction, so the replay sees the code cells each
+    # transaction ran against.
+    deps = [d for r in txs.values() for d in r["transaction"]["cell_deps"]]
+    dep_points = {out_point(d["out_point"]) for d in deps}
     dep_txs = {}
 
-    def fetch_dep_txs(points):
-        missing = sorted({x for x, _ in points} - set(dep_txs))
-        for r in rpc.many([("get_transaction", [x]) for x in missing]):
+    def fetch_dep_txs():
+        for r in rpc.many([("get_transaction", [x]) for x in sorted({"0x" + p[:32].hex() for p in dep_points} - set(dep_txs))]):
             tx_bytes(r["transaction"])  # proves the dep cell bytes come from the committed transaction
             dep_txs[r["transaction"]["hash"]] = r
 
-    fetch_dep_txs(dep_points)
-    for x, k in sorted(group_points):
-        members = h(dep_txs[x]["transaction"]["outputs_data"][k])
+    def dep_cell(p):
+        t, k = dep_txs["0x" + p[:32].hex()]["transaction"], int.from_bytes(p[32:], "little")
+        return cell_output(t["outputs"][k]), h(t["outputs_data"][k])
+
+    fetch_dep_txs()
+    for group in {out_point(d["out_point"]) for d in deps if d["dep_type"] == "dep_group"}:
+        members = dep_cell(group)[1]
         count = int.from_bytes(members[:4], "little")
         assert len(members) == 4 + 36 * count, "dep group data is not an OutPointVec"
-        for m in range(count):
-            point = members[4 + 36 * m:40 + 36 * m]
-            dep_points.add(("0x" + point[:32].hex(), int.from_bytes(point[32:], "little")))
-    fetch_dep_txs(dep_points)
-    dep_lines = []
-    for x, k in sorted(dep_points):
-        t = dep_txs[x]["transaction"]
-        dep_lines.append(f"dep {out_point({'tx_hash': x, 'index': k}).hex()} {cell_output(t['outputs'][k]).hex()} {t['outputs_data'][k][2:]}")
+        dep_points.update(members[4 + 36 * m:40 + 36 * m] for m in range(count))
+    fetch_dep_txs()
+    dep_lines = [f"dep {p.hex()} {o.hex()} {data.hex()}" for p in sorted(dep_points) for o, data in [dep_cell(p)]]
     header_hashes = set()
     for r in txs.values():
         header_hashes.update(r["transaction"]["header_deps"])
