@@ -229,9 +229,9 @@ How much does a clean fuzz run prove? The fuzz test alone, at its 100-case CI bu
 
 ### Instruction Coverage
 
-The checks above show that no accepted transaction breaks a rule. They don't show how much of the code on chain those checks really run. A binary also holds code that isn't in the contract source: the compiler and the libraries add their own. So [the coverage tooling](scripts/tests/coverage/README.md) records every machine instruction the three deployed binaries execute during a run. It works on the deployed bytes themselves: the copies that carry function names equal them byte for byte in every loaded section.
+The checks above found no accepted transaction that breaks a rule. They don't show how much of the code on chain those checks really run. A binary also holds code that isn't in the contract source: the compiler and the libraries add their own. So [the coverage tooling](scripts/tests/coverage/README.md) records every machine instruction the three deployed binaries execute during a run. It works on the deployed bytes themselves: the copies that carry function names equal them byte for byte in every loaded section.
 
-The record covers the default suite, 900,000 more fuzz cases (678,376 reached the scripts), two slices of the exhaustive search (77,203 transactions) and the replay of both chains.
+The record covers the default suite, 900,000 more fuzz cases (678,376 reached the scripts), two slices of the exhaustive search (77,203 transactions run) and the replay of both chains.
 
 It showed code that a transaction can reach and that no run had ever executed:
 
@@ -251,23 +251,23 @@ With these tests, the runs execute:
 
 The default suite alone reaches almost the same: 64.1%, 72.4% and 67.2%.
 
-About a third of each binary still never runs. Every instruction of it falls in one of three groups. The counts are for `iCKB Logic`, `Limit Order` and `Owned Owner`, in that order:
+Between a quarter and a third of each binary still never runs. Every instruction of it falls in one of three groups. The counts are for `iCKB Logic`, `Limit Order` and `Owned Owner`, in that order:
 
 - **Message formatting** (3,443, 1,006 and 1,040 instructions): functions that are never entered, almost all of them code that builds panic messages. The release build prints no message ([`debug!`](https://github.com/nervosnetwork/ckb-std/blob/a6b9b66570e6f7f5c41a76249db6fb663011cf3c/src/debug.rs) compiles to nothing), so nothing calls them.
 - **Stops** (708, 668 and 581): paths that end by stopping the script. They are overflow checks that the [Arithmetic Bounds](#arithmetic-bounds) rule out, checks inside the standard library that its own logic guarantees, out-of-memory exits other than the ones the tests trigger.
 - **The rest** (887, 709 and 570): read piece by piece.
 
-Each piece of the rest has a reason why no transaction reaches it:
+The rest falls into these groups:
 
 - **Failures a node never returns:** the handling of a field load that fails with anything but the end of the list, of a wrong length for an out point or a header field, of an unknown error code.
 - **Malformed scripts:** the handling of a script whose encoding is broken. Each such path refuses the transaction.
 - **Empty transactions:** the case of a transaction with no inputs or no outputs, which the [node refuses](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/verification/src/transaction_verifier.rs#L383-L406).
 - **One fixed input:** hashing and script building run once per execution, always on the same bytes (the `xUDT` script of iCKB). Their paths for other lengths never run.
-- **Upper halves that stay zero:** the top part of the 256-bit numbers in `Limit Order`. Its sums stay below 2^192, while its one subtraction works on 64-bit amounts.
-- **Library variants:** paths of the memory copy routines for layouts these programs never produce. Allocator paths for cases that can't happen here: a heap that isn't zero-filled, a single block above 1 MiB, more than 64 small blocks alive at once. Division paths for a divisor above 64 bits.
+- **Upper words that stay zero:** the top word of the 256-bit sums in `Limit Order`, which stay below 2^192. Also the upper words of its one subtraction, which works on 64-bit amounts.
+- **Library variants:** paths of the memory copy routines for layouts these programs never produce. Allocator paths for a heap that isn't zero-filled, for a single block above 1 MiB, for more than 64 small blocks alive at once. Division paths for a divisor above 64 bits.
 - **Defensive errors:** `DuplicatedMaster` and `AttemptToChangeFulfilled` in `Limit Order` (see [Invariant 3](#invariant-3-limit-orders-keep-their-value)).
 
-No instruction was found that a transaction can reach and that would change a verdict.
+No never-executed instruction was found that a transaction can reach and that would change a verdict.
 
 ### Compiled-In Dependencies
 
@@ -281,26 +281,27 @@ So the later releases of each were read for fixes in code the scripts use. Where
 - **uint:** [its changelog](https://github.com/paritytech/parity-common/blob/d2817a6d9118ee985805c37b2a44c0f2c9ae3e93/uint/CHANGELOG.md) lists no arithmetic fix after 0.9.5.
 - **molecule and ckb-gen-types:** the later fixes sit in code these versions don't have (a lazy reader) or the scripts never call (unpacking a `Bool`).
 - **blake2b-ref:** the hash routine in the deployed `iCKB Logic` gives the reference BLAKE2b result on 512 inputs under the same emulator. The script only ever hashes one value with it: the `xUDT` script of iCKB.
-- **Sorted map:** the scripts only insert into their maps, then consume them. The fixes found after Rust 1.74.0 concern other operations: `append`, cursors, custom allocators and panic safety.
+- **Sorted map:** the scripts only insert into their maps, then consume them. They use the global allocator. A panic ends the script. The fixes found after Rust 1.74.0 concern other ground: `append`, cursors, custom allocators and panic safety.
 
 ### Compiler Defects
 
 The contracts were compiled once, with rustc 1.74.0 and its LLVM 17. A defect of that compiler that produces wrong code matters for as long as the contracts live, even when it is found years later. So an independent audit went through the known reports of wrong code: 255 for Rust and 1,940 for LLVM.
 
-It decided each one from the 1.74.0 sources, not from the version a report names. Where it could, it checked exactly:
+It judged each one from the 1.74.0 sources, not from the version a report names. Where it could, it checked exactly:
 
-- **LLVM defects:** it rebuilt that LLVM and showed that it reproduces every compiled object of the contracts byte for byte. Then it applied each later fix and compared the functions that end up in the deployed binaries.
-- **Rust defects:** it scanned the intermediate code of every function before and after the faulty step, on a rebuild of the standard library that matches the shipped one.
+- **LLVM defects:** it rebuilt that LLVM and showed that it reproduces every compiled object of the contracts byte for byte. Then it applied each later fix that fits that LLVM and compared the functions that end up in the deployed binaries.
+- **Rust defects:** it scanned the intermediate code of every function before and after the faulty step, on a rebuild of the standard library made with the settings of the shipped one.
 
 The result, for the defects that are in 1.74.0:
 
-- **Present, never fired:** [rust#158206](https://github.com/rust-lang/rust/issues/158206), [rust#150904](https://github.com/rust-lang/rust/issues/150904), [rust#158231](https://github.com/rust-lang/rust/issues/158231), [rust#118328](https://github.com/rust-lang/rust/issues/118328), [rust#137936](https://github.com/rust-lang/rust/issues/137936), [rust#146423](https://github.com/rust-lang/rust/issues/146423), [rust#162997](https://github.com/rust-lang/rust/issues/162997), [llvm#183906](https://github.com/llvm/llvm-project/issues/183906), [llvm#63763](https://github.com/llvm/llvm-project/issues/63763), [llvm#97702](https://github.com/llvm/llvm-project/issues/97702), [llvm#91178](https://github.com/llvm/llvm-project/issues/91178), [llvm#218569](https://github.com/llvm/llvm-project/issues/218569), [llvm#233085](https://github.com/llvm/llvm-project/issues/233085), [llvm#215533](https://github.com/llvm/llvm-project/issues/215533), [llvm#236396](https://github.com/llvm/llvm-project/issues/236396), [llvm#115976](https://github.com/llvm/llvm-project/issues/115976), [llvm#236347](https://github.com/llvm/llvm-project/issues/236347). With the fix applied, or the faulty step watched, no deployed function changes.
-- **Present, out of reach:** [rust#137646](https://github.com/rust-lang/rust/issues/137646), [rust#163856](https://github.com/rust-lang/rust/issues/163856), [rust#131834](https://github.com/rust-lang/rust/issues/131834) and [rust#119160](https://github.com/rust-lang/rust/issues/119160) need code shapes the deployed functions don't have, such as a virtual call that really runs.
-- **Present, fired, same behavior:** the fixes for [llvm#84200](https://github.com/llvm/llvm-project/issues/84200) and [llvm#84653](https://github.com/llvm/llvm-project/issues/84653) change nine deployed functions. Each still computes the same result from the same values, with its instructions in another order. [llvm#68683](https://github.com/llvm/llvm-project/issues/68683) writes a value into a field that is left undefined on an error path.
+- **Present, never fired:** [rust#158206](https://github.com/rust-lang/rust/issues/158206), [rust#150904](https://github.com/rust-lang/rust/issues/150904), [rust#158231](https://github.com/rust-lang/rust/issues/158231), [rust#118328](https://github.com/rust-lang/rust/issues/118328), [rust#137936](https://github.com/rust-lang/rust/issues/137936), [rust#146423](https://github.com/rust-lang/rust/issues/146423), [rust#162997](https://github.com/rust-lang/rust/issues/162997), [llvm#183906](https://github.com/llvm/llvm-project/issues/183906), [llvm#63763](https://github.com/llvm/llvm-project/issues/63763), [llvm#97702](https://github.com/llvm/llvm-project/issues/97702), [llvm#91178](https://github.com/llvm/llvm-project/issues/91178), [llvm#218569](https://github.com/llvm/llvm-project/issues/218569), [llvm#233085](https://github.com/llvm/llvm-project/issues/233085), [llvm#215533](https://github.com/llvm/llvm-project/issues/215533), [llvm#236396](https://github.com/llvm/llvm-project/issues/236396), [llvm#115976](https://github.com/llvm/llvm-project/issues/115976), [llvm#236347](https://github.com/llvm/llvm-project/issues/236347), [rust#164237](https://github.com/rust-lang/rust/issues/164237). With the fix applied, or the faulty step watched, no deployed function changes.
+- **Present, out of reach:** [rust#137646](https://github.com/rust-lang/rust/issues/137646), [rust#163856](https://github.com/rust-lang/rust/issues/163856), [rust#131834](https://github.com/rust-lang/rust/issues/131834), [rust#119160](https://github.com/rust-lang/rust/issues/119160) and [rust#163777](https://github.com/rust-lang/rust/issues/163777) need code shapes the deployed functions don't have, such as a virtual call that really runs. [rust#141101](https://github.com/rust-lang/rust/issues/141101) and [rust#132898](https://github.com/rust-lang/rust/issues/132898) don't change the compiled code.
+- **Present, fired, same behavior:** the fix for [llvm#84200](https://github.com/llvm/llvm-project/issues/84200) changes two deployed functions: the same instructions, in another order. The fix for [llvm#84653](https://github.com/llvm/llvm-project/issues/84653) changes seven: each still computes the same condition from the same values. [llvm#68683](https://github.com/llvm/llvm-project/issues/68683) writes a value into a field that is left undefined on an error path.
+- **Present, not shown to fire:** [rust#137668](https://github.com/rust-lang/rust/issues/137668), [rust#164599](https://github.com/rust-lang/rust/issues/164599) and [rust#145956](https://github.com/rust-lang/rust/issues/145956), without an exhaustive search.
 
-About 1,400 more reports don't apply: other targets, floating point, link-time optimization, steps this build doesn't run. The defects fixed in Rust 1.98.1 and 1.99.1 entered with those releases.
+About 1,400 more reports don't apply: other targets, floating point, link-time optimization, steps this build doesn't run.
 
-The audit has limits. It couldn't decide 348 LLVM reports and 17 Rust ones: most are open reports without a fix, or fixes that don't fit LLVM 17. It doesn't cover the four memory routines, which another compiler built (see [Compiled-In Dependencies](#compiled-in-dependencies)). Its check of the 128-bit division is partly approximate. The tests cover what an audit can't: they run the compiled bytes, as [Instruction Coverage](#instruction-coverage) shows, the division on every branch.
+The audit has limits. It couldn't decide 348 LLVM reports and 17 Rust ones: most are open reports without a fix, or fixes that don't fit LLVM 17. It counts a function as deployed when the deployed code refers to it directly. It doesn't cover the four memory routines, which another compiler built (see [Compiled-In Dependencies](#compiled-in-dependencies)). Its check of the 128-bit division is partly approximate. The tests cover what an audit can't: they run the compiled bytes, as [Instruction Coverage](#instruction-coverage) shows, the division on every branch.
 
 ### Arithmetic Bounds
 
