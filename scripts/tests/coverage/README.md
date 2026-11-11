@@ -1,14 +1,12 @@
 # Instruction Coverage
 
-This directory measures which machine instructions of the deployed binaries in `../../build/release` a test run executes. The tests in [`../src/tests/fuzz/reach.rs`](../src/tests/fuzz/reach.rs) exist because of what it showed.
+This directory shows which machine instructions of the deployed binaries in `../../build/release` a test run executes. The tests in [`../src/tests/fuzz/reach.rs`](../src/tests/fuzz/reach.rs) exist because of what it showed.
 
-## Method
+## How It Works
 
-Stripped binaries have no function names, while a build profile that keeps the names produces different code bytes. So `run.sh` repeats the deployed build while keeping the object files and the linker command, then links them again without `--strip-all`. It checks that every loaded section of the result equals the deployed one byte for byte.
-
-The trace comes from [`ckb-vm-0.24.15.patch`](ckb-vm-0.24.15.patch), applied to a copy of the VM the suite runs on. The asm interpreter executes only instructions it first decoded into a trace, so the patch records each decoded instruction, once per process, with the hash of the program loaded last. A decoded trace runs to its end unless the VM stops inside it, on a memory fault or when cycles run out. Such a stop would over-count by the rest of one trace, 16 instructions at most. A fused instruction pair is recorded with its full length.
-
-The patched VM only builds in a copy of this workspace, so the checkout and `Cargo.lock` stay as they are.
+- **Names over the deployed bytes:** stripped binaries have no function names, while a build that keeps them changes the code. So `run.sh` repeats the deployed build, then links the same object files again without stripping. It checks that every loaded section equals the deployed one byte for byte.
+- **A trace of every instruction:** [`ckb-vm-0.24.15.patch`](ckb-vm-0.24.15.patch) makes a copy of the VM the suite runs on record each instruction it decodes. That VM runs only instructions it first decoded into a trace, which then runs to its end. A run that stops mid-trace, on a memory fault or out of cycles, over-counts by 16 instructions at most.
+- **No change to the checkout:** the patched VM builds in a copy of this workspace, so `Cargo.lock` stays as it is.
 
 ## Running
 
@@ -18,7 +16,7 @@ From `scripts/tests`, with what the rebuild in [`../../README.md`](../../README.
 coverage/run.sh /tmp/ickb-coverage
 ```
 
-It prints the report for the default suite. To trace any other run, set `ICKB_COV_FILE` on a test command in the copy, then pass every trace to the report, [`../src/bin/coverage.rs`](../src/bin/coverage.rs):
+It prints the report for the default suite. To trace any other run, set `ICKB_COV_FILE` on a test command in the copy, then pass every trace to the report:
 
 ```bash
 cd /tmp/ickb-coverage/scripts/tests
@@ -30,8 +28,4 @@ cargo run -q --bin coverage -- ../build/release /tmp/ickb-coverage/symbols /tmp/
 cd -
 ```
 
-The report takes three options:
-
-- `--functions`: lists every function not fully executed.
-- `--runs`: prints the never-executed instructions that end neither in a panic nor in an allocation failure, as disassembly.
-- `--annotate <binary> <text>`: prints the functions whose name contains `<text>`, with `--` on each never-executed instruction.
+[`../src/bin/coverage.rs`](../src/bin/coverage.rs) lists the options of the report.
