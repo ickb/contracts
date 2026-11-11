@@ -282,12 +282,25 @@ So the later releases of each were read for fixes in code the scripts use. Where
 - **molecule and ckb-gen-types:** the later fixes sit in code these versions don't have (a lazy reader) or the scripts never call (unpacking a `Bool`).
 - **blake2b-ref:** the hash routine in the deployed `iCKB Logic` gives the reference BLAKE2b result on 512 inputs under the same emulator. The script only ever hashes one value with it: the `xUDT` script of iCKB.
 - **Sorted map:** the scripts only insert into their maps, then consume them. The fixes found after Rust 1.74.0 concern other operations: `append`, cursors, custom allocators and panic safety.
-- **Compiler:** rustc 1.74.0 with LLVM 17 carries three known miscompilations that code like this could meet: one in constant propagation ([rust#118328](https://github.com/rust-lang/rust/issues/118328)), one in loop simplification ([llvm#183906](https://github.com/llvm/llvm-project/issues/183906)) and one in RISC-V instruction selection ([llvm#84200](https://github.com/llvm/llvm-project/issues/84200)).
-  - **Loop simplification:** a rebuild with that transform switched off (`-C llvm-args=-indvars-predicate-loops=false`) gives the deployed binaries byte for byte. So it never fired.
-  - **Constant propagation:** a scan of the intermediate code of the compiler for the triggering shape finds it only in a library function that isn't linked.
-  - **Instruction selection:** a scan finds two candidates, in the 256-bit multiplication and in the map insertion. In both, the value at risk is a sum that can't overflow.
 
-The two scans are heuristics, run on a rebuilt standard library. They narrow the risk without excluding it. The tests cover what the scans can't: they run the compiled bytes. [Instruction Coverage](#instruction-coverage) shows which ones.
+### Compiler Defects
+
+The contracts were compiled once, with rustc 1.74.0 and its LLVM 17. A defect of that compiler that produces wrong code matters for as long as the contracts live, even when it is found years later. So an independent audit went through the known reports of wrong code: 255 for Rust and 1,940 for LLVM.
+
+It decided each one from the 1.74.0 sources, not from the version a report names. Where it could, it checked exactly:
+
+- **LLVM defects:** it rebuilt that LLVM and showed that it reproduces every compiled object of the contracts byte for byte. Then it applied each later fix and compared the functions that end up in the deployed binaries.
+- **Rust defects:** it scanned the intermediate code of every function before and after the faulty step, on a rebuild of the standard library that matches the shipped one.
+
+The result, for the defects that are in 1.74.0:
+
+- **Present, never fired:** [rust#158206](https://github.com/rust-lang/rust/issues/158206), [rust#150904](https://github.com/rust-lang/rust/issues/150904), [rust#158231](https://github.com/rust-lang/rust/issues/158231), [rust#118328](https://github.com/rust-lang/rust/issues/118328), [rust#137936](https://github.com/rust-lang/rust/issues/137936), [rust#146423](https://github.com/rust-lang/rust/issues/146423), [rust#162997](https://github.com/rust-lang/rust/issues/162997), [llvm#183906](https://github.com/llvm/llvm-project/issues/183906), [llvm#63763](https://github.com/llvm/llvm-project/issues/63763), [llvm#97702](https://github.com/llvm/llvm-project/issues/97702), [llvm#91178](https://github.com/llvm/llvm-project/issues/91178), [llvm#218569](https://github.com/llvm/llvm-project/issues/218569), [llvm#233085](https://github.com/llvm/llvm-project/issues/233085), [llvm#215533](https://github.com/llvm/llvm-project/issues/215533), [llvm#236396](https://github.com/llvm/llvm-project/issues/236396), [llvm#115976](https://github.com/llvm/llvm-project/issues/115976), [llvm#236347](https://github.com/llvm/llvm-project/issues/236347). With the fix applied, or the faulty step watched, no deployed function changes.
+- **Present, out of reach:** [rust#137646](https://github.com/rust-lang/rust/issues/137646), [rust#163856](https://github.com/rust-lang/rust/issues/163856), [rust#131834](https://github.com/rust-lang/rust/issues/131834) and [rust#119160](https://github.com/rust-lang/rust/issues/119160) need code shapes the deployed functions don't have, such as a virtual call that really runs.
+- **Present, fired, same behavior:** the fixes for [llvm#84200](https://github.com/llvm/llvm-project/issues/84200) and [llvm#84653](https://github.com/llvm/llvm-project/issues/84653) change nine deployed functions. Each still computes the same result from the same values, with its instructions in another order. [llvm#68683](https://github.com/llvm/llvm-project/issues/68683) writes a value into a field that is left undefined on an error path.
+
+About 1,400 more reports don't apply: other targets, floating point, link-time optimization, steps this build doesn't run. The defects fixed in Rust 1.98.1 and 1.99.1 entered with those releases.
+
+The audit has limits. It couldn't decide 348 LLVM reports and 17 Rust ones: most are open reports without a fix, or fixes that don't fit LLVM 17. It doesn't cover the four memory routines, which another compiler built (see [Compiled-In Dependencies](#compiled-in-dependencies)). Its check of the 128-bit division is partly approximate. The tests cover what an audit can't: they run the compiled bytes, as [Instruction Coverage](#instruction-coverage) shows, the division on every branch.
 
 ### Arithmetic Bounds
 
