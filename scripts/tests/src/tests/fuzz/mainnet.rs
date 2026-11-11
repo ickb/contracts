@@ -7,7 +7,7 @@ use super::*;
 // the cell deps the chain used: a rejection means this harness runs scripts differently from the
 // node that accepted the transaction. Fixtures are fetched separately and read from
 // `ICKB_MAINNET_FIXTURES`, so the test needs no network and stays out of the default suite:
-//   python3 -I scripts/tests/mainnet/ickb_mainnet.py fetch scripts/build/release <out_dir> [rpc_url]
+//   cargo run --locked --release -- fetch ../../build/release <out_dir> [rpc_url]   (in scripts/tests/mainnet)
 //   ICKB_MAINNET_FIXTURES=<out_dir>/fixtures.txt cargo test --locked -- --ignored mainnet  (in scripts/tests)
 //
 // Fixture format, one record per line, hex without 0x:

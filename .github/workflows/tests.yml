@@ -26,3 +26,7 @@ jobs:
       - name: Build the vector generator
         working-directory: scripts/vector-gen
         run: cargo build --locked --release
+      # The replay fixtures come from the chain, so CI only builds their fetcher.
+      - name: Build the chain fetcher
+        working-directory: scripts/tests/mainnet
+        run: cargo build --locked --release

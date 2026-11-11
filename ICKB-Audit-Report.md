@@ -200,7 +200,7 @@ All amounts derive from one deposit block whose accumulated rate makes conversio
 
 ### Chain Replay
 
-All 646 committed mainnet transactions that touch the iCKB scripts, up to block 20,978,907, replay through the oracle and the node check with no violation. So do all 9,808 on testnet, up to block 23,022,391: testnet runs the same deployment, with the same script hashes. [The fetcher](scripts/tests/mainnet/ickb_mainnet.py) checks every re-encoded transaction and header hash against the RPC. It also stores every cell dep, dep group members included. [The replay test](scripts/tests/src/tests/fuzz/mainnet.rs) runs on its fixtures without network.
+All 646 committed mainnet transactions that touch the iCKB scripts, up to block 20,978,907, replay through the oracle and the node check with no violation. So do all 9,808 on testnet, up to block 23,022,391: testnet runs the same deployment, with the same script hashes. [The fetcher](scripts/tests/mainnet/src/main.rs) checks every re-encoded transaction and header hash against the RPC. It also stores every cell dep, dep group members included. [The replay test](scripts/tests/src/tests/fuzz/mainnet.rs) runs on its fixtures without network.
 
 The replay also executes each transaction: every script group, against the code cells the chain used. The chain accepted these transactions, so a rejection here would mean the harness runs scripts differently from a node. All 10,454 pass, across the iCKB scripts, `xUDT`, `NervosDAO` and every user lock in them.
 
