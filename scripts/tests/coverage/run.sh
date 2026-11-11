@@ -21,15 +21,15 @@ mkdir -p "$work/build" "$work/symbols"
 #    (strip = false, or debug info) produces different code bytes, so it cannot stand in.
 podman run --rm --security-opt label=disable --userns keep-id \
   -v "$HOME/.cargo:$HOME/.cargo" -v "$HOME/.rustup:$HOME/.rustup:ro" -v "$scripts:$scripts:ro" -v "$work:$work" -w "$scripts" \
-  -e HOME="$HOME" -e CARGO_HOME="$HOME/.cargo" -e CARGO_TARGET_DIR="$work/build" \
+  -e HOME="$HOME" -e CARGO_HOME="$HOME/.cargo" -e CARGO_TARGET_DIR="$work/build" -e work="$work" -e contracts="$contracts" \
   -e PATH="$HOME/.rustup/toolchains/1.74.0-x86_64-unknown-linux-gnu/bin:/riscv/bin:/usr/bin:/bin" \
   -e RUSTFLAGS="--remap-path-prefix=$HOME=~ --remap-path-prefix=$scripts=" \
   "$image" bash -euc '
-    for p in '"$contracts"'; do
-      cargo rustc --locked -p $p --release --target riscv64imac-unknown-none-elf -- -C save-temps --print link-args > '"$work"'/build/$p.link
+    for p in $contracts; do
+      cargo rustc --locked -p $p --release --target riscv64imac-unknown-none-elf -- -C save-temps --print link-args > $work/build/$p.link
       # Drop the exported-symbols object (it only exists while rustc runs) and the strip flag.
-      sed -E "s# \"/tmp/rustc[A-Za-z0-9]+/symbols.o\"##; s# \"--strip-all\"##; s#(\"-o\" \")[^\"]*\"#\1'"$work"'/symbols/$p.sym\"#" '"$work"'/build/$p.link > '"$work"'/build/$p.relink.sh
-      bash '"$work"'/build/$p.relink.sh
+      sed -E "s# \"/tmp/rustc[A-Za-z0-9]+/symbols.o\"##; s# \"--strip-all\"##; s#(\"-o\" \")[^\"]*\"#\1$work/symbols/$p.sym\"#" $work/build/$p.link > $work/build/$p.relink.sh
+      bash $work/build/$p.relink.sh
     done'
 for p in $contracts; do
   for section in .text .rodata .eh_frame .data .sdata; do
@@ -40,7 +40,7 @@ for p in $contracts; do
 done
 
 # 2. The instrumented VM: the registry copy of the version Cargo.lock pins, plus the patch.
-grep -q -A1 '^name = "ckb-vm"$' "$scripts/Cargo.lock" && grep -A1 '^name = "ckb-vm"$' "$scripts/Cargo.lock" | grep -q '"0.24.15"' || { echo "Cargo.lock no longer pins ckb-vm 0.24.15; rebase the patch" >&2; exit 1; }
+grep -A1 '^name = "ckb-vm"$' "$scripts/Cargo.lock" | grep -qx 'version = "0.24.15"' || { echo "Cargo.lock no longer pins ckb-vm 0.24.15; rebase the patch" >&2; exit 1; }
 vm=$(ls -d "$HOME"/.cargo/registry/src/*/ckb-vm-0.24.15 | head -1)
 rm -rf "$work/ckb-vm" && cp -r "$vm" "$work/ckb-vm"
 patch -s -p1 -d "$work/ckb-vm" < "$here/ckb-vm-0.24.15.patch"
