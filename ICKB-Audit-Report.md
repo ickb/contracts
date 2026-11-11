@@ -229,44 +229,59 @@ How much does a clean fuzz run prove? The fuzz test alone, at its 100-case CI bu
 
 ### Instruction Coverage
 
-Mutation testing works on the source. It can't show a branch that no test takes inside code the compiler or a library added. So [the coverage tooling](scripts/tests/coverage/README.md) records which machine instructions of the three deployed binaries a run executes. Function names come from linking the same object files again without stripping: every loaded section of the result equals the deployed one byte for byte.
+The checks above show that no accepted transaction breaks a rule. They don't show how much of the code on chain those checks really run. A binary also holds code that isn't in the contract source: the compiler and the libraries add their own. So [the coverage tooling](scripts/tests/coverage/README.md) records every machine instruction the three deployed binaries execute during a run. It works on the deployed bytes themselves: the copies that carry function names equal them byte for byte in every loaded section.
 
-The trace covers the default suite, 900,000 more fuzz cases (678,376 ran through the scripts), two slices of the exhaustive search (77,203 transactions run) and the chain replay of both networks. It showed code that an input can reach and that none of those runs executed:
+The record covers the default suite, 900,000 more fuzz cases (678,376 reached the scripts), two slices of the exhaustive search (77,203 transactions) and the replay of both chains.
 
-- **Map node splits:** each script keeps its accounting in a B-tree map whose nodes hold 11 entries. No test, fuzz case or chain transaction gave `iCKB Logic` 12 distinct deposit amounts, so its node splits never ran. `Limit Order` split nodes only in testnet transactions.
-- **Long scripts:** every script reads its own script and each output lock to check the args. A script longer than 256 bytes takes a second read into heap memory. No run had one.
-- **Division correction:** the 128-bit division of the iCKB conversion corrects its first estimate for few operands. One correction step never ran. At current rates it needs an amount below 77 CKB, which only a receiptless deposit holds.
-- **Carries past 2^64:** the 128-bit sums of `iCKB Logic` carry into their upper half only past 2^64 units, more than any chain state holds.
-- **Out of memory:** no run exhausted the heap of a script.
+It showed code that a transaction can reach and that no run had ever executed:
 
-[The reach tests](scripts/tests/src/tests/fuzz/reach.rs) now run each of these and check the verdict both ways: accepted when right, refused when one entry among many is off by one unit. An independent pass over the remaining instructions found three more reachable spots, now tested the same way: a split with the new key in the middle of a node, a script reading its own long args, `Owned Owner` running out of heap.
+- **Map splits:** each script keeps its bookkeeping in a sorted map. The map stores its entries in nodes of 11 and splits a node that fills up. No test, fuzz case or chain transaction gave `iCKB Logic` 12 different deposit amounts, so its split code had never run. `Limit Order` had split nodes only in testnet transactions.
+- **Long scripts:** every script reads its own script and each output lock to check the args. A script of up to 256 bytes fits one read. A longer one takes a second read into heap memory, which no run had needed.
+- **Division correction:** the iCKB conversion divides a 128-bit number. The division routine guesses the result, then corrects the guess when needed. One correction had never run. At current rates it needs an amount below 77 CKB, which only a receiptless deposit holds.
+- **Large sums:** the sums of `iCKB Logic` have 128 bits. Their upper half only comes into play past 2^64 units, more than any chain state holds.
+- **Out of memory:** no run had used up the memory of a script.
 
-With them, the runs execute 8,995 of the 14,033 instructions of `iCKB Logic` (64.1%), 6,259 of 8,642 in `Limit Order` (72.4%) and 4,562 of 6,753 in `Owned Owner` (67.6%). The default suite alone reaches 64.1%, 72.4% and 67.2%. The rest never runs, for three reasons:
+[The reach tests](scripts/tests/src/tests/fuzz/reach.rs) now run each of these and check the verdict both ways: accepted when right, refused when one entry among many is off by one unit. An independent pass over what was left found three more spots, now tested the same way: a split with the new entry in the middle of a node, a script reading its own long args, `Owned Owner` running out of memory.
 
-- **Functions never entered** (3,443, 1,006 and 1,040 instructions): almost all are text formatting for panic messages. The release build prints no message ([`debug!`](https://github.com/nervosnetwork/ckb-std/blob/a6b9b66570e6f7f5c41a76249db6fb663011cf3c/src/debug.rs) compiles to nothing), so nothing calls them.
-- **Paths that end in a panic or an allocation failure** (708, 668 and 581): overflow checks that the [Arithmetic Bounds](#arithmetic-bounds) rule out, checks inside the standard library that hold by its own construction, the out-of-memory exits of allocation sites other than the ones the tests exhaust.
-- **Everything else** (887, 709 and 570), read run by run:
-  - **Syscall failures a node never returns:** error conversions for a field load that fails with anything but the end of the list, a wrong length for an out point or a header field, an unknown error code.
-  - **Malformed scripts:** the failure branches of script parsing. Each one refuses the transaction.
-  - **Empty transactions:** the branches for a transaction with no inputs or no outputs, which the [node refuses](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/verification/src/transaction_verifier.rs#L383-L406).
-  - **Fixed inputs:** hashing and script building run once per execution on the same bytes (the `xUDT` script of iCKB), so their branches for other lengths never run.
-  - **Upper words:** the top word of the 256-bit order sums and the upper words of the one 256-bit subtraction, whose operands have 64 bits.
-  - **Library variants:** branches of the memory copy routines for alignments these programs don't produce. Allocator branches for a heap that isn't zero-filled, for a single allocation above 1 MiB, for more than 64 small allocations alive at once. Division branches for a divisor above 64 bits.
-  - **Defensive errors:** `DuplicatedMaster` and `AttemptToChangeFulfilled` in `Limit Order` (see [Invariant 3](#invariant-3-limit-orders-keep-their-value)).
+With these tests, the runs execute:
 
-No never-executed instruction was found that a transaction can reach and that would change a verdict.
+- **iCKB Logic:** 8,995 of 14,033 instructions (64.1%)
+- **Limit Order:** 6,259 of 8,642 instructions (72.4%)
+- **Owned Owner:** 4,562 of 6,753 instructions (67.6%)
+
+The default suite alone reaches almost the same: 64.1%, 72.4% and 67.2%.
+
+About a third of each binary still never runs. Every instruction of it falls in one of three groups. The counts are for `iCKB Logic`, `Limit Order` and `Owned Owner`, in that order:
+
+- **Message formatting** (3,443, 1,006 and 1,040 instructions): functions that are never entered, almost all of them code that builds panic messages. The release build prints no message ([`debug!`](https://github.com/nervosnetwork/ckb-std/blob/a6b9b66570e6f7f5c41a76249db6fb663011cf3c/src/debug.rs) compiles to nothing), so nothing calls them.
+- **Stops** (708, 668 and 581): paths that end by stopping the script. They are overflow checks that the [Arithmetic Bounds](#arithmetic-bounds) rule out, checks inside the standard library that its own logic guarantees, out-of-memory exits other than the ones the tests trigger.
+- **The rest** (887, 709 and 570): read piece by piece.
+
+Each piece of the rest has a reason why no transaction reaches it:
+
+- **Failures a node never returns:** the handling of a field load that fails with anything but the end of the list, of a wrong length for an out point or a header field, of an unknown error code.
+- **Malformed scripts:** the handling of a script whose encoding is broken. Each such path refuses the transaction.
+- **Empty transactions:** the case of a transaction with no inputs or no outputs, which the [node refuses](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/verification/src/transaction_verifier.rs#L383-L406).
+- **One fixed input:** hashing and script building run once per execution, always on the same bytes (the `xUDT` script of iCKB). Their paths for other lengths never run.
+- **Upper halves that stay zero:** the top part of the 256-bit numbers in `Limit Order`. Its sums stay below 2^192, while its one subtraction works on 64-bit amounts.
+- **Library variants:** paths of the memory copy routines for layouts these programs never produce. Allocator paths for cases that can't happen here: a heap that isn't zero-filled, a single block above 1 MiB, more than 64 small blocks alive at once. Division paths for a divisor above 64 bits.
+- **Defensive errors:** `DuplicatedMaster` and `AttemptToChangeFulfilled` in `Limit Order` (see [Invariant 3](#invariant-3-limit-orders-keep-their-value)).
+
+No instruction was found that a transaction can reach and that would change a verdict.
 
 ### Compiled-In Dependencies
 
-The binaries hold more than the contract source: `ckb-std` 0.15.3 with its C part, the `buddy-alloc` 0.5.1 allocator, `molecule` 0.7.5 with `ckb-gen-types` 0.112.1, `blake2b-ref` 0.3.1, `primitive-types` 0.12.2 over `uint` 0.9.5, plus the parts of the Rust standard library they call. Later releases of each were read for fixes in code the scripts use. Known compiler defects were checked against the compiled bytes:
+The compiler links libraries into each binary: `ckb-std` 0.15.3 with its C part, the `buddy-alloc` 0.5.1 allocator, `molecule` 0.7.5 with `ckb-gen-types` 0.112.1, `blake2b-ref` 0.3.1, `primitive-types` 0.12.2 over `uint` 0.9.5, plus the parts of the Rust standard library the scripts call. A defect in any of them would be a defect in the contracts.
 
-- **ckb-std:** [the 72 commits after v0.15.3](https://github.com/nervosnetwork/ckb-std/compare/a6b9b66570e6f7f5c41a76249db6fb663011cf3c...4657ce2ace29df60d97862800da7c2d998b70d1d) change no behavior of the syscall wrappers, loaders, entry point or allocator setup the scripts call. In those files they add the spawn syscalls, drop an unused syscall argument, make the panic exit code configurable and align the heap for `buddy-alloc` 0.6. One commit documents that loading a large value can run out of memory, which the long-lock limit in [Liveness](#liveness) measures.
-- **Memory routines:** the C part contributes `memset`, `memcpy`, `memcmp` and `memmove`, with the same bytes in all three binaries. Run under an emulator against a byte-by-byte reference, those bytes agree on 1,935,168 calls: every alignment, all short lengths plus larger ones, every overlap in both directions. With one instruction disabled, 14,818 of them fail.
-- **buddy-alloc:** version 0.6.0 rewrote its free-list writes after [a report](https://github.com/jjyr/buddy-alloc/issues/16) that an optimized build lost one of them. A lost write could hand out the same memory twice. The deployed bytes don't have that defect: the disassembled allocator of all three binaries performs every free-list write, in the same instruction sequence.
+So the later releases of each were read for fixes in code the scripts use. Where a fix looked relevant, the deployed bytes were inspected:
+
+- **ckb-std:** [the 72 commits after v0.15.3](https://github.com/nervosnetwork/ckb-std/compare/a6b9b66570e6f7f5c41a76249db6fb663011cf3c...4657ce2ace29df60d97862800da7c2d998b70d1d) don't change how the code the scripts call behaves: the syscall wrappers, the loaders, the entry point, the allocator setup. One commit documents that loading a large value can run out of memory, which the long-lock limit in [Liveness](#liveness) measures.
+- **Memory routines:** four small C routines copy, fill and compare memory, with the same bytes in all three binaries. Run under an emulator against a byte-by-byte reference, they agree on 1,935,168 calls: every alignment, all short lengths plus larger ones, every overlap in both directions. A copy with one instruction disabled fails 14,818 of them, so the check does notice a broken routine.
+- **buddy-alloc:** version 0.6.0 rewrote its free-list writes after [a report](https://github.com/jjyr/buddy-alloc/issues/16) that an optimized build lost one of them. A lost write could hand out the same memory twice. The deployed bytes don't have that defect: the disassembled allocator of all three binaries performs every write.
 - **uint:** [its changelog](https://github.com/paritytech/parity-common/blob/d2817a6d9118ee985805c37b2a44c0f2c9ae3e93/uint/CHANGELOG.md) lists no arithmetic fix after 0.9.5.
 - **molecule and ckb-gen-types:** the later fixes sit in code these versions don't have (a lazy reader) or the scripts never call (unpacking a `Bool`).
-- **blake2b-ref:** the hash routine in the deployed `iCKB Logic` gives the reference BLAKE2b digest on 512 inputs under the same emulator. The script only ever hashes one value with it: the `xUDT` script of iCKB.
-- **B-tree map:** the scripts only insert into their maps and consume them. They use the global allocator. A panic ends the script. The fixes found after Rust 1.74.0 concern other ground: `append`, cursors, custom allocators and panic safety.
+- **blake2b-ref:** the hash routine in the deployed `iCKB Logic` gives the reference BLAKE2b result on 512 inputs under the same emulator. The script only ever hashes one value with it: the `xUDT` script of iCKB.
+- **Sorted map:** the scripts only insert into their maps, then consume them. The fixes found after Rust 1.74.0 concern other operations: `append`, cursors, custom allocators and panic safety.
 - **Compiler:** rustc 1.74.0 with LLVM 17 carries three known miscompilations that code like this could meet: one in constant propagation ([rust#118328](https://github.com/rust-lang/rust/issues/118328)), one in loop simplification ([llvm#183906](https://github.com/llvm/llvm-project/issues/183906)) and one in RISC-V instruction selection ([llvm#84200](https://github.com/llvm/llvm-project/issues/84200)).
   - **Loop simplification:** a rebuild with that transform switched off (`-C llvm-args=-indvars-predicate-loops=false`) gives the deployed binaries byte for byte. So it never fired.
   - **Constant propagation:** a scan of the intermediate code of the compiler for the triggering shape finds it only in a library function that isn't linked.
@@ -276,11 +291,13 @@ The two scans are heuristics, run on a rebuilt standard library. They narrow the
 
 ### Arithmetic Bounds
 
-The scripts are built with overflow checks, so an overflow stops the script instead of wrapping. The deployed bytes carry those checks: [a sum past 2^128 stops the script](scripts/tests/src/tests/fuzz/reach.rs), in cases built so that a wrapped sum would balance. No reachable value comes near an overflow:
+Can a sum or a product overflow? The scripts are built with overflow checks (`overflow-checks = true` in the release profile of [`scripts/Cargo.toml`](scripts/Cargo.toml)), so an overflow stops the script instead of wrapping around. The deployed bytes carry those checks: [a sum past 2^128 stops the script](scripts/tests/src/tests/fuzz/reach.rs), in cases built so that a wrapped sum would balance.
 
-- **iCKB conversion:** `amount * 10^16` takes at most 118 bits for any 64-bit amount. Its division by the accumulated rate runs [every branch of the division routine](scripts/tests/src/tests/fuzz/reach.rs) against a natively computed quotient, the two correction steps included.
+No value a chain can hold comes near an overflow anyway:
+
+- **iCKB conversion:** `amount * 10^16` takes at most 118 bits for any 64-bit amount. Its division by the accumulated rate gives the natively computed result on [every branch of the division routine](scripts/tests/src/tests/fuzz/reach.rs), the two corrections included.
 - **iCKB sums:** every header counts all CKB issued in 64 bits ([RFC 0023](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0023-dao-deposit-withdraw/0023-dao-deposit-withdraw.md#calculation)), so all pool deposits together are worth less than 2^64 iCKB. Supply and receipts never exceed them (see [From One Transaction to the Whole Chain](#from-one-transaction-to-the-whole-chain)). Each iCKB output is capped at `u64::MAX`. So every 128-bit sum stays far below its limit.
-- **Limit Order:** CKB amounts and ratio multipliers have 64 bits, UDT amounts 128. The largest sum the script forms is `(2^128 - 1) * (2^64 - 1) + 2^64 * (2^64 - 1)`, below 2^192. So its checked 256-bit operations never fail, for any token. [Fills at the limits of every operand](scripts/tests/src/tests/fuzz/reach.rs) agree with a price computed by one division: the fill passes at the price rounded up and fails one unit below.
+- **Limit Order:** CKB amounts and ratio multipliers have 64 bits, UDT amounts 128. The largest sum the script forms is `(2^128 - 1) * (2^64 - 1) + 2^64 * (2^64 - 1)`, below 2^192. So its 256-bit operations never overflow, for any token. [Fills at the limits of every operand](scripts/tests/src/tests/fuzz/reach.rs) agree with a price computed by one division: the fill passes at the price rounded up and fails one unit below.
 
 ## Invariant 1: No iCKB From Nothing
 
