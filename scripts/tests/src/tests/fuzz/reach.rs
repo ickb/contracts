@@ -260,7 +260,10 @@ fn sums_past_two_to_the_64_still_balance_exactly() {
         refuse(&mut context, redeem(&env, one, GENESIS_AR, &[two_63, two_63], &outputs), ERROR_AMOUNT_MISMATCH);
     }
     // The receipt side: a quantity no transaction can back makes one receipt worth more than 2^64.
-    refuse(&mut context, redeem(&env, (u32::MAX, MAX_DEPOSIT), GENESIS_AR, &[], &[max, max]), ERROR_AMOUNT_MISMATCH);
+    let worth = 250_000 * soft_capped_ickb(MAX_DEPOSIT, GENESIS_AR);
+    assert!(worth > max);
+    commit(&mut context, redeem(&env, (250_000, MAX_DEPOSIT), GENESIS_AR, &[], &[max, worth - max]));
+    refuse(&mut context, redeem(&env, (250_000, MAX_DEPOSIT), GENESIS_AR, &[], &[max, worth - max + 1]), ERROR_AMOUNT_MISMATCH);
     // The deposit side: output iCKB plus the deposit burned crosses 2^64.
     commit(&mut context, withdrawal(&env, MIN_DEPOSIT, GENESIS_AR, &[max, value], &[max]));
     // A deposit worth more than 2^64 by itself: only a header below the genesis rate, which no
