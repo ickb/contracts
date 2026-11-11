@@ -113,29 +113,25 @@ fn largest_withdrawal_with_deposits_at_inputs_32_to_63_fits_one_block() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
     let pairs = MAX_WITHDRAWAL_PAIRS;
+    let ar = |k: u32| GENESIS_AR + u64::from(k);
+    let udt = env.udt((0..pairs).map(|k| soft_capped_ickb(MAX_DEPOSIT, ar(k))).sum());
     let owner = env.owner(pairs as i32);
     let mut spec = TxSpec::default();
     // Inputs 0 to 30 are plain cells and input 31 the iCKB, so no DAO cell sits below position 32.
-    for k in 0..pairs - 1 {
-        spec.inputs.push(input(env.plain(owner.capacity), point(15, k), None));
+    for _ in 0..pairs - 1 {
+        spec.inputs.push(In::new(env.plain(owner.capacity)));
         spec.outputs.push(Out::from(owner.clone()));
     }
-    let mut value = 0;
-    let mut requests = Vec::new();
+    spec.inputs.push(In::new(udt.clone()));
+    spec.outputs.push(Out::from(Cell { capacity: udt.capacity, ..owner }));
     for k in 0..pairs {
-        let ar = GENESIS_AR + u64::from(k);
         let number = 12_000_000 + u64::from(k);
-        let header = gen_header(number, ar, 9_000, number - number % 1_800, 1_800);
-        let cell = deposit(&env, &env.ickb, MAX_DEPOSIT, vec![0; 8]);
-        value += soft_capped_ickb(MAX_DEPOSIT, ar);
-        requests.push(Out::from(Cell { lock: env.owned_owner.clone(), data: number.to_le_bytes().to_vec(), ..cell.clone() }));
-        spec.inputs.push(input(cell, point(16, k), Some(&header)));
+        let header = gen_header(number, ar(k), 9_000, number - number % 1_800, 1_800);
+        let cell = env.deposit(&env.ickb, MAX_DEPOSIT);
+        spec.outputs.push(Out::from(Cell { lock: env.owned_owner.clone(), data: number.to_le_bytes().to_vec(), ..cell.clone() }));
+        spec.inputs.push(In::new(cell).in_block(&header));
         spec.header_deps.push(header);
     }
-    let udt = env.udt(value);
-    spec.inputs.insert(pairs as usize - 1, input(udt.clone(), point(17, 0), None));
-    spec.outputs.push(Out::from(Cell { capacity: udt.capacity, ..owner }));
-    spec.outputs.extend(requests);
     assert_eq!(spec.outputs.len(), 64);
     commit(&mut context, spec);
 }
