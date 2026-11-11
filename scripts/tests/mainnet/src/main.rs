@@ -164,12 +164,13 @@ impl Rpc {
         let body = serde_json::to_vec(&body).unwrap();
         // Six tries, backing off between them, for a transient network failure or rate limit. Each
         // try reads a fresh answer: after a cut-off answer, curl's own retry appends the next one to it.
+        // An answer whose entry count differs from the calls counts as failed, so no call drops out silently.
         let mut res = (0..6)
             .find_map(|attempt| {
                 if attempt > 0 {
                     std::thread::sleep(Duration::from_secs(1 << (attempt - 1)));
                 }
-                post(&self.url, &body)
+                post(&self.url, &body).filter(|answers| answers.len() == calls.len())
             })
             .unwrap_or_else(|| panic!("no JSON-RPC batch answer for {:?}", calls[0]));
         res.sort_by_key(|x| x["id"].as_u64());
