@@ -28,7 +28,7 @@ pub(super) fn point(tag: u8, index: u32) -> OutPoint {
     OutPoint::new([tag; 32].pack(), index)
 }
 
-pub(super) fn deposit(env: &Env, lock: &Script, amount: u64, data: Vec<u8>) -> Cell {
+fn deposit(env: &Env, lock: &Script, amount: u64, data: Vec<u8>) -> Cell {
     Cell { capacity: deposit_capacity(lock, &env.dao, 8, amount), lock: lock.clone(), type_: Some(env.dao.clone()), data }
 }
 

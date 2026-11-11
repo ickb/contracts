@@ -11,7 +11,7 @@
 //! - The 128-bit division of the iCKB conversion has a correction step that few operands need.
 //!
 //! The last tests pin where each script runs out of its 516 KB heap, so the limits are known.
-use super::liveness::{commit, deposit, fund, input, order, point, C2U, MAX_DEPOSIT, MIN_DEPOSIT, MIN_MATCH_LOG, U2C};
+use super::liveness::{commit, fund, input, order, point, C2U, MAX_DEPOSIT, MIN_DEPOSIT, MIN_MATCH_LOG, U2C};
 use super::*;
 use std::iter::once;
 
@@ -103,7 +103,7 @@ fn claim(env: &Env, keys: &[u32]) -> TxSpec {
     let withdrawn = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let deposited = gen_header(1_554, GENESIS_AR, 35, 1000, 1000);
     let pairs = keys.iter().flat_map(|&key| {
-        let request = deposit(env, &env.owned_owner, MIN_DEPOSIT, deposited.number().to_le_bytes().to_vec());
+        let request = Cell { data: deposited.number().to_le_bytes().to_vec(), ..env.deposit(&env.owned_owner, MIN_DEPOSIT) };
         let owner = env.owner(-(OWNER_GAP as i32));
         [
             In { since: CLAIM_SINCE, witness: header_dep_index_witness(1), ..input(request, point(0, key), Some(&withdrawn)) },
