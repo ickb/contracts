@@ -1,8 +1,8 @@
 //! Fetches the chain transactions that touch the iCKB scripts as replay fixtures, and checks the live iCKB supply.
 //!
-//! Usage, from scripts/tests/mainnet:
-//!   cargo run --locked --release -- fetch  <release_dir> <out_dir> [rpc_url]
-//!   cargo run --locked --release -- supply <release_dir> <out_dir> [rpc_url]
+//! Usage, from scripts/tests, where the replay test runs too:
+//!   cargo run --locked --release --manifest-path mainnet/Cargo.toml -- fetch  ../build/release <out_dir> [rpc_url]
+//!   cargo run --locked --release --manifest-path mainnet/Cargo.toml -- supply ../build/release <out_dir> [rpc_url]
 //!
 //! fetch writes <out_dir>/fixtures.txt (one record per line, molecule hex, read by the Rust replay test),
 //! <out_dir>/raw.json with every RPC answer it used, and <out_dir>/meta.json. Every fetched transaction

@@ -10,7 +10,7 @@ Long runs, best in `--release`:
 
 - More fuzz cases: `ICKB_FUZZ_CASES`, `ICKB_FUZZ_SEED`, and `ICKB_FUZZ_CASE_SEED` to replay one case from the seed a failure prints.
 - The exhaustive search: `ICKB_EXHAUSTIVE_SHARD=i/n cargo test --locked --release -- --ignored exhaustive_small_scope`, one process per shard.
-- The chain replay: fetch fixtures with `cargo run --locked --release -- fetch ../../build/release <dir>` in `mainnet/`, then `ICKB_MAINNET_FIXTURES=<dir>/fixtures.txt cargo test --locked --release -- --ignored mainnet`.
+- The chain replay: fetch fixtures with `cargo run --locked --release --manifest-path mainnet/Cargo.toml -- fetch ../build/release <dir>`, then `ICKB_MAINNET_FIXTURES=<dir>/fixtures.txt cargo test --locked --release -- --ignored mainnet`.
 - Instruction coverage of the deployed binaries: `coverage/run.sh <work_dir>`, see [`coverage/README.md`](coverage/README.md).
 
 ## Layout
@@ -21,4 +21,6 @@ Long runs, best in `--release`:
 - `src/tests/replay/`: transaction shapes rebuilt from observed chain flows.
 - `src/tests/fuzz.rs` and `src/tests/fuzz/`: the structured fuzzer (`fuzz.rs`, `generate.rs`, `mutate.rs`), the invariant oracle (`oracle.rs`), the exhaustive search, the liveness tests, the chain replay (`mainnet.rs`) and the tests for machine code nothing else runs (`reach.rs`).
 - `src/tests/protocol_vectors.rs`: replays the golden vectors of `../vector-gen` against the release binaries.
+- `src/bin/coverage.rs`: the report of the [instruction coverage](coverage/README.md).
+- `mainnet/`: the fetcher of the chain replay's fixtures. It is a crate of its own, so its dependencies stay out of `../Cargo.lock`.
 - `src/tests/fixtures.rs`, `encoders.rs`, `signing.rs`, `replay_helpers.rs`: deployment fixtures, data encoders, secp signing and mainnet-shape helpers; `helpers.rs` unit-tests the encoders.
