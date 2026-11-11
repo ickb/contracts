@@ -125,9 +125,9 @@ fn main() {
             let p: Vec<&str> = line.split_whitespace().collect();
             // A process killed mid-write can leave one short line.
             if let [id, pc, len] = p[..] {
-                let (Ok(id), Ok(pc), Ok(len)) = (u64::from_str_radix(id, 16), u64::from_str_radix(pc, 16), len.parse::<u64>()) else { continue };
-                if let Some(b) = ids.get(&id) {
-                    executed.entry(b).or_default().extend(pc..pc + len);
+                if let Some(b) = ids.get(&u64::from_str_radix(id, 16).expect("trace program hash")) {
+                    let pc = u64::from_str_radix(pc, 16).expect("trace pc");
+                    executed.entry(b).or_default().extend(pc..pc + len.parse::<u64>().expect("trace length"));
                 }
             }
         }
