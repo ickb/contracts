@@ -18,7 +18,7 @@ No admin keys, no upgrades: transactions point at the exact code of these script
 
 - **Internal review:** people with deep experience in Nervos L1 went through them first, catching most of the issues.
 - **External audit:** [Scalebit](https://scalebit.xyz/reports/20240911-ICKB-Final-Audit-Report.pdf) audited them in 2024 (a [local copy](./20240911-ICKB-Final-Audit-Report.pdf) lives here too).
-- **Executable review:** [the security review](./ICKB-Audit-Report.md) tests the exact binaries on chain. Fuzzing, exhaustive search, a replay of every iCKB transaction on mainnet / testnet up to the blocks the review names: not a single accepted transaction broke a protocol invariant!! Every part of the machine code that an input can reach and that could change a verdict ran under test.
+- **Executable review:** [the security review](./ICKB-Audit-Report.md) tests the exact binaries on chain. Fuzzing, exhaustive search, a replay of every iCKB transaction on mainnet / testnet up to the blocks the review names: not a single accepted transaction broke a protocol invariant!! A trace of every machine instruction, plus a reading of what it left, found no untested part that an input can reach and that could change a verdict.
 
 One known issue stays live: anyone can create fake limit orders, which can trick an owner into melting the wrong one. [The review](./ICKB-Audit-Report.md#limits-lo-01) explains it, along with how the iCKB stack picks the real order among them.
 
