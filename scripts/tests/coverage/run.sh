@@ -52,5 +52,6 @@ printf '\n[patch.crates-io]\nckb-vm = { path = "%s" }\n' "$work/ckb-vm" >> "$wor
 
 # 4. Trace the default suite and report.
 rm -f "$work/default.trace"
-(cd "$work/scripts/tests" && ICKB_COV_FILE="$work/default.trace" cargo test)
-python3 -I "$here/coverage.py" "$scripts/build/release" "$work/symbols" "$work/default.trace"
+cd "$work/scripts/tests"
+ICKB_COV_FILE="$work/default.trace" cargo test
+cargo run -q --bin coverage -- "$scripts/build/release" "$work/symbols" "$work/default.trace"

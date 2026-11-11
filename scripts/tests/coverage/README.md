@@ -18,7 +18,7 @@ From `scripts/tests`, with what the rebuild in [`../../README.md`](../../README.
 coverage/run.sh /tmp/ickb-coverage
 ```
 
-It prints the report for the default suite. To trace any other run, set `ICKB_COV_FILE` on a test command in the copy, then pass every trace to the report:
+It prints the report for the default suite. To trace any other run, set `ICKB_COV_FILE` on a test command in the copy, then pass every trace to the report, [`../src/bin/coverage.rs`](../src/bin/coverage.rs):
 
 ```bash
 cd /tmp/ickb-coverage/scripts/tests
@@ -26,12 +26,12 @@ ICKB_COV_FILE=/tmp/ickb-coverage/fuzz.trace ICKB_FUZZ_CASES=150000 ICKB_FUZZ_SEE
   cargo test --release fuzz_accepted_transactions
 ICKB_COV_FILE=/tmp/ickb-coverage/chain.trace ICKB_MAINNET_FIXTURES=<dir>/fixtures.txt \
   cargo test --release -- --ignored mainnet
+cargo run -q --bin coverage -- ../build/release /tmp/ickb-coverage/symbols /tmp/ickb-coverage/*.trace
 cd -
-python3 -I coverage/coverage.py ../build/release /tmp/ickb-coverage/symbols /tmp/ickb-coverage/*.trace
 ```
 
-`coverage.py` takes three options:
+The report takes three options:
 
 - `--functions`: lists every function not fully executed.
 - `--runs`: prints the never-executed instructions that end neither in a panic nor in an allocation failure, as disassembly.
-- `--annotate <binary> <regex>`: prints the matching functions with `--` on each never-executed instruction.
+- `--annotate <binary> <text>`: prints the functions whose name contains `<text>`, with `--` on each never-executed instruction.
