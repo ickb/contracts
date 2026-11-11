@@ -1,6 +1,6 @@
 # iCKB Contracts Security Review
 
-- **Review period:** 2026-05-01 to 2026-11-10. The review keeps evolving. The repository history records each revision.
+- **Review period:** 2026-05-01 to 2026-11-11. The review keeps evolving. The repository history records each revision.
 - **Reviewed contracts commit:** [`454cfa9`](https://github.com/ickb/contracts/tree/454cfa966052a621c4e8b67001718c29ee8191a2). This is the last commit that changed `scripts/contracts/**` or `scripts/Cargo.toml`.
 - **Executable test evidence:** the current `scripts/tests/**` suite in this repository state.
 - **Scope:** `iCKB Logic`, `Owned Owner`, `Limit Order` and the shared `utils` crate.
