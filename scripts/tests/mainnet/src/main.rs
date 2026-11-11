@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 const RPC: &str = "https://mainnet.ckb.dev/rpc";
 const XUDT_CODE_HASH: &str = "0x50bd8d6680b8b9cf98b73f3c08faf8b2a21914311954118ad6609be6e78a1b95";
@@ -139,6 +140,19 @@ fn script_hash(s: &Value) -> String {
     hash(&script(s))
 }
 
+/// The answer to one JSON-RPC batch, or None when the request or the answer fails.
+fn post(url: &str, body: &[u8]) -> Option<Vec<Value>> {
+    let mut child = Command::new("curl")
+        .args(["-sS", "--fail", "--max-time", "120", "-H", "content-type: application/json", "--data-binary", "@-", url])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("run curl");
+    child.stdin.take().unwrap().write_all(body).expect("write request");
+    let out = child.wait_with_output().expect("wait for curl");
+    out.status.success().then(|| serde_json::from_slice(&out.stdout).ok()).flatten()
+}
+
 struct Rpc {
     url: String,
     calls: AtomicUsize,
@@ -147,18 +161,17 @@ struct Rpc {
 impl Rpc {
     fn batch(&self, calls: &[(&str, Value)]) -> Vec<Value> {
         let body: Vec<Value> = calls.iter().enumerate().map(|(i, (m, p))| json!({"id": i, "jsonrpc": "2.0", "method": m, "params": p})).collect();
-        // curl retries a transient network failure or rate limit itself, backing off between tries.
-        let mut child = Command::new("curl")
-            .args(["-sS", "--fail", "--max-time", "120", "--retry", "5", "--retry-all-errors"])
-            .args(["-H", "content-type: application/json", "--data-binary", "@-", &self.url])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("run curl");
-        child.stdin.take().unwrap().write_all(&serde_json::to_vec(&body).unwrap()).expect("write request");
-        let out = child.wait_with_output().expect("wait for curl");
-        assert!(out.status.success(), "curl failed on {:?}", calls[0]);
-        let mut res: Vec<Value> = serde_json::from_slice(&out.stdout).expect("JSON-RPC batch answer");
+        let body = serde_json::to_vec(&body).unwrap();
+        // Six tries, backing off between them, for a transient network failure or rate limit. Each
+        // try reads a fresh answer: after a cut-off answer, curl's own retry appends the next one to it.
+        let mut res = (0..6)
+            .find_map(|attempt| {
+                if attempt > 0 {
+                    std::thread::sleep(Duration::from_secs(1 << (attempt - 1)));
+                }
+                post(&self.url, &body)
+            })
+            .unwrap_or_else(|| panic!("no JSON-RPC batch answer for {:?}", calls[0]));
         res.sort_by_key(|x| x["id"].as_u64());
         self.calls.fetch_add(calls.len(), Ordering::Relaxed);
         res.into_iter()
@@ -225,6 +238,7 @@ fn pages(rpc: &Rpc, method: &str, key: &Value, total: &mut usize) -> Vec<Value> 
             return out;
         }
         after = page["last_cursor"].take();
+        assert!(!after.is_null(), "a full page without last_cursor");
     }
 }
 
@@ -236,9 +250,11 @@ fn write(path: String, text: &[u8]) {
     std::fs::write(&path, text).unwrap_or_else(|e| panic!("write {path}: {e}"));
 }
 
-fn sha256(path: String) -> String {
-    let out = Command::new("sha256sum").arg(&path).output().expect("run sha256sum");
-    String::from_utf8(out.stdout).unwrap().split(' ').next().unwrap().to_string()
+/// The standard output of a command that must succeed, trimmed.
+fn output(cmd: &str, args: &[&str]) -> String {
+    let out = Command::new(cmd).args(args).output().unwrap_or_else(|e| panic!("run {cmd}: {e}"));
+    assert!(out.status.success(), "{cmd} {args:?} failed");
+    String::from_utf8(out.stdout).unwrap().trim().to_string()
 }
 
 fn fetch(release: &str, out: &str, url: &str) {
@@ -343,13 +359,13 @@ fn fetch(release: &str, out: &str, url: &str) {
     let only_prevs: Map<String, Value> = prevs.into_iter().filter(|(k, _)| !txs.contains_key(k)).collect();
     let raw = json!({"txs": txs, "prevs": only_prevs, "deps": dep_txs, "headers": headers});
     write(format!("{out}/raw.json"), &serde_json::to_vec(&raw).unwrap());
-    let date = Command::new("date").args(["-u", "+%Y-%m-%dT%H:%M:%SZ"]).output().expect("run date").stdout;
-    let mut meta = json!({"rpc": url, "tip_number": tip, "tip_hash": tip_hash, "fetched_at": String::from_utf8(date).unwrap().trim(),
+    let mut meta = json!({"rpc": url, "tip_number": tip, "tip_hash": tip_hash, "fetched_at": output("date", &["-u", "+%Y-%m-%dT%H:%M:%SZ"]),
         "indexer_entries_per_role": counts, "transactions": txs.len(), "previous_transactions": prev_hashes.len(),
         "input_cells": cells, "dep_cells": dep_lines.len(), "headers": header_hashes.len(), "scripts": s, "script_hashes": meta_s,
         "rpc_calls": rpc.calls.load(Ordering::Relaxed)});
     for name in ["fixtures.txt", "raw.json"] {
-        meta[format!("sha256:{name}")] = json!(sha256(format!("{out}/{name}")));
+        let digest = output("sha256sum", &[&format!("{out}/{name}")]);
+        meta[format!("sha256:{name}")] = json!(digest.split(' ').next().unwrap());
     }
     write(format!("{out}/meta.json"), &serde_json::to_vec_pretty(&meta).unwrap());
     meta.as_object_mut().unwrap().remove("scripts");
