@@ -1,6 +1,6 @@
 # iCKB Contracts Security Review
 
-- **Review period:** 2026-05-01 to 2026-11-02. The review keeps evolving. The repository history records each revision.
+- **Review period:** 2026-05-01 to 2026-11-11. The review keeps evolving. The repository history records each revision.
 - **Reviewed contracts commit:** [`454cfa9`](https://github.com/ickb/contracts/tree/454cfa966052a621c4e8b67001718c29ee8191a2). This is the last commit that changed `scripts/contracts/**` or `scripts/Cargo.toml`.
 - **Executable test evidence:** the current `scripts/tests/**` suite in this repository state.
 - **Scope:** `iCKB Logic`, `Owned Owner`, `Limit Order` and the shared `utils` crate.
@@ -9,23 +9,22 @@
 
 ## Executive Summary
 
-The review asks one question about the deployed scripts: does any transaction they accept break a protocol invariant? Four invariants carry the protocol. Each has its own section below:
+The review asks one question about the deployed scripts: does any transaction they accept break a protocol invariant? Four invariants carry the protocol:
 
 1. [No iCKB from nothing](#invariant-1-no-ickb-from-nothing): iCKB supply moves only with the value of pool deposits and receipts.
 2. [Receipts match deposits](#invariant-2-receipts-match-deposits): every receipt counts deposits created with it.
 3. [Limit orders keep their value](#invariant-3-limit-orders-keep-their-value): a fill never lowers the value of an order at its own ratio.
 4. [Withdrawal claims stay one to one](#invariant-4-withdrawal-claims-stay-one-to-one): each withdrawal request pairs with exactly one owner cell.
 
-Each holds whenever its owning script runs. The one live issue is the known `Limit Order` confusion attack, LO-01. The scripts never see that state, because it is created without running them. The other limits are of the same kind or sit outside the contracts:
+Each holds whenever its owning script runs. The one live issue, the known `Limit Order` confusion attack LO-01, comes from state created without running the scripts. The other limits are of the same kind or sit outside the contracts:
 
 - Receiptless deposits enter the pool without running `iCKB Logic`. The paths they open cost their user more than they return. No test shows theft, duplicated principal or a profit beyond assets the caller already controls.
 - The user lock binds recipients. The iCKB scripts don't. So integrations with locks that don't sign the whole transaction can have outputs redirected.
+- One transaction can outgrow the memory of a script: 330 limit orders at once stop it in the worst order found. The same cells then move in smaller transactions.
 
-The evidence binds to the code on chain. A byte-exact rebuild gives back the deployed binaries from this source. Every accepted transaction in the suite goes through the same transaction verifiers the node runs, plus an invariant oracle. That covers hand-written scenarios, a structured fuzzer and an exhaustive small-scope search. Every committed mainnet and testnet transaction goes through the same checks. None breaks an invariant. Mutation testing measures how much a clean run proves. Liveness tests show that the most extreme reachable states stay spendable within one block.
+The evidence binds to the code on chain: a byte-exact rebuild gives back the deployed binaries from this source. Every accepted transaction in the suite (hand-written scenarios, a structured fuzzer, an exhaustive small-scope search) goes through the same transaction verifiers the node runs, plus an invariant oracle. Every committed mainnet and testnet transaction goes through the same checks, then runs again script by script. None breaks an invariant. Mutation testing measures how much a clean run proves. An instruction-level trace of the deployed binaries shows which machine code those runs execute. The reachable parts it showed untested now have tests. A reading of the rest found no other part that an input can reach and that could change a verdict. The compiled-in dependencies and the known defects of the compiler were checked against the same bytes. Liveness tests show that the most extreme reachable states stay spendable within one block. They also pin the size at which one transaction outgrows a script.
 
 ## Findings Summary
-
-One known live issue remains in scope.
 
 | ID    | Status | Component     | Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ----- | ------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -55,8 +54,6 @@ Three on-chain scripts govern that flow:
 
 **Mixed transactions:** a single transaction can combine deposit phase 1, phase 2 and withdrawal operations.
 
-The rules below explain why the invariants hold where they do. They also explain why the invariants can't reach further.
-
 ### Script Grouping
 
 Each iCKB script has two roles: a lock on one kind of cell and a type on another. Whenever it runs in either role, it validates every cell of the transaction that uses it, not only its own group. The only states it can't check are those created by transactions where it doesn't run, because CKB doesn't execute output locks. LO-01 is the live instance. Receiptless `iCKB Logic` deposits and lock-only Owned Owner look-alikes are the others.
@@ -65,30 +62,28 @@ A transaction that spends an `iCKB Logic`-locked input and also carries a receip
 
 > A cell can have a lock script and an optional type script. Even they reference the same script, lock script and type script will not be grouped together.
 
-Lock groups and type groups live in separate `BTreeMap`s ([`types.rs:583-585`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/types.rs#L583-L585)). Lock groups come from input locks only, while type groups come from both input and output types ([`types.rs:642-666`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/types.rs#L642-L666)). `iCKB Logic` uses the same `{code_hash, Data1, empty_args}` for both roles, so a mixed transaction produces one lock group for deposit cells and one type group for receipt cells. Both see the same global cell set (`Source::Input` and `Source::Output`, not group-local sources) and apply the same checks. CKB requires [every script group to pass](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/verify.rs#L180-L197), so one run can't pass while the other fails (scenario 5B).
+Lock groups and type groups live in separate `BTreeMap`s ([`types.rs:583-585`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/types.rs#L583-L585)). Lock groups come from input locks only, while type groups come from both input and output types ([`types.rs:642-666`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/types.rs#L642-L666)). `iCKB Logic` uses the same `{code_hash, Data1, empty_args}` for both roles, so a mixed transaction produces one lock group for deposit cells and one type group for receipt cells. Both read the same global cell set (`Source::Input` and `Source::Output`, not group-local sources) with the same checks. CKB requires [every script group to pass](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/verify.rs#L180-L197), so one run can't pass while the other fails (scenario 5B).
 
 ### xUDT Owner Mode
 
-In the deployed configuration only two `xUDT` owner-mode routes are live. Both also execute `iCKB Logic`, so owner mode stays within iCKB accounting.
+Only two `xUDT` owner-mode routes are live in the deployed configuration. Both also execute `iCKB Logic`, so owner mode stays within iCKB accounting.
 
 iCKB `xUDT` args are built as [`[ickb_logic_hash, XUDT_ARGS_FLAGS]`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/celltype.rs#L116-L126) with [`XUDT_ARGS_FLAGS = 0x80000000`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/constants.rs#L1-L2).
 
 The [owner-mode update](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0052-extensible-udt/0052-extensible-udt.md#owner-mode-update) of RFC 0052 has four triggers: matching `input lock`, matching `input type`, matching `output type` and a witness `owner_script` whose hash matches the owner hash in args.
 
-In the deployed configuration, the upstream [`xudt_rce.c` flag parsing](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L383-L458) enables `input lock` by default. It enables `input type` when `flags & 0x80000000` is non-zero, while it enables `output type` only when `flags & 0x40000000` is non-zero. It also [falls back to the witness `owner_script` path](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L645-L649).
+The upstream [`xudt_rce.c` flag parsing](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L383-L458) enables `input lock` by default, `input type` when `flags & 0x80000000` is non-zero, `output type` only when `flags & 0x40000000` is non-zero. It also [falls back to the witness `owner_script` path](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L645-L649).
 
 The witness `owner_script` path needs an exported [`validate` symbol](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L36-L36) loaded through [`ckb_dlsym`](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L91-L113). [`iCKB Logic`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/main.rs#L23-L35) is instead built as a CKB entrypoint (`program_entry` through `ckb_std::entry!`), not as an xUDT `validate` extension. Under the deployed iCKB args `[ickb_logic_hash, 0x80000000]`, the live owner-mode paths are:
 
 - A receipt (input type = iCKB Logic): needed for phase 2 minting.
 - A deposit (input lock = iCKB Logic): fires during withdrawal.
 
-In both cases `iCKB Logic` runs too, as a type script for receipts or as a lock script for deposits. So `xUDT` can't enter owner mode without `iCKB Logic` also running.
-
 ### NervosDAO Interaction
 
 The [deposit phase 1 section of the iCKB whitepaper](https://github.com/ickb/whitepaper/blob/master/README.md#deposit-phase-1) pins `NervosDAO` to a [historical `dao.c`](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c). That version enforces the known [64-output-cell limit](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c#L565-L591) with an [`output_withdrawing_mask` bitset](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c#L445). iCKB inherits the limit as a platform constraint, but its own correctness doesn't depend on it.
 
-Key NervosDAO constraints, checked against the [`dao.c` the whitepaper pins](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c):
+Key constraints of that `dao.c`:
 
 - A withdrawal request must sit at the [same output index](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c#L518-L523) as the consumed deposit.
 - A withdrawal request must have [the same capacity as the deposit](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c#L356-L365).
@@ -97,33 +92,31 @@ Key NervosDAO constraints, checked against the [`dao.c` the whitepaper pins](htt
 
 ### Header Access
 
-Header access explains why iCKB uses a two-phase deposit flow. From [`script/src/syscalls/load_header.rs`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs):
+Header access is why deposits take two phases. From [`script/src/syscalls/load_header.rs`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs):
 
 - For `Source::Input`: it returns the header of the block holding the transaction that created the cell. That block hash must appear in [`header_deps`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs#L61-L66).
-- For `Source::Output`: it always returns `INDEX_OUT_OF_BOUND` ([`load_header.rs:79`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs#L79)). So deposits need two phases.
+- For `Source::Output`: it always returns `INDEX_OUT_OF_BOUND` ([`load_header.rs:79`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs#L79)).
 
 ### Authorization Boundary
 
-Several candidate issues turn on the boundary between lock-script authorization and type-script accounting. With the [lock script](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#lock-script) / [type script](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#type-script) split, the user lock enforces ownership while `ickb_logic` enforces value conservation. Its [balance equation](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/entry.rs#L28-L34) and [cell classification](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/celltype.rs#L69-L81) never look at who receives the output `iCKB` or the phase-1 DAO claim.
+With the [lock script](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#lock-script) / [type script](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#type-script) split, the user lock enforces ownership while `ickb_logic` enforces value conservation. Its [balance equation](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/entry.rs#L28-L34) and [cell classification](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/celltype.rs#L69-L81) never look at who receives the output `iCKB` or the phase-1 DAO claim.
 
-Under the [current assumption that user locks bind the whole transaction](https://github.com/ickb/whitepaper/blob/master/README.md#ancillary-scripts), that split is acceptable: the user signature commits to the full transaction. The deployment model of this review assumes current user-facing iCKB flows use strong transaction-binding locks. It doesn't treat delegated or adopted `OTX` flows as in-scope present-day integrations.
+Under the [current assumption that user locks bind the whole transaction](https://github.com/ickb/whitepaper/blob/master/README.md#ancillary-scripts), that split is acceptable: the user signature commits to the full transaction. This review assumes current user-facing iCKB flows use such locks. It doesn't treat delegated or adopted `OTX` flows as in-scope present-day integrations.
 
-This stays an integration assumption, not a full inventory of connector locks. The stack interface being prepared filters connectors by `SignerType.CKB`. It doesn't independently prove how each signer binds outputs. The public SDK also accepts signers or scripts from the caller. Any integration using a weaker lock inherits the reassignment behavior shown below.
+This stays an integration assumption, not a full inventory of connector locks. The stack interface being prepared filters connectors by `SignerType.CKB` without independently proving how each signer binds outputs. The public SDK also accepts signers or scripts from the caller. Any integration using a weaker lock inherits the reassignment behavior shown below.
 
-The weak-lock tests in this report don't replay a current wallet path. They model future or custom integrations (delegated, `OTX` or other integrations whose locks don't bind outputs), where recipient binding is an integration invariant, not a guarantee of the iCKB contracts.
+The weak-lock tests don't replay a current wallet path. They model future or custom integrations (delegated, `OTX` or others whose locks don't bind outputs), where recipient binding is an integration invariant, not a guarantee of the iCKB contracts. The executed regressions show why this stays a boundary case, not a current finding:
 
-Executed regressions show why that stays a boundary case, not a current finding:
-
-- **Weak-lock behavior:** recipient reassignment is possible in both `iCKB Logic` and `Owned Owner`. The [phase-2 weak-lock redirect test](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) and the [withdrawal weak-lock redirect test](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) show that path.
-- **Signed phase-2 minting:** once `sighash` binds the full transaction, phase-2 redirects stop working. The [phase-2 sighash binding test](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) and the [mixed phase-2 sighash binding test](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) show that binding.
-- **Signed withdrawals:** the same redirect fails for withdrawal outputs once `sighash` binds the transaction. The [withdrawal sighash binding test](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) and the [mixed withdrawal sighash binding test](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) show the same result.
+- **Weak locks:** recipients can be reassigned in both `iCKB Logic` and `Owned Owner` ([phase-2](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) and [withdrawal](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) weak-lock redirect tests).
+- **Signed phase-2 minting:** once `sighash` binds the full transaction, phase-2 redirects stop working ([phase-2](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) and [mixed phase-2](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) sighash binding tests).
+- **Signed withdrawals:** the same redirect fails for withdrawal outputs once `sighash` binds the transaction ([withdrawal](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) and [mixed withdrawal](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) sighash binding tests).
 - **Witness binding:** the [input-group, noncontiguous input-group and full-witness signing tests](scripts/tests/src/tests/signing.rs) confirm the witness-binding model of the signed path.
 
-The same [ancillary scripts section](https://github.com/ickb/whitepaper/blob/master/README.md#ancillary-scripts) already warns that delegated and `OTX` ownership patterns have their own pitfalls. These tests use `secp256k1_blake160_sighash_all` as the representative lock that binds the whole transaction. The repository has no `QRL` fixture. So conclusions for other strong-lock deployments rest on the same binding property, not on a separate replay.
+The same [ancillary scripts section](https://github.com/ickb/whitepaper/blob/master/README.md#ancillary-scripts) already warns that delegated and `OTX` ownership patterns have their own pitfalls. The tests use `secp256k1_blake160_sighash_all` as the representative lock that binds the whole transaction. The repository has no `QRL` fixture, so conclusions for other strong-lock deployments rest on the same binding property, not on a separate replay.
 
 ## How the Deployed Bytes Were Tested
 
-The deployment can't be patched (see [Non-Upgradable Deployment](#non-upgradable-deployment)). So every result here is evidence about the bytes on chain, not regression protection. No check below found the deployed scripts accepting a transaction that breaks an invariant.
+The deployment can't be patched ([Non-Upgradable Deployment](#non-upgradable-deployment)), so every result here is evidence about the bytes on chain, not regression protection. No check below found the deployed scripts accepting a transaction that breaks an invariant.
 
 ### Reference Repositories
 
@@ -140,18 +133,18 @@ The `nervosnetwork/ckb` pin is release `v0.210.0`. It takes its genesis NervosDA
 
 ### Source Matches the Deployed Bytes
 
-Building the contracts at this repository state, in the image `scripts/Cross.toml` pins, gives back all three deployed binaries byte for byte: same data hashes as `scripts/build/release`. The [build recipe](scripts/README.md#building-the-scripts) runs the same `cargo build` that capsule 0.10.5 ran, without capsule or cross. So the source analysis in this report and the mutation testing below bind to the deployed code.
+Building the contracts at this repository state, in the image `scripts/Cross.toml` pins, gives back all three deployed binaries byte for byte: same data hashes as `scripts/build/release`. The [build recipe](scripts/README.md#building-the-scripts) runs the same `cargo build` that capsule 0.10.5 ran, without capsule or cross. So the source analysis and the mutation testing below bind to the deployed code.
 
 ### The Test Harness
 
 The suite runs the deployed binaries in `ckb-testtool`. Its `Context::verify_tx` executes the scripts but none of the other transaction checks of the node. So [every test verifies](scripts/tests/src/tests.rs) through `VerifyRealistic`, which adds two checks:
 
-- **Node verifiers:** every transaction also goes through `ckb-verification` 1.2.1 under mainnet consensus, so a rejection test shows something only the scripts refuse. Its transaction verifier is unchanged from node v0.210.0. It covers capacity, the NervosDAO maximum withdraw and the DAO lock-size and output-data rules. Only checks that waiting satisfies (`since` and cellbase maturity) are left out. The few rejection tests whose point overlaps a node rule, such as a malformed DAO witness, name that rule explicitly. The chain replay below confirms the check rejects none of the transactions the real chain accepted.
-- **Invariant oracle:** on every transaction the scripts accept, it re-derives the four invariants from the transaction and its resolved input cells, not from script code paths. It checks each one only when its owning script executes. It still parses cells with the same rules as the scripts (data lengths, the soft-capped conversion, the order encoding). So it catches a binary that differs from its source or a composition the scripts get wrong. It can't catch a rule that both the scripts and the oracle get wrong. A positive-control test feeds it one broken transaction per invariant, so a silenced oracle fails the suite.
+- **Node verifiers:** every transaction also goes through `ckb-verification` 1.2.1 under mainnet consensus, so a rejection test shows something only the scripts refuse. Its transaction verifier is unchanged from node v0.210.0. It covers capacity, the NervosDAO maximum withdraw and the DAO lock-size and output-data rules. Only checks that waiting satisfies (`since` and cellbase maturity) are left out. The few rejection tests whose point overlaps a node rule, such as a malformed DAO witness, name that rule explicitly. The chain replay below shows it rejects none of the transactions the real chain accepted.
+- **Invariant oracle:** on every transaction the scripts accept, it re-derives the four invariants from the transaction and its resolved input cells, not from script code paths. It checks each one only when its owning script executes. It still parses cells with the same rules as the scripts (data lengths, the soft-capped conversion, the order encoding). So it catches a binary that differs from its source or a composition the scripts get wrong, but not a rule both get wrong. A positive-control test feeds it one broken transaction per invariant, so a silenced oracle fails the suite.
 
-Output locks never execute. So the creation-time blind spots that each invariant section documents stay outside the oracle. The oracle also never checks recipients (see [Authorization Boundary](#authorization-boundary)).
+Output locks never execute, so the creation-time blind spots of each invariant section stay outside the oracle. It also never checks recipients (see [Authorization Boundary](#authorization-boundary)).
 
-A fresh `cargo test --locked` run in `scripts/tests` passes with no failures. The exhaustive search and the chain replay are ignored long runs. The hand-written scenarios reproduce each attack and boundary case this report cites, including [transaction shapes replayed](scripts/tests/src/tests/replay.rs) from observed protocol flows. Four kinds of generated evidence follow.
+A fresh `cargo test --locked` run in `scripts/tests` passes with no failures. The exhaustive search and the chain replay are ignored long runs. The hand-written scenarios reproduce each attack and boundary case this report cites, including [transaction shapes replayed](scripts/tests/src/tests/replay.rs) from observed protocol flows.
 
 ### Structured Fuzzing
 
@@ -174,7 +167,7 @@ Then it applies up to three mutations:
 - a DAO cell wrapped into an owned-owner pair
 - out point re-pointing
 
-Mutated cases the node would reject are dropped before the scripts run. An unmutated case that fails to verify fails the test, so the generator itself stays honest. Every generated header sits below block 10,000,000, so the DAO lock-size rule of the node never applies. So the harness accepts slightly more than a node would today. That widens what the oracle checks and hides nothing.
+Mutated cases the node would reject are dropped before the scripts run. An unmutated case that fails to verify fails the test, which keeps the generator honest. Every generated header sits below block 10,000,000, so the node never applies its DAO lock-size rule: the harness accepts slightly more than a node would today. That widens what the oracle checks and hides nothing.
 
 - **Volume:** 12 million cases. Of these, 9,033,755 passed the node check and ran through the scripts. The oracle checked every accepted one. None broke an invariant. Run as `ICKB_FUZZ_CASES=1000000` with seeds `0x5eed0021` to `0x5eed002c`, in `--release`.
 - **Coverage:** the fuzzer triggered every validation error of the three scripts except `DuplicatedMaster` and `AttemptToChangeFulfilled`, which [Invariant 3](#invariant-3-limit-orders-keep-their-value) explains are unreachable. It also never triggered these syscall-level codes: `IndexOutOfBound` in all three scripts, `LengthNotEnough` in `iCKB Logic` and `Owned Owner`, `ItemMissing` in `Owned Owner` and `Limit Order`.
@@ -182,7 +175,7 @@ Mutated cases the node would reject are dropped before the scripts run. An unmut
 
 ### Exhaustive Small-Scope Search
 
-Random cases can miss a narrow combination. So [the exhaustive search](scripts/tests/src/tests/fuzz/exhaustive.rs) enumerates every transaction of up to three inputs and three outputs, five cells in all, in every order. It draws them from a fixed set of 24 input and 33 output archetypes, plus one funding input and one change output. The archetypes sit where the checks switch:
+Random cases can miss a narrow combination, so [the exhaustive search](scripts/tests/src/tests/fuzz/exhaustive.rs) enumerates every transaction of up to three inputs and three outputs, five cells in all, in every order. It draws them from a fixed set of 24 input and 33 output archetypes, plus one funding input and one change output. The archetypes sit where the checks switch:
 
 - deposits at the 1,000 and 1,000,000 CKB bounds and one shannon past them
 - the soft-cap boundary
@@ -199,11 +192,13 @@ All amounts derive from one deposit block whose accumulated rate makes conversio
 
 ### Chain Replay
 
-All 637 committed mainnet transactions that touch the iCKB scripts, up to block 20,894,722, replay through the oracle and the node check with no violation. So do all 8,232 on testnet, up to block 22,933,496: testnet runs the same deployment, with the same script hashes. [The fetcher](scripts/tests/mainnet/ickb_mainnet.py) checks every re-encoded transaction and header hash against the RPC. [The replay test](scripts/tests/src/tests/fuzz/mainnet.rs) runs on its fixtures without network.
+All 646 committed mainnet transactions that touch the iCKB scripts, up to block 20,978,907, replay through the oracle and the node check with no violation. So do all 9,808 on testnet, up to block 23,022,391: testnet runs the same deployment, with the same script hashes. [The fetcher](scripts/tests/mainnet/src/main.rs) checks every re-encoded transaction and header hash against the RPC. It also stores every cell dep, dep group members included. [The replay test](scripts/tests/src/tests/fuzz/mainnet.rs) runs on its fixtures without network.
+
+The replay also executes each transaction: every script group, against the code cells the chain used. Since the chain accepted them, a rejection would mean the harness runs scripts differently from a node. All 10,454 pass, across the iCKB scripts, `xUDT`, `NervosDAO` and every user lock in them.
 
 ### Mutation Testing
 
-`cargo-mutants` 27.1.0 mutated `scripts/contracts` once, as a local report. It also made six mutants in the loader of the test harness (`scripts/tests/src/lib.rs`), which the counts below leave out. The suite loads prebuilt binaries. So a `$CARGO` wrapper rebuilt the three contracts for RISC-V from each mutated copy, with Homebrew clang compiling the C part of ckb-std. It then ran the whole suite against them with `CAPSULE_TEST_ENV=debug`. It skipped only the deployed-hash test, which no rebuild can pass. Against the unmutated rebuild, every other test passes.
+`cargo-mutants` 27.1.0 mutated `scripts/contracts` once, as a local report. It also made six mutants in the loader of the test harness (`scripts/tests/src/lib.rs`), which the counts below leave out. The suite loads prebuilt binaries, so a `$CARGO` wrapper rebuilt the three contracts for RISC-V from each mutated copy, with clang compiling the C part of ckb-std. It then ran the whole suite against them with `CAPSULE_TEST_ENV=debug`. It skipped only the deployed-hash test, which no rebuild can pass. Against the unmutated rebuild, every other test passes.
 
 | Crate         | Caught | Missed | Unviable |
 | ------------- | ------ | ------ | -------- |
@@ -217,12 +212,97 @@ Unviable mutants don't compile: mostly constant and type positions where the rep
 - `>` to `>=` on the `u64::MAX` output ceiling in `check_output`, caught by a [boundary test that runs `iCKB Logic`](scripts/tests/src/tests/ickb_logic/xudt_amount_limits.rs).
 - `has_dao_type` returning `Ok(true)`, caught by [request-shaped data under a non-DAO type](scripts/tests/src/tests/owned_owner/script_misuse.rs).
 
-The two survivors are equivalent: `||` to `&&` in `from_hex`, which only validates compile-time constants that are already valid. No test can tell them apart.
+The two survivors are equivalent: `||` to `&&` in `from_hex`, which only validates compile-time constants that are already valid.
 
-How much does a clean fuzz run prove? The fuzz test alone, at its 100-case CI budget, catches 196 of the 229 caught mutants. Running 20,000 fuzz cases against each of the other 33 detects 22. For 14 the oracle flags an accepted invariant break. For 8 a valid base case is rejected. The 11 it misses:
+The fuzz test alone, at its 100-case CI budget, catches 196 of the 229 caught mutants. Running 20,000 fuzz cases against each of the other 33 detects 22: for 14 the oracle flags an accepted invariant break, for 8 a valid base case is rejected. The 11 it misses:
 
 - 10 change no invariant: the soft cap `>` to `>=` (equal at the boundary), three `has_empty_args` mutants (an args guard), two direction checks that only admit donations to an order, the sign of `ckb_unoccupied` (only stricter), the two `u64::MAX` ceiling mutants (a script guard, covered by the test above) and deleting the check against orders with both ratios empty (such an order can be minted and melted, but no fill of it can pass `validate`).
 - 1 is a remaining blind spot: `is_deposit_data` returning `true`. Its accepted transactions need an iCKB-locked withdrawal request spent with exactly its value burned, which takes several coordinated changes. The [iCKB-locked request test](scripts/tests/src/tests/ickb_logic/creation_blind_spots.rs) catches it.
+
+### Instruction Coverage
+
+The checks above don't show how much of the code on chain they run. A binary also holds code the compiler and the libraries add. So [the coverage tooling](scripts/tests/coverage/README.md) records every machine instruction the three deployed binaries execute during a run. It works on the deployed bytes themselves: the copies that carry function names equal them byte for byte in every loaded section.
+
+The record covers the default suite, 900,000 more fuzz cases (678,376 reached the scripts), two slices of the exhaustive search (77,203 transactions run) and the replay of both chains.
+
+It showed code that a transaction can reach and that no run had ever executed:
+
+- **Map splits:** each script keeps its bookkeeping in a sorted map. The map stores its entries in nodes of 11 and splits a node that fills up. No test, fuzz case or chain transaction gave `iCKB Logic` 12 different deposit amounts, so its split code had never run. `Limit Order` had split nodes only in testnet transactions.
+- **Long scripts:** every script reads its own script and each output lock to check the args. A script of up to 256 bytes fits one read. A longer one takes a second read into heap memory, which no run had needed.
+- **Division correction:** the iCKB conversion divides a 128-bit number. The division routine guesses the result, then corrects the guess when needed. One correction had never run. At current rates it needs an amount below 77 CKB, which only a receiptless deposit holds.
+- **Large sums:** the sums of `iCKB Logic` have 128 bits. Their upper half only comes into play past 2^64 units, more than any chain state holds.
+- **Out of memory:** no run had used up the memory of a script.
+
+[The reach tests](scripts/tests/src/tests/fuzz/reach.rs) now run each of these and check the verdict both ways: accepted when right, refused when one entry among many is off by one unit. Three more spots, found in what was left, are now tested the same way: a split with the new entry in the middle of a node, a script reading its own long args, `Owned Owner` running out of memory.
+
+With these tests, the runs execute:
+
+- **iCKB Logic:** 8,995 of 14,033 instructions (64.1%)
+- **Limit Order:** 6,259 of 8,642 instructions (72.4%)
+- **Owned Owner:** 4,562 of 6,753 instructions (67.6%)
+
+The default suite alone reaches almost the same: 64.1%, 72.4% and 67.2%.
+
+Every instruction that still never runs falls in one of three groups. The counts are for `iCKB Logic`, `Limit Order` and `Owned Owner`, in that order:
+
+- **Message formatting** (3,443, 1,006 and 1,040 instructions): functions that are never entered, almost all of them code that builds panic messages, which the release build never prints ([`debug!`](https://github.com/nervosnetwork/ckb-std/blob/a6b9b66570e6f7f5c41a76249db6fb663011cf3c/src/debug.rs) compiles to nothing). Any of them with callers is called only from code that never runs.
+- **Stops** (708, 668 and 581): paths that end by stopping the script. They are overflow checks that the [Arithmetic Bounds](#arithmetic-bounds) rule out, checks inside the standard library that its own logic guarantees, out-of-memory exits other than the ones the tests trigger.
+- **The rest** (887, 709 and 570): read piece by piece, in these groups:
+
+- **Failures a node never returns:** the handling of a field load that fails with anything but the end of the list, of a wrong length for an out point or a header field, of an unknown error code.
+- **Malformed scripts:** the handling of a script whose encoding is broken. Each such path refuses the transaction.
+- **Empty transactions:** the case of a transaction with no inputs or no outputs, which the [node refuses](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/verification/src/transaction_verifier.rs#L383-L406).
+- **One fixed input:** hashing and script building run once per execution, always on the same bytes (the `xUDT` script of iCKB). Their paths for other lengths never run.
+- **Upper words that stay zero:** the top word of the 256-bit sums in `Limit Order`, which stay below 2^192. Also the upper words of its one subtraction, which works on 64-bit amounts.
+- **Library variants:** paths of the memory copy routines for layouts these programs never produce. Allocator paths for a heap that isn't zero-filled, for a single block above 1 MiB, for more than 64 small blocks alive at once. Division paths for a divisor above 64 bits.
+- **Defensive errors:** `DuplicatedMaster` and `AttemptToChangeFulfilled` in `Limit Order` (see [Invariant 3](#invariant-3-limit-orders-keep-their-value)).
+
+No never-executed instruction was found that a transaction can reach and that would change a verdict.
+
+### Compiled-In Dependencies
+
+A defect in a library compiled into the binaries would be a defect in the contracts. So each one was judged from its code on 11 November 2026: the source of every later release, the open issues of its repository plus RustSec. Only molecule has an advisory. The two open issues named below are the only ones on code the scripts run:
+
+- **ckb-std 0.15.3:** [the 72 later commits](https://github.com/nervosnetwork/ckb-std/compare/a6b9b66570e6f7f5c41a76249db6fb663011cf3c...4657ce2ace29df60d97862800da7c2d998b70d1d) leave the syscall wrappers, loaders, entry point and allocator setup as they were. The open [ckb-std#150](https://github.com/nervosnetwork/ckb-std/issues/150), a writable `.rodata` that CKB-VM v2 refuses, doesn't apply: the deployed `.rodata` isn't writable, while code and data sit on separate pages.
+- **Memory routines:** the four C routines of ckb-std that copy, fill and compare memory, the same bytes in all three binaries, agree with a byte-by-byte reference on about two million calls under an emulator, across every alignment and overlap, all short lengths plus longer ones. A copy with one instruction disabled fails thousands of them.
+- **buddy-alloc 0.5.1:** 0.5.2 rewrote its free-list writes after [a report](https://github.com/jjyr/buddy-alloc/issues/16) that an optimized build lost one of them, which could hand out the same memory twice. The disassembled allocator of all three binaries performs every write.
+- **uint 0.9.5 and primitive-types 0.12.2:** the add, subtract, multiply, compare and conversions the scripts use don't change behavior up to `uint` 0.10.2 and `primitive-types` 0.14.0. The deployed code also prices [fills at the limits of every operand](#arithmetic-bounds) exactly.
+- **molecule 0.7.5 and ckb-gen-types 0.112.1:** every generated reader is the same in `ckb-gen-types` 1.1.2. The few behavior changes sit in functions the scripts never call. `molecule` 0.9.2 changes nothing the scripts run. Its one advisory, [RUSTSEC-2021-0103](https://rustsec.org/advisories/RUSTSEC-2021-0103.html), was fixed in 0.7.2.
+- **ckb-hash 0.112.1 and blake2b-ref 0.3.1:** `ckb-hash` 1.1.1 changes nothing the scripts run; `blake2b-ref` has no later release. The deployed hash routine gives the reference result on 512 inputs under the same emulator. The open [blake2b-ref.rs#3](https://github.com/jjyr/blake2b-ref.rs/issues/3) is an automated note on a byte reader that reads within the buffers it is given.
+- **The rest of the tree:** `crunchy` and `cfg-if` only shape code at compile time; `static_assertions` adds none. `byteorder`, `hex`, `fixed-hash` and `gcd` are at their latest release. The scripts call none of their code.
+- **Rust standard library:** the scripts reach a small part of it: vector growth, slice copies, comparisons, iterators, the cell around the allocator, plus a panic path that just ends the script. Later fixes there only restructure code or add debug checks. The real bugs fixed since sit in functions these binaries don't contain, such as `Vec::insert`. No open report found applies.
+- **Sorted map:** the scripts only insert into their maps, then consume them, with the global allocator. A panic ends the script. The fixes found after Rust 1.74.0 concern `append`, cursors, custom allocators and panic safety.
+- **u128 division:** the algorithm in `compiler_builtins` 0.1.101 is the same source today; the files around it changed only names, style and other targets.
+
+### Compiler Defects
+
+The contracts were compiled once, with rustc 1.74.0 and its LLVM 17. A defect of that compiler that produces wrong code matters for as long as the contracts live, even when it is found years later. So an independent audit went through the known reports of wrong code, for Rust and for LLVM: about 2,200, filed up to early November 2026.
+
+It judged each one from the 1.74.0 sources, not from the version a report names. Where it could, it checked exactly:
+
+- **LLVM defects:** it rebuilt that LLVM and showed that it reproduces every compiled object of the contracts byte for byte. Then it applied each later fix that fits that LLVM and compared the functions that end up in the deployed binaries.
+- **Rust defects:** it scanned the intermediate code of every function before and after the faulty step, on a rebuild of the standard library made with the settings of the shipped one.
+
+The result, for the defects that are in 1.74.0 or may be:
+
+- **Present, never fired:** [rust#158206](https://github.com/rust-lang/rust/issues/158206), [rust#150904](https://github.com/rust-lang/rust/issues/150904), [rust#158231](https://github.com/rust-lang/rust/issues/158231), [rust#118328](https://github.com/rust-lang/rust/issues/118328), [rust#137936](https://github.com/rust-lang/rust/issues/137936), [rust#146423](https://github.com/rust-lang/rust/issues/146423), [rust#162997](https://github.com/rust-lang/rust/issues/162997), [llvm#183906](https://github.com/llvm/llvm-project/issues/183906), [llvm#63763](https://github.com/llvm/llvm-project/issues/63763), [llvm#97702](https://github.com/llvm/llvm-project/issues/97702), [llvm#91178](https://github.com/llvm/llvm-project/issues/91178), [llvm#218569](https://github.com/llvm/llvm-project/issues/218569), [llvm#233085](https://github.com/llvm/llvm-project/issues/233085), [llvm#215533](https://github.com/llvm/llvm-project/issues/215533), [llvm#236396](https://github.com/llvm/llvm-project/issues/236396), [llvm#115976](https://github.com/llvm/llvm-project/issues/115976), [llvm#236347](https://github.com/llvm/llvm-project/issues/236347), [rust#164237](https://github.com/rust-lang/rust/issues/164237), [rust#120819](https://github.com/rust-lang/rust/issues/120819), [rust#163311](https://github.com/rust-lang/rust/issues/163311). With the fix applied, or the faulty step watched, no deployed function changes.
+- **Present, out of reach:** [rust#137646](https://github.com/rust-lang/rust/issues/137646), [rust#163856](https://github.com/rust-lang/rust/issues/163856), [rust#131834](https://github.com/rust-lang/rust/issues/131834) and [rust#119160](https://github.com/rust-lang/rust/issues/119160) need code shapes the deployed functions don't have, such as a virtual call that really runs. [rust#141101](https://github.com/rust-lang/rust/issues/141101) and [rust#132898](https://github.com/rust-lang/rust/issues/132898) don't change the compiled code.
+- **Present, fired, same behavior:** the fix for [llvm#84200](https://github.com/llvm/llvm-project/issues/84200) changes two deployed functions: the same instructions, in another order. The fix for [llvm#84653](https://github.com/llvm/llvm-project/issues/84653) changes seven: each still computes the same condition from the same values. [llvm#68683](https://github.com/llvm/llvm-project/issues/68683) writes a value into a field that is left undefined on an error path.
+- **Not shown to fire:** [rust#137668](https://github.com/rust-lang/rust/issues/137668), [rust#164599](https://github.com/rust-lang/rust/issues/164599), [rust#145956](https://github.com/rust-lang/rust/issues/145956) and [rust#163777](https://github.com/rust-lang/rust/issues/163777), judged without an exhaustive search.
+
+About 1,400 more reports don't apply: other targets, floating point, link-time optimization, steps this build doesn't run.
+
+The audit has limits. It couldn't decide a few hundred reports: most are open ones without a fix, or fixes that don't fit LLVM 17. It counts a function as deployed when the deployed code refers to it directly. It doesn't cover the four memory routines, which another compiler built (see [Compiled-In Dependencies](#compiled-in-dependencies)). Its check of the 128-bit division is partly approximate. The tests cover what an audit can't: they run the compiled bytes, as [Instruction Coverage](#instruction-coverage) shows, the division on every branch.
+
+### Arithmetic Bounds
+
+Can a sum or a product overflow? The scripts are built with overflow checks (`overflow-checks = true` in the release profile of [`scripts/Cargo.toml`](scripts/Cargo.toml)), so an overflow stops the script instead of wrapping around. The deployed bytes carry those checks: [a sum past 2^128 stops the script](scripts/tests/src/tests/fuzz/reach.rs), in cases built so that a wrapped sum would balance.
+
+No value a chain can hold comes near an overflow anyway:
+
+- **iCKB conversion:** `amount * 10^16` takes at most 118 bits for any 64-bit amount. Its division by the accumulated rate gives the natively computed result on [every branch of the division routine](scripts/tests/src/tests/fuzz/reach.rs), the two corrections included.
+- **iCKB sums:** every header counts all CKB issued in 64 bits ([RFC 0023](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0023-dao-deposit-withdraw/0023-dao-deposit-withdraw.md#calculation)), so all pool deposits together are worth less than 2^64 iCKB. Supply and receipts never exceed them (see [From One Transaction to the Whole Chain](#from-one-transaction-to-the-whole-chain)). Each iCKB output is capped at `u64::MAX`. So every 128-bit sum stays far below its limit.
+- **Limit Order:** CKB amounts and ratio multipliers have 64 bits, UDT amounts 128. The largest sum the script forms is `(2^128 - 1) * (2^64 - 1) + 2^64 * (2^64 - 1)`, below 2^192. So its 256-bit operations never overflow, for any token. [Fills at the limits of every operand](scripts/tests/src/tests/fuzz/reach.rs) agree with a price computed by one division: the fill passes at the price rounded up and fails one unit below.
 
 ## Invariant 1: No iCKB From Nothing
 
@@ -266,11 +346,11 @@ if ickb_amount > ICKB_SOFT_CAP_PER_DEPOSIT {
 }
 ```
 
-`amount` is a `u64` and the product fits in `u128` (about `1.8e19 * 1e16 = 1.8e35 < 3.4e38`). Integer division loses at most one shannon per operation.
+`amount` is a `u64`, so the product fits in `u128` ([Arithmetic Bounds](#arithmetic-bounds)). Integer division loses at most one shannon per operation.
 
 ### Attacks and Why They Fail
 
-- **(1A) Direct xUDT minting bypass:** blocked. Owner mode has only the two live routes of [xUDT Owner Mode](#xudt-owner-mode). Both run `iCKB Logic`, so the balance equation applies. The [output-witness and input-witness owner-script fallback tests](scripts/tests/src/tests/ickb_logic/xudt_owner_witness_fallback.rs) confirm that the witness route fails under `xUDT` amount checks. `xudt_rce.c` discards the result of that route, so the tests can't show why it failed. The source argument above establishes why.
+- **(1A) Direct xUDT minting bypass:** blocked. Both live owner-mode routes ([xUDT Owner Mode](#xudt-owner-mode)) run `iCKB Logic`, so the balance equation applies. The [output-witness and input-witness owner-script fallback tests](scripts/tests/src/tests/ickb_logic/xudt_owner_witness_fallback.rs) confirm that the witness route fails under `xUDT` amount checks. `xudt_rce.c` discards the result of that route, so only the source argument above shows why it fails.
 - **(1C) Inflate a receipt value through the accumulated rate of its block:** blocked. [`extract_accumulated_rate`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/utils/src/utils.rs#L54-L61) calls `load_header`, which reads the block hash from [`CellMeta.transaction_info.block_hash`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs#L56-L60). It succeeds only when that block is also in [`header_deps`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs#L61-L66). The transaction creator can't override that link.
 - **(2A) Withdraw a deposit without burning iCKB:** blocked. With no iCKB or receipts on input, `0 + 0 != 0 + deposit_value` fails with `AmountMismatch`.
 - **(2B) Spend a deposit through NervosDAO without `iCKB Logic`:** blocked. Deposits use `iCKB Logic` as their lock. CKB always executes input locks (the [lock-script rule](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#lock-script)).
@@ -288,7 +368,7 @@ if ickb_amount > ICKB_SOFT_CAP_PER_DEPOSIT {
 
 ### Limits
 
-- **Receiptless deposits:** CKB doesn't execute output locks. So a DAO-shaped output under the `iCKB Logic` lock can be created without a receipt. [`cell_type_iter`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/celltype.rs#L68-L75) later counts it as a pool deposit, with no provenance check ([receiptless deposit-admission test](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs)). Its creator receives no iCKB, so it only adds value that no minted iCKB matches. One accepted path pairs a separately provided split receipt with a self-funded receiptless aggregate deposit. The contract mints only the soft-cap valuation delta, which leaves the user worse off than redeeming the receipt normally. In the tested case, a receipt for two 100k CKB deposits plus a separately funded 200k CKB aggregate yield 10k iCKB plus the CKB of the aggregate back, instead of the 200k iCKB of the receipt. The 190k iCKB of value left in the pool is effectively burned. The [delta-only spread test](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs) and the [oversized spread test](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs) show the accepted spread. The [deposit-alone spread block test](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs) blocks the deposit-alone variant. The [mixed phase1-phase2 soft-cap test](scripts/tests/src/tests/ickb_logic/soft_cap.rs) shows that fresh phase-1 deposits in the same transaction don't bypass the soft cap. The [continuous trajectory](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs) goes from split-deposit receipt creation through receiptless creation, spread realization and DAO phase 2. It keeps the transaction hash and index of each verified output, with no theft of third-party principal or duplicated recovery.
+- **Receiptless deposits:** CKB doesn't execute output locks. So a DAO-shaped output under the `iCKB Logic` lock can be created without a receipt. [`cell_type_iter`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/celltype.rs#L68-L75) later counts it as a pool deposit, with no provenance check ([receiptless deposit-admission test](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs)). Its creator receives no iCKB, so it only adds value that no minted iCKB matches. One accepted path pairs a separately provided split receipt with a self-funded receiptless aggregate deposit. The contract mints only the soft-cap valuation delta, which leaves the user worse off than redeeming the receipt normally. In the tested case, a receipt for two 100k CKB deposits plus a separately funded 200k CKB aggregate yield 10k iCKB plus the CKB of the aggregate back, instead of the 200k iCKB of the receipt. The 190k iCKB of value left in the pool is effectively burned. The [delta-only](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs) and [oversized](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs) spread tests show the accepted spread. The [deposit-alone spread block test](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs) blocks the deposit-alone variant. The [mixed phase1-phase2 soft-cap test](scripts/tests/src/tests/ickb_logic/soft_cap.rs) shows that fresh phase-1 deposits in the same transaction don't bypass the soft cap. The [continuous trajectory](scripts/tests/src/tests/ickb_logic/receiptless_deposit_blind_spot.rs) goes from split-deposit receipt creation through receiptless creation, spread realization and DAO phase 2. It keeps the transaction hash and index of each verified output, with no theft of third-party principal or duplicated recovery.
 - **Prefix parsing:** trailing bytes in receipt and `xUDT` data are read as a prefix, while truncated encodings are rejected ([receipt trailing-bytes and truncated receipt tests](scripts/tests/src/tests/ickb_logic/receipt_encoding.rs), [trailing and short `xUDT` output-data tests](scripts/tests/src/tests/ickb_logic/phase2_xudt_output_data.rs)).
 - **Recipients:** the equation never looks at who receives the output iCKB (see [Authorization Boundary](#authorization-boundary)).
 
@@ -351,7 +431,7 @@ if c2u.ckb_mul * u2c.udt_mul < c2u.udt_mul * u2c.ckb_mul
 - **(5E) Lower the value of an order in a match:** blocked by the conservation check above.
 - **Re-wire real orders to other masters:** blocked. Differing mint capacities and differing match progress both block cross-wiring ([distinct mint-capacity](scripts/tests/src/tests/limit_order/crosswire_blockers.rs) and [distinct match-progress](scripts/tests/src/tests/limit_order/crosswire_blockers.rs) tests). Real orders also fail to cross-wire whether their checked info matches or differs ([same-info](scripts/tests/src/tests/limit_order/crosswire_blockers.rs) and [different-info mainnet](scripts/tests/src/tests/limit_order/crosswire_blockers.rs) tests).
 - **Harmless pairings:** permuting two indistinguishable matched orders strands neither master. Both continuations stay redeemable by the master encoded in their data, also with masters protected by `secp256k1_blake160_sighash_all` ([cloned-order permutation test](scripts/tests/src/tests/limit_order/crosswire_live_match.rs)). A mint can pair any of its order outputs with any of its master outputs, but the script enforces one order per master ([mint pairing rule test](scripts/tests/src/tests/limit_order/crosswire_mint_creation.rs)). The minter creates and controls all of them, so a crossed pairing is a choice the minter made ([mint pairing test](scripts/tests/src/tests/limit_order/crosswire_mint_creation.rs)).
-- **Unreachable errors:** a terminal CKB -> UDT fill passes at exact occupied capacity. Continuing a fulfilled single-direction order fails at the outer `InvalidMatch` check (a dual-ratio order may still move in its other direction, as designed). A lock-only order without a UDT type returns `MissingUdtType`. Two defensive errors can't be reached by consensus-valid cells. `AttemptToChangeFulfilled` can't, because on the CKB -> UDT side a continuation shares the lock, type and data length of the order, so it can't hold less CKB than a fulfilled order. On the UDT -> CKB side, a fulfilled order has no UDT left to decrease. The [vector replay](scripts/tests/src/tests/protocol_vectors.rs) skips the two vectors that assume such a shrinking CKB -> UDT cell, whose two sides imply different occupied capacities. It also asserts which two they are. [`DuplicatedMaster`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/limit_order/src/entry.rs#L42-L45) can't either: an input master is keyed by its out point, an output master by its output index. No two cells share either.
+- **Unreachable errors:** a terminal CKB -> UDT fill passes at exact occupied capacity. Continuing a fulfilled single-direction order fails at the outer `InvalidMatch` check (a dual-ratio order may still move in its other direction, as designed). A lock-only order without a UDT type returns `MissingUdtType`. Two defensive errors can't be reached by consensus-valid cells. For `AttemptToChangeFulfilled`, on the CKB -> UDT side a continuation shares the lock, type and data length of the order, so it can't hold less CKB than a fulfilled order. On the UDT -> CKB side, a fulfilled order has no UDT left to decrease. The [vector replay](scripts/tests/src/tests/protocol_vectors.rs) asserts that it skips exactly the two vectors that assume such a shrinking CKB -> UDT cell, whose two sides imply different occupied capacities. [`DuplicatedMaster`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/limit_order/src/entry.rs#L42-L45) can't either: an input master is keyed by its out point, an output master by its output index. No two cells share either.
 
 ### Limits: LO-01
 
@@ -377,8 +457,8 @@ In inputs and in outputs separately, each owned cell is a NervosDAO withdrawal r
 
 ### Attacks and Why They Fail
 
-- **(5D) An orphaned owner cell:** blocked when `Owned Owner` executes. The [orphan-owner rejection test](scripts/tests/src/tests/owned_owner/pair_formation.rs) shows an orphan owner is rejected right away. The [two-owner](scripts/tests/src/tests/owned_owner/pair_formation.rs) and [two-owned](scripts/tests/src/tests/owned_owner/pair_formation.rs) mismatch tests reject the count mismatches.
-- **Rotate a live claim into a fresh pair, or cross-wire a DAO-constrained batch:** blocked. The [fresh-pair rotation block test](scripts/tests/src/tests/owned_owner/live_claim_rotation.rs), the [new-pair rotation block test](scripts/tests/src/tests/owned_owner/live_claim_rotation.rs) and the [DAO index-rule crosswire block test](scripts/tests/src/tests/owned_owner/dao_crosswiring.rs) show that block.
+- **(5D) An orphaned owner cell:** blocked when `Owned Owner` executes. The [orphan-owner rejection test](scripts/tests/src/tests/owned_owner/pair_formation.rs) rejects it right away. The [two-owner](scripts/tests/src/tests/owned_owner/pair_formation.rs) and [two-owned](scripts/tests/src/tests/owned_owner/pair_formation.rs) mismatch tests reject the count mismatches.
+- **Rotate a live claim into a fresh pair, or cross-wire a DAO-constrained batch:** blocked ([fresh-pair](scripts/tests/src/tests/owned_owner/live_claim_rotation.rs) and [new-pair](scripts/tests/src/tests/owned_owner/live_claim_rotation.rs) rotation block tests, [DAO index-rule crosswire block test](scripts/tests/src/tests/owned_owner/dao_crosswiring.rs)).
 - **Signed lifecycle:** a [secp-protected sparse pair](scripts/tests/src/tests/owned_owner/positive_distance_claims.rs) completes phase 1 with a noncontiguous signed input group, then the signed owner spend in DAO phase 2.
 
 ### Limits
@@ -407,12 +487,20 @@ On testnet at block 22,933,531 the deposit side is higher by exactly 10 iCKB. Re
 
 The invariants say what an accepted transaction can't do. [The liveness tests](scripts/tests/src/tests/fuzz/liveness.rs) check the converse: from each extreme state a user can reach, the next normal transaction of the owner still verifies within one mainnet block (3.5 billion cycles, 597,000 bytes) and keeps the invariants.
 
-- **Largest withdrawal and claim:** 32 deposits of 1,000,000 CKB withdrawn in one transaction, which fills the 64 outputs a transaction with a DAO output may have. Then all 32 are claimed in one transaction. The withdrawal takes 1,743,499 cycles and the claim 1,691,191, about 0.05% of a block each.
+- **Largest withdrawal and claim:** 32 deposits of 1,000,000 CKB withdrawn in one transaction, which fills the 64 outputs a transaction with a DAO output may have. Then all 32 are claimed in one transaction. The withdrawal takes 1,743,499 cycles and the claim 1,691,191, about 0.05% of a block each. The same withdrawal also verifies with its deposits at input positions 32 to 63, in blocks past 10,000,000.
 - **Long header dep lists:** more than 300 header deps block neither a withdrawal nor a claim. The iCKB scripts find the header of each input through the input itself, never through a header dep index.
 - **Receipts and deposits at the edges:** a receipt for 63 deposits of 1,000,000 CKB (the most one deposit transaction can create), plus deposits at both bounds and one shannon around the soft cap. They redeem and withdraw at accumulated rates of genesis, one above it, double it and `u64::MAX`. At `u64::MAX` the soft cap lies above the maximum deposit, so only the two bounds apply.
 - **Orders at their end:** fulfilled orders in either direction and empty dust orders melt with their master. A remainder below the minimum match can still be filled in full in either direction, because the minimum binds only partial matches.
+- **Wide transactions:** [the reach tests](scripts/tests/src/tests/fuzz/reach.rs) run 150 orders minted, filled and melted at once, 100 withdrawal requests claimed at once and 31 deposits of 31 different amounts. Each also has a case with one wrong entry among the many, which is still refused.
 
 Separately, the type-role scan regression verifies a phase-2 conversion with 512 unrelated outputs within the 10,000,000-cycle ceiling of the suite. Lock-role transactions also execute NervosDAO, whose 64-output limit caps their outputs.
+
+Each script has 516 KB of heap and stops when it runs out. [The reach tests](scripts/tests/src/tests/fuzz/reach.rs) pin where that happens. Each limit bounds one transaction, never a cell: the same cells still move in smaller transactions.
+
+- **Orders per transaction:** how many orders `Limit Order` handles at once depends on the order in which it meets their masters. In the worst order found, 329 orders fit, filled or melted. One more stops the script. Sorted masters fit 382, whether minted, filled or melted. Scattered ones fit more. At 382 the transaction stays under 34 million cycles and 165,000 bytes.
+- **Claims per transaction:** 500 claims in one transaction take 39 million cycles, within the 70 million a node accepts into its pool by default. 1,000 claims already take 86 million. `Owned Owner` itself holds 2,627 pairs before its heap runs out in the worst order found, 3,063 in ascending order.
+- **Deposits and receipts:** `iCKB Logic` keeps a small map entry per distinct amount. About a block full of receipts, 3,870 of distinct amounts, still fits its heap.
+- **Long output locks:** every script reads each output lock into one heap block. A lock script of up to 256 KiB is read. A longer one stops whichever iCKB script runs. No wallet lock comes near that size.
 
 Two documented limits delay transactions without costing funds:
 
@@ -421,9 +509,9 @@ Two documented limits delay transactions without costing funds:
 
 ## Non-Upgradable Deployment
 
-The reviewed deployment is non-upgradable under the observed script references. Under [RFC 0022](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#code-locating) and [RFC 0032](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0032-ckb-vm-version-selection/0032-ckb-vm-version-selection.md#specification), the deployed scripts in transactions use `hash_type = data1`: referencing scripts locate code in `cell_deps` by cell data hash and run it on CKB VM v1. That reference mode pins validation to the exact deployed binary bytes. The pinning comes from how scripts in transactions refer to the cell, not from the binary cell itself.
+The reviewed deployment is non-upgradable under the observed script references. Under [RFC 0022](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#code-locating) and [RFC 0032](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0032-ckb-vm-version-selection/0032-ckb-vm-version-selection.md#specification), the deployed scripts in transactions use `hash_type = data1`: referencing scripts locate code in `cell_deps` by cell data hash and run it on CKB VM v1. That reference mode pins validation to the exact deployed binary bytes: the pinning comes from how transactions refer to the cell, not from the cell itself.
 
-By contrast, `hash_type = type` would locate code by type-script hash. That allows a replacement code cell with the same type script and different contents, with the upgrade policy then set by the lock script of that code cell. Separately, the published binary cells are locked with a `secp256k1_blake160` zero lock, an unspendable lock. So no trusted operator key remains as an owner of the binaries. Fixing a bug after deployment would need a migration to new script deployments and a new dep group.
+By contrast, `hash_type = type` would locate code by type-script hash, so a replacement code cell under the same type script could change the code, as the lock of that code cell allows. Separately, the published binary cells are locked with a `secp256k1_blake160` zero lock, an unspendable lock, so no trusted operator key remains as an owner of the binaries. Fixing a bug after deployment would need a migration to new script deployments and a new dep group.
 
 ## Conclusion
 

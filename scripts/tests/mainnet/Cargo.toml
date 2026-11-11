@@ -1,0 +1,17 @@
+[package]
+name = "ickb-mainnet"
+version = "0.1.0"
+edition = "2021"
+
+# Standalone on purpose: the empty [workspace] table keeps this fetcher out of the contracts
+# workspace in ../../Cargo.toml, so its dependencies never enter the Cargo.lock the contracts
+# build from. It sends RPC requests through the curl command instead of linking an HTTP client.
+[workspace]
+
+[dependencies]
+ckb-hash = "1"
+serde_json = "1"
+
+# A capacity below its occupied size, or a sum past its type, stops the fetch instead of wrapping.
+[profile.release]
+overflow-checks = true

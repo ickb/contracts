@@ -10,12 +10,12 @@ const MAX_WITHDRAWAL_PAIRS: u32 = 32;
 /// The largest receipt quantity one deposit transaction can create: its deposits and the receipt
 /// share the 64 outputs.
 const MAX_RECEIPT_QUANTITY: u32 = 63;
-const MAX_DEPOSIT: u64 = 1_000_000 * CKB;
-const MIN_DEPOSIT: u64 = 1_000 * CKB;
+pub(super) const MAX_DEPOSIT: u64 = 1_000_000 * CKB;
+pub(super) const MIN_DEPOSIT: u64 = 1_000 * CKB;
 
 /// Verifies like the node, whose checks include the mainnet block size limit, within mainnet's
 /// block cycle limit, then requires the invariants to hold.
-fn commit(context: &mut Context, mut spec: TxSpec) -> u64 {
+pub(super) fn commit(context: &mut Context, mut spec: TxSpec) -> u64 {
     assert!(spec.balance(), "the test built an unbalanceable transaction");
     let tx = spec.build(context);
     let cycles = context.verify(&tx, mainnet().max_block_cycles()).unwrap_or_else(|e| panic!("rejected: {e}"));
@@ -24,7 +24,7 @@ fn commit(context: &mut Context, mut spec: TxSpec) -> u64 {
     cycles
 }
 
-fn point(tag: u8, index: u32) -> OutPoint {
+pub(super) fn point(tag: u8, index: u32) -> OutPoint {
     OutPoint::new([tag; 32].pack(), index)
 }
 
@@ -32,12 +32,12 @@ fn deposit(env: &Env, lock: &Script, amount: u64, data: Vec<u8>) -> Cell {
     Cell { capacity: deposit_capacity(lock, &env.dao, 8, amount), lock: lock.clone(), type_: Some(env.dao.clone()), data }
 }
 
-fn input(cell: Cell, out_point: OutPoint, header: Option<&HeaderView>) -> In {
+pub(super) fn input(cell: Cell, out_point: OutPoint, header: Option<&HeaderView>) -> In {
     In { cell, out_point, header: header.cloned(), since: 0, witness: Bytes::new() }
 }
 
 /// A funding input and its change output, so `balance` settles capacity as a wallet would.
-fn fund(env: &Env, spec: &mut TxSpec) {
+pub(super) fn fund(env: &Env, spec: &mut TxSpec) {
     spec.inputs.push(input(Cell { capacity: 2_000_000 * CKB, lock: env.funding.clone(), type_: None, data: vec![] }, point(0xfe, 0), None));
     spec.outputs.push(Out { cell: Cell { capacity: 0, lock: env.funding.clone(), type_: None, data: vec![] }, change: true });
 }
@@ -76,7 +76,7 @@ fn withdrawal(env: &Env, pairs: u32, fillers: u64) -> TxSpec {
 
 /// The claim of `pairs` withdrawal requests created by one withdrawal (requests at 0.., owners
 /// after them), with deposit headers first and `fillers` header deps after.
-fn claim(env: &Env, pairs: u32, fillers: u64) -> TxSpec {
+pub(super) fn claim(env: &Env, pairs: u32, fillers: u64) -> TxSpec {
     let withdraw_header = gen_header(2_000_610, SYNTHETIC_WITHDRAW_AR, 575, 2_000_000, 1100);
     let mut spec = TxSpec { header_deps: vec![withdraw_header.clone()], ..Default::default() };
     let mut claimed = 0;
@@ -104,6 +104,36 @@ fn largest_withdrawal_and_its_claim_each_fit_one_block() {
     let withdraw = commit(&mut context, withdrawal(&env, MAX_WITHDRAWAL_PAIRS, 0));
     let claim = commit(&mut context, claim(&env, MAX_WITHDRAWAL_PAIRS, 0));
     eprintln!("{MAX_WITHDRAWAL_PAIRS} pairs: withdrawal {withdraw} cycles, claim {claim} cycles");
+}
+
+// The largest withdrawal again, with its deposits at input positions 32 to 63 instead of 0 to 31,
+// in blocks past 10,000,000, where the node's DAO lock-size rule applies.
+#[test]
+fn largest_withdrawal_with_deposits_at_inputs_32_to_63_fits_one_block() {
+    let mut context = Context::default();
+    let env = Env::new(&mut context);
+    let pairs = MAX_WITHDRAWAL_PAIRS;
+    let ar = |k: u32| GENESIS_AR + u64::from(k);
+    let udt = env.udt((0..pairs).map(|k| soft_capped_ickb(MAX_DEPOSIT, ar(k))).sum());
+    let owner = env.owner(pairs as i32);
+    let mut spec = TxSpec::default();
+    // Inputs 0 to 30 are plain cells and input 31 the iCKB, so no DAO cell sits below position 32.
+    for _ in 0..pairs - 1 {
+        spec.inputs.push(In::new(env.plain(owner.capacity)));
+        spec.outputs.push(Out::from(owner.clone()));
+    }
+    spec.inputs.push(In::new(udt.clone()));
+    spec.outputs.push(Out::from(Cell { capacity: udt.capacity, ..owner }));
+    for k in 0..pairs {
+        let number = 12_000_000 + u64::from(k);
+        let header = gen_header(number, ar(k), 9_000, number - number % 1_800, 1_800);
+        let cell = env.deposit(&env.ickb, MAX_DEPOSIT);
+        spec.outputs.push(Out::from(Cell { lock: env.owned_owner.clone(), data: number.to_le_bytes().to_vec(), ..cell.clone() }));
+        spec.inputs.push(In::new(cell).in_block(&header));
+        spec.header_deps.push(header);
+    }
+    assert_eq!(spec.outputs.len(), 64);
+    commit(&mut context, spec);
 }
 
 // The iCKB scripts find each input's header through the input itself, never through a header dep
@@ -170,13 +200,13 @@ fn deposits_withdraw_at_soft_cap_and_rate_edges() {
     }
 }
 
-const C2U: (u64, u64) = (3, 5);
+pub(super) const C2U: (u64, u64) = (3, 5);
 // 3 * 9 >= 5 * 5: a round trip never loses value, which the script requires of every two-way order.
-const U2C: (u64, u64) = (5, 9);
+pub(super) const U2C: (u64, u64) = (5, 9);
 // 2^33 shannons, about 86 CKB.
-const MIN_MATCH_LOG: u8 = 33;
+pub(super) const MIN_MATCH_LOG: u8 = 33;
 
-fn order(env: &Env, unused: u64, amount: u128, master: &OutPoint) -> Cell {
+pub(super) fn order(env: &Env, unused: u64, amount: u128, master: &OutPoint) -> Cell {
     let index: u32 = master.index().unpack();
     let data = order_data_custom(amount, 1, master.tx_hash().as_slice().try_into().expect("tx hash"), index.to_le_bytes(), C2U, U2C, MIN_MATCH_LOG).to_vec();
     Cell { capacity: deposit_capacity(&env.limit_order, &env.xudt, 89, unused), lock: env.limit_order.clone(), type_: Some(env.xudt.clone()), data }
