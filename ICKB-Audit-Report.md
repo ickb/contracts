@@ -9,14 +9,14 @@
 
 ## Executive Summary
 
-The review asks one question about the deployed scripts: does any transaction they accept break a protocol invariant? Four invariants carry the protocol. Each has its own section below:
+The review asks one question about the deployed scripts: does any transaction they accept break a protocol invariant? Four invariants carry the protocol:
 
 1. [No iCKB from nothing](#invariant-1-no-ickb-from-nothing): iCKB supply moves only with the value of pool deposits and receipts.
 2. [Receipts match deposits](#invariant-2-receipts-match-deposits): every receipt counts deposits created with it.
 3. [Limit orders keep their value](#invariant-3-limit-orders-keep-their-value): a fill never lowers the value of an order at its own ratio.
 4. [Withdrawal claims stay one to one](#invariant-4-withdrawal-claims-stay-one-to-one): each withdrawal request pairs with exactly one owner cell.
 
-Each holds whenever its owning script runs. The one live issue is the known `Limit Order` confusion attack, LO-01. The scripts never see that state, because it is created without running them. The other limits are of the same kind or sit outside the contracts:
+Each holds whenever its owning script runs. The one live issue, the known `Limit Order` confusion attack LO-01, comes from state created without running the scripts. The other limits are of the same kind or sit outside the contracts:
 
 - Receiptless deposits enter the pool without running `iCKB Logic`. The paths they open cost their user more than they return. No test shows theft, duplicated principal or a profit beyond assets the caller already controls.
 - The user lock binds recipients. The iCKB scripts don't. So integrations with locks that don't sign the whole transaction can have outputs redirected.
@@ -25,8 +25,6 @@ Each holds whenever its owning script runs. The one live issue is the known `Lim
 The evidence binds to the code on chain. A byte-exact rebuild gives back the deployed binaries from this source. Every accepted transaction in the suite goes through the same transaction verifiers the node runs, plus an invariant oracle. That covers hand-written scenarios, a structured fuzzer and an exhaustive small-scope search. Every committed mainnet and testnet transaction goes through the same checks, then runs again script by script. None breaks an invariant. Mutation testing measures how much a clean run proves. An instruction-level trace of the deployed binaries shows which machine code those runs execute, with tests for every remaining part that an input can reach and that could change a verdict. The compiled-in dependencies and the known defects of the compiler were checked against the same bytes. Liveness tests show that the most extreme reachable states stay spendable within one block. They also pin the size at which one transaction outgrows a script.
 
 ## Findings Summary
-
-One known live issue remains in scope.
 
 | ID    | Status | Component     | Finding                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ----- | ------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -56,8 +54,6 @@ Three on-chain scripts govern that flow:
 
 **Mixed transactions:** a single transaction can combine deposit phase 1, phase 2 and withdrawal operations.
 
-The rules below explain why the invariants hold where they do. They also explain why the invariants can't reach further.
-
 ### Script Grouping
 
 Each iCKB script has two roles: a lock on one kind of cell and a type on another. Whenever it runs in either role, it validates every cell of the transaction that uses it, not only its own group. The only states it can't check are those created by transactions where it doesn't run, because CKB doesn't execute output locks. LO-01 is the live instance. Receiptless `iCKB Logic` deposits and lock-only Owned Owner look-alikes are the others.
@@ -66,30 +62,28 @@ A transaction that spends an `iCKB Logic`-locked input and also carries a receip
 
 > A cell can have a lock script and an optional type script. Even they reference the same script, lock script and type script will not be grouped together.
 
-Lock groups and type groups live in separate `BTreeMap`s ([`types.rs:583-585`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/types.rs#L583-L585)). Lock groups come from input locks only, while type groups come from both input and output types ([`types.rs:642-666`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/types.rs#L642-L666)). `iCKB Logic` uses the same `{code_hash, Data1, empty_args}` for both roles, so a mixed transaction produces one lock group for deposit cells and one type group for receipt cells. Both see the same global cell set (`Source::Input` and `Source::Output`, not group-local sources) and apply the same checks. CKB requires [every script group to pass](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/verify.rs#L180-L197), so one run can't pass while the other fails (scenario 5B).
+Lock groups and type groups live in separate `BTreeMap`s ([`types.rs:583-585`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/types.rs#L583-L585)). Lock groups come from input locks only, while type groups come from both input and output types ([`types.rs:642-666`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/types.rs#L642-L666)). `iCKB Logic` uses the same `{code_hash, Data1, empty_args}` for both roles, so a mixed transaction produces one lock group for deposit cells and one type group for receipt cells. Both read the same global cell set (`Source::Input` and `Source::Output`, not group-local sources) with the same checks. CKB requires [every script group to pass](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/verify.rs#L180-L197), so one run can't pass while the other fails (scenario 5B).
 
 ### xUDT Owner Mode
 
-In the deployed configuration only two `xUDT` owner-mode routes are live. Both also execute `iCKB Logic`, so owner mode stays within iCKB accounting.
+Only two `xUDT` owner-mode routes are live in the deployed configuration. Both also execute `iCKB Logic`, so owner mode stays within iCKB accounting.
 
 iCKB `xUDT` args are built as [`[ickb_logic_hash, XUDT_ARGS_FLAGS]`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/celltype.rs#L116-L126) with [`XUDT_ARGS_FLAGS = 0x80000000`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/constants.rs#L1-L2).
 
 The [owner-mode update](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0052-extensible-udt/0052-extensible-udt.md#owner-mode-update) of RFC 0052 has four triggers: matching `input lock`, matching `input type`, matching `output type` and a witness `owner_script` whose hash matches the owner hash in args.
 
-In the deployed configuration, the upstream [`xudt_rce.c` flag parsing](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L383-L458) enables `input lock` by default. It enables `input type` when `flags & 0x80000000` is non-zero, while it enables `output type` only when `flags & 0x40000000` is non-zero. It also [falls back to the witness `owner_script` path](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L645-L649).
+The upstream [`xudt_rce.c` flag parsing](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L383-L458) enables `input lock` by default, `input type` when `flags & 0x80000000` is non-zero, `output type` only when `flags & 0x40000000` is non-zero. It also [falls back to the witness `owner_script` path](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L645-L649).
 
 The witness `owner_script` path needs an exported [`validate` symbol](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L36-L36) loaded through [`ckb_dlsym`](https://github.com/nervosnetwork/ckb-production-scripts/blob/26b0b4f15bb6eeb268b70d7ae006e244b7c06649/c/xudt_rce.c#L91-L113). [`iCKB Logic`](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/main.rs#L23-L35) is instead built as a CKB entrypoint (`program_entry` through `ckb_std::entry!`), not as an xUDT `validate` extension. Under the deployed iCKB args `[ickb_logic_hash, 0x80000000]`, the live owner-mode paths are:
 
 - A receipt (input type = iCKB Logic): needed for phase 2 minting.
 - A deposit (input lock = iCKB Logic): fires during withdrawal.
 
-In both cases `iCKB Logic` runs too, as a type script for receipts or as a lock script for deposits. So `xUDT` can't enter owner mode without `iCKB Logic` also running.
-
 ### NervosDAO Interaction
 
 The [deposit phase 1 section of the iCKB whitepaper](https://github.com/ickb/whitepaper/blob/master/README.md#deposit-phase-1) pins `NervosDAO` to a [historical `dao.c`](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c). That version enforces the known [64-output-cell limit](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c#L565-L591) with an [`output_withdrawing_mask` bitset](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c#L445). iCKB inherits the limit as a platform constraint, but its own correctness doesn't depend on it.
 
-Key NervosDAO constraints, checked against the [`dao.c` the whitepaper pins](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c):
+Key constraints of that `dao.c`:
 
 - A withdrawal request must sit at the [same output index](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c#L518-L523) as the consumed deposit.
 - A withdrawal request must have [the same capacity as the deposit](https://github.com/nervosnetwork/ckb-system-scripts/blob/814eb82c44f560dbdad2be97eb85464062920237/c/dao.c#L356-L365).
@@ -98,29 +92,27 @@ Key NervosDAO constraints, checked against the [`dao.c` the whitepaper pins](htt
 
 ### Header Access
 
-Header access explains why iCKB uses a two-phase deposit flow. From [`script/src/syscalls/load_header.rs`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs):
+Header access is why deposits take two phases. From [`script/src/syscalls/load_header.rs`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs):
 
 - For `Source::Input`: it returns the header of the block holding the transaction that created the cell. That block hash must appear in [`header_deps`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs#L61-L66).
-- For `Source::Output`: it always returns `INDEX_OUT_OF_BOUND` ([`load_header.rs:79`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs#L79)). So deposits need two phases.
+- For `Source::Output`: it always returns `INDEX_OUT_OF_BOUND` ([`load_header.rs:79`](https://github.com/nervosnetwork/ckb/blob/2592ddf0502cd4adfe886db893cccc866db3c60f/script/src/syscalls/load_header.rs#L79)).
 
 ### Authorization Boundary
 
-Several candidate issues turn on the boundary between lock-script authorization and type-script accounting. With the [lock script](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#lock-script) / [type script](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#type-script) split, the user lock enforces ownership while `ickb_logic` enforces value conservation. Its [balance equation](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/entry.rs#L28-L34) and [cell classification](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/celltype.rs#L69-L81) never look at who receives the output `iCKB` or the phase-1 DAO claim.
+With the [lock script](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#lock-script) / [type script](https://github.com/nervosnetwork/rfcs/blob/4b502ffcb02fc7019e0dd4b5f866b5f09819cfbe/rfcs/0022-transaction-structure/0022-transaction-structure.md#type-script) split, the user lock enforces ownership while `ickb_logic` enforces value conservation. Its [balance equation](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/entry.rs#L28-L34) and [cell classification](https://github.com/ickb/contracts/blob/454cfa966052a621c4e8b67001718c29ee8191a2/scripts/contracts/ickb_logic/src/celltype.rs#L69-L81) never look at who receives the output `iCKB` or the phase-1 DAO claim.
 
-Under the [current assumption that user locks bind the whole transaction](https://github.com/ickb/whitepaper/blob/master/README.md#ancillary-scripts), that split is acceptable: the user signature commits to the full transaction. The deployment model of this review assumes current user-facing iCKB flows use strong transaction-binding locks. It doesn't treat delegated or adopted `OTX` flows as in-scope present-day integrations.
+Under the [current assumption that user locks bind the whole transaction](https://github.com/ickb/whitepaper/blob/master/README.md#ancillary-scripts), that split is acceptable: the user signature commits to the full transaction. This review assumes current user-facing iCKB flows use such locks. It doesn't treat delegated or adopted `OTX` flows as in-scope present-day integrations.
 
-This stays an integration assumption, not a full inventory of connector locks. The stack interface being prepared filters connectors by `SignerType.CKB`. It doesn't independently prove how each signer binds outputs. The public SDK also accepts signers or scripts from the caller. Any integration using a weaker lock inherits the reassignment behavior shown below.
+This stays an integration assumption, not a full inventory of connector locks. The stack interface being prepared filters connectors by `SignerType.CKB` without independently proving how each signer binds outputs. The public SDK also accepts signers or scripts from the caller. Any integration using a weaker lock inherits the reassignment behavior shown below.
 
-The weak-lock tests in this report don't replay a current wallet path. They model future or custom integrations (delegated, `OTX` or other integrations whose locks don't bind outputs), where recipient binding is an integration invariant, not a guarantee of the iCKB contracts.
+The weak-lock tests don't replay a current wallet path. They model future or custom integrations (delegated, `OTX` or others whose locks don't bind outputs), where recipient binding is an integration invariant, not a guarantee of the iCKB contracts. The executed regressions show why this stays a boundary case, not a current finding:
 
-Executed regressions show why that stays a boundary case, not a current finding:
-
-- **Weak-lock behavior:** recipient reassignment is possible in both `iCKB Logic` and `Owned Owner`. The [phase-2 weak-lock redirect test](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) and the [withdrawal weak-lock redirect test](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) show that path.
-- **Signed phase-2 minting:** once `sighash` binds the full transaction, phase-2 redirects stop working. The [phase-2 sighash binding test](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) and the [mixed phase-2 sighash binding test](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) show that binding.
-- **Signed withdrawals:** the same redirect fails for withdrawal outputs once `sighash` binds the transaction. The [withdrawal sighash binding test](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) and the [mixed withdrawal sighash binding test](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) show the same result.
+- **Weak locks:** recipients can be reassigned in both `iCKB Logic` and `Owned Owner` ([phase-2](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) and [withdrawal](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) weak-lock redirect tests).
+- **Signed phase-2 minting:** once `sighash` binds the full transaction, phase-2 redirects stop working ([phase-2](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) and [mixed phase-2](scripts/tests/src/tests/ickb_logic/phase2_recipient_binding.rs) sighash binding tests).
+- **Signed withdrawals:** the same redirect fails for withdrawal outputs once `sighash` binds the transaction ([withdrawal](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) and [mixed withdrawal](scripts/tests/src/tests/owned_owner/weak_lock_output_rebinding.rs) sighash binding tests).
 - **Witness binding:** the [input-group, noncontiguous input-group and full-witness signing tests](scripts/tests/src/tests/signing.rs) confirm the witness-binding model of the signed path.
 
-The same [ancillary scripts section](https://github.com/ickb/whitepaper/blob/master/README.md#ancillary-scripts) already warns that delegated and `OTX` ownership patterns have their own pitfalls. These tests use `secp256k1_blake160_sighash_all` as the representative lock that binds the whole transaction. The repository has no `QRL` fixture. So conclusions for other strong-lock deployments rest on the same binding property, not on a separate replay.
+The same [ancillary scripts section](https://github.com/ickb/whitepaper/blob/master/README.md#ancillary-scripts) already warns that delegated and `OTX` ownership patterns have their own pitfalls. The tests use `secp256k1_blake160_sighash_all` as the representative lock that binds the whole transaction. The repository has no `QRL` fixture, so conclusions for other strong-lock deployments rest on the same binding property, not on a separate replay.
 
 ## How the Deployed Bytes Were Tested
 
