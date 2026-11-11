@@ -20,7 +20,7 @@ Each holds whenever its owning script runs. The one live issue, the known `Limit
 
 - Receiptless deposits enter the pool without running `iCKB Logic`. The paths they open cost their user more than they return. No test shows theft, duplicated principal or a profit beyond assets the caller already controls.
 - The user lock binds recipients. The iCKB scripts don't. So integrations with locks that don't sign the whole transaction can have outputs redirected.
-- One transaction can outgrow the memory of a script: 382 limit orders at once in the tightest case. The same cells then move in smaller transactions.
+- One transaction can outgrow the memory of a script: 330 limit orders at once stop it in the worst order found. The same cells then move in smaller transactions.
 
 The evidence binds to the code on chain: a byte-exact rebuild gives back the deployed binaries from this source. Every accepted transaction in the suite (hand-written scenarios, a structured fuzzer, an exhaustive small-scope search) goes through the same transaction verifiers the node runs, plus an invariant oracle. Every committed mainnet and testnet transaction goes through the same checks, then runs again script by script. None breaks an invariant. Mutation testing measures how much a clean run proves. An instruction-level trace of the deployed binaries shows which machine code those runs execute, with tests for every remaining part that an input can reach and that could change a verdict. The compiled-in dependencies and the known defects of the compiler were checked against the same bytes. Liveness tests show that the most extreme reachable states stay spendable within one block. They also pin the size at which one transaction outgrows a script.
 
@@ -497,8 +497,8 @@ Separately, the type-role scan regression verifies a phase-2 conversion with 512
 
 Each script has 516 KB of heap and stops when it runs out. [The reach tests](scripts/tests/src/tests/fuzz/reach.rs) pin where that happens. Each limit bounds one transaction, never a cell: the same cells still move in smaller transactions.
 
-- **Orders per transaction:** how many orders `Limit Order` handles at once depends on the order in which it meets their masters. Sorted masters are the tightest case measured: 382 orders fit, whether minted, filled or melted. One more stops the script. Scattered masters fit more. At 382 the transaction stays under 34 million cycles and 165,000 bytes.
-- **Claims per transaction:** 500 claims in one transaction take 39 million cycles, within the 70 million a node accepts into its pool by default. 1,000 claims already take 86 million. `Owned Owner` itself holds 3,063 pairs before its heap runs out.
+- **Orders per transaction:** how many orders `Limit Order` handles at once depends on the order in which it meets their masters. In the worst order found, 329 orders fit, filled or melted. One more stops the script. Sorted masters fit 382, whether minted, filled or melted. Scattered ones fit more. At 382 the transaction stays under 34 million cycles and 165,000 bytes.
+- **Claims per transaction:** 500 claims in one transaction take 39 million cycles, within the 70 million a node accepts into its pool by default. 1,000 claims already take 86 million. `Owned Owner` itself holds 2,627 pairs before its heap runs out in the worst order found, 3,063 in ascending order.
 - **Deposits and receipts:** `iCKB Logic` keeps a small map entry per distinct amount. About a block full of receipts, 3,870 of distinct amounts, still fits its heap.
 - **Long output locks:** every script reads each output lock into one heap block. A lock script of up to 256 KiB is read. A longer one stops whichever iCKB script runs. No wallet lock comes near that size.
 

@@ -80,11 +80,25 @@ fn mint(env: &Env, n: u32) -> TxSpec {
     funded(env, [], orders.chain((0..n).map(|_| env.master())))
 }
 
-/// `n` orders filled in full, each paid `PRICE`.
-fn fill(env: &Env, n: u32) -> TxSpec {
-    let orders = (0..n).map(|k| In::new(order(env, ORDER_CKB, 0, &master_at(k))));
-    let payment = In::new(env.udt(PRICE * u128::from(n)));
-    funded(env, orders.chain([payment]), (0..n).map(|k| order(env, 0, PRICE, &master_at(k))))
+/// The orders of these keys filled in full, each paid `PRICE`.
+fn fill(env: &Env, keys: impl IntoIterator<Item = u32>) -> TxSpec {
+    let keys: Vec<u32> = keys.into_iter().collect();
+    let orders = keys.iter().map(|&k| In::new(order(env, ORDER_CKB, 0, &master_at(k))));
+    let payment = In::new(env.udt(PRICE * keys.len() as u128));
+    funded(env, orders.chain([payment]), keys.iter().map(|&k| order(env, 0, PRICE, &master_at(k))))
+}
+
+/// Keys in the worst order found for a map: six, then blocks of six from the top down. Each block
+/// leaves a node behind at its five-entry minimum, so the nodes run out soonest.
+fn worst_order(n: u32) -> Vec<u32> {
+    let mut keys: Vec<u32> = (0..n.min(6)).collect();
+    let mut top = n;
+    while top > 6 {
+        let bottom = top.saturating_sub(6).max(6);
+        keys.extend(bottom..top);
+        top = bottom;
+    }
+    keys
 }
 
 /// The orders of these keys, each melted with its master.
@@ -191,11 +205,11 @@ fn many_orders_mint_fill_and_melt_in_one_transaction() {
     let env = Env::new(&mut context);
     let n = 150;
     commit(&mut context, mint(&env, n));
-    commit(&mut context, fill(&env, n));
+    commit(&mut context, fill(&env, 0..n));
     commit(&mut context, melt(&env, 0..n));
 
     for k in [0, 11, 12, 77, n - 1] {
-        let mut underpaid = fill(&env, n);
+        let mut underpaid = fill(&env, 0..n);
         // The taker keeps one unit of what this order is due.
         underpaid.outputs[k as usize] = Out::from(order(&env, 0, PRICE - 1, &master_at(k)));
         underpaid.outputs.push(Out::from(env.udt(1)));
@@ -567,19 +581,26 @@ fn conversion_division_is_exact_on_every_branch() {
 /// The default node limit on the cycles of a transaction it takes into its pool.
 const POOL_CYCLES: u64 = 70_000_000;
 
-// `Limit Order` keeps about 8 KB per map node and has 516 KB of heap. Masters met in sorted order
-// leave its map nodes half empty. With 383 sorted orders the heap runs out and the script stops.
-// That bounds a batch, not an order: each order still mints, fills and melts in a smaller
-// transaction. 382 stay far below the block size and the pool cycles. Scattered masters fit more.
+// `Limit Order` keeps about 8 KB per map node and has 516 KB of heap, so how many orders fit one
+// transaction depends on the order the script meets their masters. In the worst order found 329
+// orders fit, 330 stop the script. Sorted masters fit 382, scattered ones more. That bounds a
+// batch, not an order: each order still mints, fills and melts in a smaller transaction. 329 stay
+// far below the block size and the pool cycles.
 #[test]
-fn sorted_orders_fit_one_transaction_up_to_382() {
+fn orders_fit_one_transaction_up_to_329_in_the_worst_order_found() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
-    let n = 382;
-    for spec in [mint(&env, n), fill(&env, n), melt(&env, 0..n)] {
+    for spec in [fill(&env, worst_order(329)), melt(&env, worst_order(329))] {
         assert!(commit(&mut context, spec) < POOL_CYCLES);
     }
-    for spec in [mint(&env, n + 1), fill(&env, n + 1), melt(&env, 0..n + 1)] {
+    for spec in [fill(&env, worst_order(330)), melt(&env, worst_order(330))] {
+        refuse(&mut context, spec, ERROR_SCRIPT_PANIC);
+    }
+    let n = 382;
+    for spec in [mint(&env, n), fill(&env, 0..n), melt(&env, 0..n)] {
+        assert!(commit(&mut context, spec) < POOL_CYCLES);
+    }
+    for spec in [mint(&env, n + 1), fill(&env, 0..n + 1), melt(&env, 0..n + 1)] {
         refuse(&mut context, spec, ERROR_SCRIPT_PANIC);
     }
     let [_, _, scattered] = orders(400);
@@ -597,16 +618,19 @@ fn five_hundred_claims_fit_the_pool_cycle_limit() {
     assert!(commit(&mut context, claim(&env, &keys)) < POOL_CYCLES);
 }
 
-// `Owned Owner` runs out of heap too, far past any claim a node relays: owner cells pointing at
-// 3,064 different places stop the script, where 3,063 get the pairing error they deserve. Both
-// refuse the transaction.
+// `Owned Owner` runs out of heap too, far past any claim a node relays. Owner cells pointing at
+// 2,628 places in the worst order found stop the script, where 2,627 get the pairing error they
+// deserve; in ascending order the step sits at 3,064. Both outcomes refuse the transaction.
 #[test]
-fn owned_owner_holds_3063_pairing_keys() {
+fn owned_owner_holds_2627_pairing_keys_in_the_worst_order_found() {
     let mut context = Context::default();
     let env = Env::new(&mut context);
-    let owners = |count: i32| funded(&env, [], (0..count).map(|k| env.owner(10_000 + k)));
-    refuse(&mut context, owners(3_063), ERROR_OWNED_OWNER_MISMATCH);
-    refuse(&mut context, owners(3_064), ERROR_SCRIPT_PANIC);
+    // The owner at output `i` points `distance` outputs further, so it pairs with key `i + distance`.
+    let owners = |keys: Vec<u32>| funded(&env, [], keys.into_iter().enumerate().map(|(i, k)| env.owner(10_000 + k as i32 - i as i32)));
+    refuse(&mut context, owners(worst_order(2_627)), ERROR_OWNED_OWNER_MISMATCH);
+    refuse(&mut context, owners(worst_order(2_628)), ERROR_SCRIPT_PANIC);
+    refuse(&mut context, owners((0..3_063).collect()), ERROR_OWNED_OWNER_MISMATCH);
+    refuse(&mut context, owners((0..3_064).collect()), ERROR_SCRIPT_PANIC);
 }
 
 // `iCKB Logic` keeps one small map entry per distinct amount, so its heap outlasts the block
