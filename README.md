@@ -1,15 +1,35 @@
-# iCKB/Contracts
+# iCKB Contracts
 
-This repository contains the iCKB Nervos L1 scripts.
+NervosDAO deposits, liquid at last!! The NervosDAO protects CKB from inflation, but each deposit stays locked in cycles of about 30 days. iCKB makes them liquid: deposit CKB, get iCKB, then trade it or hold it while it keeps the NervosDAO protection. When it's time to leave, burn iCKB to withdraw from any mature deposit in the shared pool.
 
-## Audit
+Try it now at [ickb.org](https://ickb.org), live on mainnet / testnet!! The [whitepaper](https://github.com/ickb/whitepaper/blob/master/README.md) tells the whole story.
 
-These L1 Scripts have been both internally reviewed by individuals with deep experience in Nervos L1 and [externally audited by the Scalebit team](https://scalebit.xyz/reports/20240911-ICKB-Final-Audit-Report.pdf), an internationally recognized blockchain security team.
+## The Scripts
 
-For convenience, a local copy of the Scalebit report is also available in this repository at [`20240911-ICKB-Final-Audit-Report.pdf`](./20240911-ICKB-Final-Audit-Report.pdf).
+Three Nervos L1 scripts make it all work:
 
-This repository also includes a later local executable review of the deployed release binaries in [`ICKB-Audit-Report.md`](./ICKB-Audit-Report.md).
+- **iCKB Logic:** mints / burns iCKB against the pool deposits, so no iCKB exists without the deposits behind it.
+- **Owned Owner:** pairs each withdrawal request with its owner, so users can claim their NervosDAO withdrawals.
+- **Limit Order:** lets anyone swap CKB with tokens like iCKB through orders, without dealing with NervosDAO rules.
+
+## Security
+
+No admin keys, no upgrades: transactions point at the exact code of these scripts. Their code cells sit under a lock nobody can spend, so nobody can change them, not even their author. That's why they got checked from three sides:
+
+- **Internal review:** people with deep experience in Nervos L1 went through them first, catching most of the issues.
+- **External audit:** [Scalebit](https://scalebit.xyz/reports/20240911-ICKB-Final-Audit-Report.pdf) audited them in 2024 (a [local copy](./20240911-ICKB-Final-Audit-Report.pdf) lives here too).
+- **Executable review:** [the security review](./ICKB-Audit-Report.md) tests the exact binaries on chain. Fuzzing, exhaustive search, a replay of every iCKB transaction on mainnet / testnet up to the blocks the review names: not a single accepted transaction broke a protocol invariant!! Every part of the machine code that an input can reach and that could change a verdict ran under test.
+
+One known issue stays live: anyone can create fake limit orders, which can trick an owner into melting the wrong one. [The review](./ICKB-Audit-Report.md#limits-lo-01) explains it, along with how the iCKB stack picks the real order among them.
+
+Found something else that looks wrong? Please report it in private, as [SECURITY.md](./SECURITY.md) explains.
+
+## Build / Test
+
+[`scripts/README.md`](./scripts/README.md) shows how to rebuild the deployed binaries byte for byte. [`scripts/tests/README.md`](./scripts/tests/README.md) shows how to run the tests. [`scripts/deployment`](./scripts/deployment) holds the deployment of each network.
+
+Building on iCKB? The [iCKB stack](https://github.com/ickb/stack) has the SDK, the liquidity bot and the app behind ickb.org.
 
 ## Licensing
 
-This source code, crafted with care by [Phroi](https://phroi.com/), is freely available on [GitHub](https://github.com/ickb/contracts) and it is released under the [MIT License](./LICENSE).
+This source code, crafted with care by [Phroi](https://phroi.com/), is freely available on [GitHub](https://github.com/ickb/contracts) and it's released under the [MIT License](./LICENSE).
